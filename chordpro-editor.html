@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChordPro Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #141418;
+    --surface:      #1c1c22;
+    --surface2:     #242430;
+    --border:       #2e2e3a;
+    --accent:       #e8b84b;
+    --accent2:      #c45c3a;
+    --text:         #e8e8f0;
+    --text-dim:     #7a7a90;
+    --text-faint:   #3a3a50;
+    --paper:        #faf8f4;
+    --paper-rule:   #ede9e1;
+    --ink:          #1a1a22;
+    --ink-dim:      #5a5a6a;
+    --chord-color:  #1a3a8a;
+    --section-ink:  #1a1a22;
+    --divider:      #c8c0b0;
+    --editor-w:     46%;
+    --header-h:     48px;
+    --gutter:       12px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    overflow: hidden;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────────────────────── */
+  header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    letter-spacing: 0.04em;
+  }
+  .logo-chord {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .logo-pro {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    padding: 7px 16px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--text-dim); }
+  .btn-primary {
+    background: var(--accent);
+    color: #1a1400;
+  }
+  .btn-primary:hover { background: #f0c860; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .key-badge {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .key-badge span {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 40px;
+    text-align: center;
+  }
+
+  /* ─── SPLIT PANES ────────────────────────────────────────────────── */
+  .workspace {
+    display: flex;
+    height: calc(100vh - var(--header-h));
+    overflow: hidden;
+  }
+
+  /* ─── LEFT: EDITOR ────────────────────────────────────────────────── */
+  .editor-pane {
+    width: var(--editor-w);
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+
+  .pane-header {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .pane-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+  .pane-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 2px;
+  }
+
+  .editor-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Line numbers */
+  .line-numbers {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 40px;
+    padding: 16px 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .line-number {
+    height: 21px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    line-height: 1;
+  }
+
+  #editor {
+    position: absolute;
+    inset: 0;
+    left: 40px;
+    padding: 16px 16px 16px 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 21px;
+    border: none;
+    outline: none;
+    resize: none;
+    white-space: pre;
+    overflow: auto;
+    tab-size: 2;
+    caret-color: var(--accent);
+  }
+  #editor::selection { background: rgba(232, 184, 75, 0.2); }
+
+  /* Scrollbar */
+  #editor::-webkit-scrollbar { width: 6px; height: 6px; }
+  #editor::-webkit-scrollbar-track { background: transparent; }
+  #editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .editor-status {
+    height: 26px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .status-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+  }
+  .status-item b { color: var(--text-dim); font-weight: 400; }
+
+  /* ─── DRAG HANDLE ────────────────────────────────────────────────── */
+  .drag-handle {
+    width: 5px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+    z-index: 5;
+  }
+  .drag-handle:hover, .drag-handle.dragging { background: var(--accent); }
+
+  /* ─── RIGHT: PREVIEW ──────────────────────────────────────────────── */
+  .preview-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #2a2a36;
+    overflow: hidden;
+  }
+
+  .preview-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .preview-scroll::-webkit-scrollbar { width: 8px; }
+  .preview-scroll::-webkit-scrollbar-track { background: transparent; }
+  .preview-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ─── PAPER SHEET ─────────────────────────────────────────────────── */
+  .paper {
+    background: var(--paper);
+    width: 100%;
+    max-width: 620px;
+    min-height: 877px; /* A4 aspect ratio approx */
+    padding: 48px 52px 52px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3);
+    position: relative;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    color: var(--ink);
+  }
+
+  /* ─── SONG WITHIN PAPER ──────────────────────────────────────────── */
+  .song + .song {
+    margin-top: 48px;
+    padding-top: 40px;
+    border-top: 2px solid var(--divider);
+  }
+
+  .song-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+  .song-artist {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-dim);
+    letter-spacing: 0.02em;
+    margin-bottom: 1px;
+  }
+  .song-meta {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+  }
+  .song-divider {
+    height: 1px;
+    background: var(--divider);
+    margin-bottom: 16px;
+  }
+
+  /* ─── SECTIONS ────────────────────────────────────────────────────── */
+  .section {
+    margin-bottom: 14px;
+  }
+  .section-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--section-ink);
+    margin-bottom: 5px;
+  }
+
+  /* ─── CHORD+LYRIC LINE ────────────────────────────────────────────── */
+  .chord-line {
+    display: block;
+    line-height: 1;
+    margin-bottom: 2px;
+    position: relative;
+  }
+
+  /* Each "token" is a chord+syllable pair */
+  .cl-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    line-height: 1;
+    margin-bottom: 1px;
+  }
+
+  .token {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .token-chord {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--chord-color);
+    letter-spacing: 0.02em;
+    line-height: 1;
+    margin-bottom: 1px;
+    white-space: nowrap;
+    min-width: 4px;
+  }
+
+  .token-lyric {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-size: 11.5px;
+    color: var(--ink);
+    line-height: 1;
+    white-space: pre;
+  }
+
+  .lyric-only {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-size: 11.5px;
+    color: var(--ink);
+    line-height: 1.6;
+    display: block;
+  }
+
+  /* ─── CCLI footer ─────────────────────────────────────────────────── */
+  .song-footer {
+    margin-top: 24px;
+    padding-top: 8px;
+    border-top: 1.5px solid var(--divider);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Barlow Condensed', sans-serif;
+    gap: 8px;
+  }
+  .song-footer-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #888;
+    flex: 1;
+  }
+  .song-footer-chips {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .song-footer-chip {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #666;
+    border: 1px solid #d0c8be;
+    border-radius: 3px;
+    padding: 2px 7px;
+    background: #f3f0eb;
+  }
+  .song-footer-chip span {
+    color: #1a3a8a;
+    font-weight: 700;
+  }
+
+  /* ─── EMPTY STATE ─────────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 40px;
+  }
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+  }
+  .empty-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-dim);
+    margin-bottom: 8px;
+  }
+  .empty-hint {
+    font-size: 12px;
+    color: #bbb;
+    line-height: 1.6;
+  }
+  .empty-hint code {
+    background: #eee;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ─── SYNTAX HIGHLIGHT OVERLAY (editor) ──────────────────────────── */
+  /* We use a subtle background tint for directive lines via JS class changes */
+
+  /* ─── TRANSITIONS ─────────────────────────────────────────────────── */
+  .paper { transition: box-shadow 0.2s; }
+
+  /* ─── PRINT ───────────────────────────────────────────────────────── */
+  @media print {
+    body * { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-chord">ChordPro</span>
+    <span class="logo-pro">Editor</span>
+  </div>
+
+  <div class="key-badge">
+    Key <span id="key-display">—</span>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn btn-ghost" onclick="loadExample()">Load Example</button>
+    <button class="btn btn-ghost" onclick="clearEditor()">Clear</button>
+    <button class="btn btn-primary" onclick="printSongs()">⎙ Print / PDF</button>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- LEFT: Editor -->
+  <div class="editor-pane" id="editorPane">
+    <div class="pane-header">
+      <div class="pane-dot"></div>
+      <span class="pane-label">ChordPro Input</span>
+    </div>
+    <div class="editor-wrap">
+      <div class="line-numbers" id="lineNumbers"></div>
+      <textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+        placeholder="Paste or type ChordPro here...&#10;&#10;{title: My Song}&#10;{artist: Artist Name}&#10;{key: G}&#10;&#10;{start_of_verse: Verse 1}&#10;[G]Amazing [D]grace how [Em]sweet the [C]sound&#10;{end_of_verse}"></textarea>
+    </div>
+    <div class="editor-status">
+      <span class="status-item"><b id="stat-lines">0</b> lines</span>
+      <span class="status-item"><b id="stat-sections">0</b> sections</span>
+      <span class="status-item"><b id="stat-chords">0</b> chords</span>
+    </div>
+  </div>
+
+  <!-- DRAG HANDLE -->
+  <div class="drag-handle" id="dragHandle"></div>
+
+  <!-- RIGHT: Preview -->
+  <div class="preview-pane">
+    <div class="pane-header">
+      <div class="pane-dot" style="background:#6a9e5a"></div>
+      <span class="pane-label">Preview</span>
+    </div>
+    <div class="preview-scroll">
+      <div class="paper" id="paper">
+        <div class="empty-state">
+          <div class="empty-icon">♩</div>
+          <div class="empty-title">Start typing to preview</div>
+          <div class="empty-hint">
+            Use <code>[C]</code> <code>[Am]</code> inline for chords<br>
+            Use <code>{title: Song Name}</code> for metadata<br>
+            Use <code>{start_of_verse}</code> for sections
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── ChordPro Parser ────────────────────────────────────────────────────────
+
+function parseChordPro(text) {
+  const song = {
+    title: '', artist: '', key: '', tempo: '', time: '',
+    ccli: '', copyright: '',
+    sections: []
+  };
+
+  let currentSection = { label: '', lines: [] };
+  let verseN = 0, chorusN = 0;
+
+  const flush = () => {
+    if (currentSection.lines.length > 0)
+      song.sections.push(currentSection);
+    currentSection = { label: '', lines: [] };
+  };
+
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trimEnd();
+
+    // Directives
+    const dir = line.match(/^\{([^:}]+)(?::(.+))?\}$/);
+    if (dir) {
+      const k = dir[1].trim().toLowerCase();
+      const v = (dir[2] || '').trim();
+      if      (/^(title|t)$/.test(k))                    song.title     = v;
+      else if (/^(artist|composer|a)$/.test(k))           song.artist    = v;
+      else if (k === 'key')                               song.key       = v;
+      else if (/^(tempo|bpm)$/.test(k))                   song.tempo     = v;
+      else if (/^(time|time_sig)$/.test(k))               song.time      = v;
+      else if (k === 'ccli')                              song.ccli      = v;
+      else if (/^(copyright|footer)$/.test(k))            song.copyright = v;
+      else if (/^(start_of_verse|sov)$/.test(k))          { flush(); verseN++;  currentSection.label = v ? v.toUpperCase() : `VERSE ${verseN}`; }
+      else if (/^(start_of_chorus|soc)$/.test(k))         { flush(); chorusN++; currentSection.label = v ? v.toUpperCase() : (chorusN > 1 ? `CHORUS ${chorusN}` : 'CHORUS'); }
+      else if (/^(start_of_bridge|sob)$/.test(k))         { flush(); currentSection.label = v ? v.toUpperCase() : 'BRIDGE'; }
+      else if (/^(start_of_tab|sot)$/.test(k))            { flush(); currentSection.label = v ? v.toUpperCase() : 'TAB'; }
+      else if (/^(end_of_|eo[vcbt])/.test(k))             { flush(); }
+      else if (/^(comment|c|comment_italic|ci)$/.test(k)) { flush(); currentSection.label = v.toUpperCase(); }
+      continue;
+    }
+
+    // Blank line = section break
+    if (!line.trim()) { flush(); continue; }
+
+    currentSection.lines.push(parseChordLine(line));
+  }
+
+  flush();
+  return song;
+}
+
+function parseChordLine(raw) {
+  // Returns { tokens: [{chord, lyric}], rawLyric }
+  // We split into tokens: each token has an optional chord and the lyric text that follows
+  const tokens = [];
+  let i = 0;
+  let currentChord = null;
+  let currentLyric = '';
+
+  while (i < raw.length) {
+    const m = raw.slice(i).match(/^\[([^\]]*)\]/);
+    if (m) {
+      // Flush current token
+      if (currentChord !== null || currentLyric !== '') {
+        tokens.push({ chord: currentChord, lyric: currentLyric });
+      }
+      currentChord = m[1];
+      currentLyric = '';
+      i += m[0].length;
+    } else {
+      currentLyric += raw[i];
+      i++;
+    }
+  }
+
+  // Flush last
+  if (currentChord !== null || currentLyric !== '') {
+    tokens.push({ chord: currentChord, lyric: currentLyric });
+  }
+
+  const rawLyric = tokens.map(t => t.lyric).join('');
+  const hasChords = tokens.some(t => t.chord !== null);
+  return { tokens, rawLyric, hasChords };
+}
+
+// ─── Renderer ───────────────────────────────────────────────────────────────
+
+function renderSong(song) {
+  const div = document.createElement('div');
+  div.className = 'song';
+
+  // Header
+  if (song.title) {
+    const h = document.createElement('div');
+    h.className = 'song-title';
+    h.textContent = song.title;
+    div.appendChild(h);
+  }
+  if (song.artist) {
+    const a = document.createElement('div');
+    a.className = 'song-artist';
+    a.textContent = song.artist;
+    div.appendChild(a);
+  }
+  const metaParts = [];
+  if (song.key)   metaParts.push(`Key - ${song.key}`);
+  if (song.tempo) metaParts.push(`Tempo - ${song.tempo}`);
+  if (song.time)  metaParts.push(`Time - ${song.time}`);
+  if (metaParts.length) {
+    const m = document.createElement('div');
+    m.className = 'song-meta';
+    m.textContent = metaParts.join(' | ');
+    div.appendChild(m);
+  }
+
+  if (song.title || song.artist || metaParts.length) {
+    const d = document.createElement('div');
+    d.className = 'song-divider';
+    div.appendChild(d);
+  }
+
+  // Sections
+  for (const section of song.sections) {
+    const secEl = document.createElement('div');
+    secEl.className = 'section';
+
+    if (section.label) {
+      const lbl = document.createElement('div');
+      lbl.className = 'section-label';
+      lbl.textContent = section.label;
+      secEl.appendChild(lbl);
+    }
+
+    for (const line of section.lines) {
+      secEl.appendChild(renderLine(line));
+    }
+
+    div.appendChild(secEl);
+  }
+
+  // Musician footer
+  const footer = document.createElement('div');
+  footer.className = 'song-footer';
+
+  const ftitle = document.createElement('div');
+  ftitle.className = 'song-footer-title';
+  ftitle.textContent = song.title || '';
+  footer.appendChild(ftitle);
+
+  const chips = document.createElement('div');
+  chips.className = 'song-footer-chips';
+
+  const chipData = [];
+  if (song.key)   chipData.push(['KEY', song.key]);
+  if (song.tempo) chipData.push(['BPM', song.tempo]);
+  if (song.time)  chipData.push(['TIME', song.time]);
+
+  chipData.forEach(([label, value]) => {
+    const chip = document.createElement('div');
+    chip.className = 'song-footer-chip';
+    chip.innerHTML = `${label} <span>${value}</span>`;
+    chips.appendChild(chip);
+  });
+
+  footer.appendChild(chips);
+  div.appendChild(footer);
+
+  return div;
+}
+
+function renderLine(line) {
+  if (!line.hasChords) {
+    // Pure lyric line
+    const el = document.createElement('span');
+    el.className = 'lyric-only';
+    el.textContent = line.rawLyric;
+    return el;
+  }
+
+  // Mixed chord+lyric line
+  const row = document.createElement('div');
+  row.className = 'cl-row';
+
+  for (const token of line.tokens) {
+    const tok = document.createElement('span');
+    tok.className = 'token';
+
+    const chordEl = document.createElement('span');
+    chordEl.className = 'token-chord';
+    chordEl.textContent = token.chord || '';
+    tok.appendChild(chordEl);
+
+    const lyricEl = document.createElement('span');
+    lyricEl.className = 'token-lyric';
+    // Preserve spaces — replace trailing space with nbsp so flex doesn't collapse it
+    lyricEl.textContent = token.lyric || (token.chord ? ' ' : '');
+    tok.appendChild(lyricEl);
+
+    row.appendChild(tok);
+  }
+
+  return row;
+}
+
+// ─── Live update ─────────────────────────────────────────────────────────────
+
+let renderTimeout = null;
+
+function updatePreview() {
+  const text = document.getElementById('editor').value;
+  const paper = document.getElementById('paper');
+
+  if (!text.trim()) {
+    paper.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">♩</div>
+        <div class="empty-title">Start typing to preview</div>
+        <div class="empty-hint">
+          Use <code>[C]</code> <code>[Am]</code> inline for chords<br>
+          Use <code>{title: Song Name}</code> for metadata<br>
+          Use <code>{start_of_verse}</code> for sections
+        </div>
+      </div>`;
+    updateStats(null);
+    document.getElementById('key-display').textContent = '—';
+    return;
+  }
+
+  // Support multiple songs separated by --- or ===
+  const songTexts = text.split(/\n(?:---+|===+)\n/);
+  const songs = songTexts.map(parseChordPro);
+
+  paper.innerHTML = '';
+  for (const song of songs) {
+    paper.appendChild(renderSong(song));
+  }
+
+  // Update key badge (first song's key)
+  document.getElementById('key-display').textContent = songs[0].key || '—';
+
+  updateStats(songs, text);
+}
+
+function updateStats(songs, text) {
+  const lines = text ? text.split('\n').length : 0;
+  let sections = 0, chords = 0;
+
+  if (songs) {
+    for (const s of songs) {
+      sections += s.sections.length;
+      for (const sec of s.sections) {
+        for (const line of sec.lines) {
+          chords += line.tokens.filter(t => t.chord).length;
+        }
+      }
+    }
+  }
+
+  document.getElementById('stat-lines').textContent = lines;
+  document.getElementById('stat-sections').textContent = sections;
+  document.getElementById('stat-chords').textContent = chords;
+}
+
+// ─── Line numbers ─────────────────────────────────────────────────────────────
+
+function updateLineNumbers() {
+  const editor = document.getElementById('editor');
+  const container = document.getElementById('lineNumbers');
+  const lineCount = editor.value.split('\n').length;
+  const current = container.children.length;
+
+  if (lineCount > current) {
+    for (let i = current + 1; i <= lineCount; i++) {
+      const el = document.createElement('div');
+      el.className = 'line-number';
+      el.textContent = i;
+      container.appendChild(el);
+    }
+  } else if (lineCount < current) {
+    while (container.children.length > lineCount)
+      container.removeChild(container.lastChild);
+  }
+
+  // Sync scroll
+  container.scrollTop = editor.scrollTop;
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+const editor = document.getElementById('editor');
+
+editor.addEventListener('input', () => {
+  updateLineNumbers();
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(updatePreview, 120);
+});
+
+editor.addEventListener('scroll', () => {
+  document.getElementById('lineNumbers').scrollTop = editor.scrollTop;
+});
+
+// Tab key → insert 2 spaces
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    editor.value = editor.value.slice(0, start) + '  ' + editor.value.slice(end);
+    editor.selectionStart = editor.selectionEnd = start + 2;
+    editor.dispatchEvent(new Event('input'));
+  }
+});
+
+// ─── Drag to resize ──────────────────────────────────────────────────────────
+
+const handle = document.getElementById('dragHandle');
+const editorPane = document.getElementById('editorPane');
+let dragging = false;
+
+handle.addEventListener('mousedown', e => {
+  dragging = true;
+  handle.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const workspace = document.querySelector('.workspace');
+  const rect = workspace.getBoundingClientRect();
+  const pct = ((e.clientX - rect.left) / rect.width) * 100;
+  const clamped = Math.min(Math.max(pct, 20), 75);
+  editorPane.style.width = clamped + '%';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  handle.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ─── Load example ─────────────────────────────────────────────────────────────
+
+function loadExample() {
+  const example = `{title: Knockin' on Heaven's Door}
+{artist: Bob Dylan}
+{key: G}
+{tempo: 72}
+{time: 4/4}
+
+{start_of_verse: Verse 1}
+[G]Mama take this [D]badge from me
+I can't [Am]use it anymore
+[G]It's getting [D]dark too dark to see
+I feel I'm [Am]knockin' on heaven's [G]door
+{end_of_verse}
+
+{start_of_chorus: Chorus}
+[G]Knock knock knockin' on [D]heaven's door
+[G]Knock knock knockin' on [D]heaven's [Am]door
+[G]Knock knock knockin' on [D]heaven's door
+[G]Knock knock knockin' on [D]heaven's [Am]door
+{end_of_chorus}
+
+{start_of_verse: Verse 2}
+[G]Mama put my [D]guns in the ground
+I can't [Am]shoot them anymore
+[G]That long black [D]cloud is comin' down
+I feel I'm [Am]knockin' on heaven's [G]door
+{end_of_verse}
+
+---
+
+{title: Wish You Were Here}
+{artist: Pink Floyd}
+{key: G}
+{tempo: 60}
+{time: 4/4}
+
+{start_of_verse: Intro / Verse}
+[Em]So, so you think you can [G]tell
+[Em]Heaven from hell, [G]blue skies from pain
+[Em]Can you tell a green [G]field
+From a [C]cold steel rail? A [D]smile from a veil?
+Do you think you can [Em]tell?
+{end_of_verse}
+
+{start_of_verse: Verse 2}
+[Em]Did they get you to trade your [G]heroes for ghosts?
+[Em]Hot ashes for trees? [G]Hot air for a cool breeze?
+[Em]Cold comfort for [G]change?
+And did you ex[C]change a walk-on part in the [D]war
+For a lead role in a [Em]cage?
+{end_of_verse}
+
+{start_of_chorus: Chorus}
+[C]How I wish, how I wish you were [G]here
+We're just [D]two lost souls swimming in a fish[Am]bowl
+Year after [G]year
+Running over the [D]same old ground
+What have we [Am]found?
+The same old [G]fears
+Wish you were [C]here
+{end_of_chorus}
+
+---
+
+{title: Brown Eyed Girl}
+{artist: Van Morrison}
+{key: G}
+{tempo: 146}
+{time: 4/4}
+
+{start_of_verse: Verse 1}
+[G]Hey where did we go [C]days when the rains [G]came
+[D]Down in the hollow [G]playing a new [C]game
+[G]Laughing and a running hey hey [C]skipping and a jumping
+[G]In the misty morning fog with [D]our hearts a thumping and you
+[G]My brown eyed [C]girl [G]you my [D]brown eyed girl
+{end_of_verse}
+
+{start_of_chorus: Chorus}
+[G]Do you remember when [C]we used to sing
+[G]Sha la la la la la la la [D]la la la te da
+[G]Sha la la la la la la la [D]la la la te [G]da
+{end_of_chorus}
+
+{start_of_verse: Verse 2}
+[G]Whatever happened [C]to Tuesday and so [G]slow
+[D]Going down the old mine with a [G]transistor ra[C]dio
+[G]Standing in the sunlight laughing [C]hiding behind a rainbow's wall
+[G]Slipping and a sliding [D]all along the waterfall with you
+[G]My brown eyed [C]girl [G]you my [D]brown eyed girl
+{end_of_verse}`;
+
+  editor.value = example;
+  editor.dispatchEvent(new Event('input'));
+}
+
+function clearEditor() {
+  if (editor.value && !confirm('Clear the editor?')) return;
+  editor.value = '';
+  editor.dispatchEvent(new Event('input'));
+  editor.focus();
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+updateLineNumbers();
+
+// ─── Print ────────────────────────────────────────────────────────────────────
+
+function printSongs() {
+  const paper = document.getElementById('paper');
+  const songs = paper.querySelectorAll('.song');
+  if (!songs.length) return;
+
+  const songPages = Array.from(songs).map(song => {
+    const clone = song.cloneNode(true);
+    clone.style.cssText = '';
+    return `<div class="song-page">${clone.innerHTML}</div>`;
+  }).join('\n');
+
+  const printCSS = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @page { size: A4; margin: 0; }
+
+    body {
+      background: white;
+      font-family: 'Libre Baskerville', Georgia, serif;
+      color: #1a1a22;
+    }
+
+    .song-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 18mm 20mm 16mm;
+      page-break-after: always;
+      break-after: page;
+      position: relative;
+    }
+    .song-page:last-child {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .song-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: #1a1a22; margin-bottom: 2px; }
+    .song-artist { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; color: #5a5a6a; margin-bottom: 1px; }
+    .song-meta { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; color: #1a1a22; margin-bottom: 10px; }
+    .song-divider { height: 1px; background: #c8c0b0; margin-bottom: 16px; }
+
+    .section { margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
+    .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; }
+
+    .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; }
+    .token { display: inline-flex; flex-direction: column; align-items: flex-start; }
+    .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
+    .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1; white-space: pre; }
+    .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1.6; display: block; }
+
+    .song-footer { margin-top: 24px; padding-top: 8px; border-top: 1.5px solid #c8c0b0; display: flex; align-items: center; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; gap: 8px; }
+    .song-footer-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #888; flex: 1; }
+    .song-footer-chips { display: flex; gap: 6px; }
+    .song-footer-chip { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #666; border: 1px solid #d0c8be; border-radius: 3px; padding: 2px 7px; background: #f3f0eb; }
+    .song-footer-chip span { color: #1a3a8a; font-weight: 700; }
+  `;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>${printCSS}</style>
+</head>
+<body>${songPages}</body>
+</html>`;
+
+  // Remove any existing iframe
+  const existing = document.getElementById('print-frame');
+  if (existing) existing.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-frame';
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+
+  // Wait for fonts + layout, then print
+  iframe.contentWindow.document.fonts.ready.then(() => {
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 300);
+  });
+}
+
+
+</script>
+</body>
+</html>
