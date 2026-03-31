@@ -321,6 +321,24 @@
     margin-bottom: 16px;
   }
 
+  .song-subtitle {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--ink-dim);
+    letter-spacing: 0.01em;
+    margin-bottom: 2px;
+  }
+  .song-album {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ink-dim);
+    letter-spacing: 0.03em;
+    margin-bottom: 2px;
+  }
+
   /* ─── SECTIONS ────────────────────────────────────────────────────── */
   .section {
     margin-bottom: 14px;
@@ -333,6 +351,22 @@
     letter-spacing: 0.12em;
     color: var(--section-ink);
     margin-bottom: 5px;
+  }
+  /* Repeated chorus — slightly dimmed */
+  .section-repeat > .section-label-repeat {
+    opacity: 0.55;
+  }
+  .section-repeat {
+    opacity: 0.8;
+  }
+  /* Tab section — monospace font */
+  .tab-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ink);
+    line-height: 1.7;
+    display: block;
+    white-space: pre;
   }
 
   /* ─── CHORD+LYRIC LINE ────────────────────────────────────────────── */
@@ -368,6 +402,13 @@
     margin-bottom: 1px;
     white-space: nowrap;
     min-width: 4px;
+  }
+  .token-chord-sup {
+    font-size: 7.5px;
+    font-weight: 700;
+    position: relative;
+    top: -0.4em;
+    letter-spacing: 0.01em;
   }
 
   .token-lyric {
@@ -468,6 +509,38 @@
   @media print {
     body * { display: none !important; }
   }
+
+  /* ─── PAGE BREAK MARKER ───────────────────────────────────────────── */
+  .page-break-marker {
+    margin: 16px 0;
+    height: 0;
+    border-top: 2px dashed var(--divider);
+    position: relative;
+  }
+  .page-break-marker::after {
+    content: 'page break';
+    position: absolute;
+    top: -9px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--paper);
+    padding: 0 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--divider);
+  }
+  @media print {
+    .page-break-marker {
+      border: none;
+      page-break-before: always;
+      break-before: page;
+      margin: 0;
+    }
+    .page-break-marker::after { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -483,6 +556,7 @@
   </div>
 
   <div class="header-actions">
+    <button class="btn btn-ghost" onclick="showHelp()">? Help</button>
     <button class="btn btn-ghost" onclick="loadExample()">Load Example</button>
     <button class="btn btn-ghost" onclick="clearEditor()">Clear</button>
     <button class="btn btn-primary" onclick="printSongs()">⎙ Print / PDF</button>
@@ -540,17 +614,20 @@
 
 function parseChordPro(text) {
   const song = {
-    title: '', artist: '', key: '', tempo: '', time: '',
-    ccli: '', copyright: '',
-    sections: []
+    title: '', subtitle: '', artist: '', composer: '', lyricist: '',
+    key: '', capo: '', tempo: '', time: '', duration: '',
+    album: '', year: '', ccli: '', copyright: '',
+    sections: [],
+    savedChorus: null,   // for {chorus} repeat
   };
 
   let currentSection = { label: '', lines: [] };
   let verseN = 0, chorusN = 0;
 
   const flush = () => {
-    if (currentSection.lines.length > 0)
+    if (currentSection.lines.length > 0 || currentSection.label === '\x00PAGE_BREAK\x00') {
       song.sections.push(currentSection);
+    }
     currentSection = { label: '', lines: [] };
   };
 
@@ -562,19 +639,56 @@ function parseChordPro(text) {
     if (dir) {
       const k = dir[1].trim().toLowerCase();
       const v = (dir[2] || '').trim();
-      if      (/^(title|t)$/.test(k))                    song.title     = v;
-      else if (/^(artist|composer|a)$/.test(k))           song.artist    = v;
-      else if (k === 'key')                               song.key       = v;
-      else if (/^(tempo|bpm)$/.test(k))                   song.tempo     = v;
-      else if (/^(time|time_sig)$/.test(k))               song.time      = v;
-      else if (k === 'ccli')                              song.ccli      = v;
-      else if (/^(copyright|footer)$/.test(k))            song.copyright = v;
-      else if (/^(start_of_verse|sov)$/.test(k))          { flush(); verseN++;  currentSection.label = v ? v.toUpperCase() : `VERSE ${verseN}`; }
-      else if (/^(start_of_chorus|soc)$/.test(k))         { flush(); chorusN++; currentSection.label = v ? v.toUpperCase() : (chorusN > 1 ? `CHORUS ${chorusN}` : 'CHORUS'); }
-      else if (/^(start_of_bridge|sob)$/.test(k))         { flush(); currentSection.label = v ? v.toUpperCase() : 'BRIDGE'; }
-      else if (/^(start_of_tab|sot)$/.test(k))            { flush(); currentSection.label = v ? v.toUpperCase() : 'TAB'; }
-      else if (/^(end_of_|eo[vcbt])/.test(k))             { flush(); }
-      else if (/^(comment|c|comment_italic|ci)$/.test(k)) { flush(); currentSection.label = v.toUpperCase(); }
+
+      // ── Metadata ──────────────────────────────────────────────────────
+      if      (/^(title|t)$/.test(k))                     song.title     = v;
+      else if (/^(subtitle|st|subtitles)$/.test(k))        song.subtitle  = v;
+      else if (/^artist$/.test(k))                         song.artist    = v;
+      else if (/^composer$/.test(k))                       song.composer  = v;
+      else if (/^lyricist$/.test(k))                       song.lyricist  = v;
+      else if (/^key$/.test(k))                            song.key       = v;
+      else if (/^capo$/.test(k))                           song.capo      = v;
+      else if (/^(tempo|bpm)$/.test(k))                    song.tempo     = v;
+      else if (/^(time|time_sig)$/.test(k))                song.time      = v;
+      else if (/^duration$/.test(k))                       song.duration  = v;
+      else if (/^album$/.test(k))                          song.album     = v;
+      else if (/^year$/.test(k))                           song.year      = v;
+      else if (/^ccli$/.test(k))                           song.ccli      = v;
+      else if (/^(copyright|footer)$/.test(k))             song.copyright = v;
+
+      // ── New song (treat like a hard separator — reset counters) ───────
+      else if (/^(new_song|ns)$/.test(k))                  { flush(); verseN = 0; chorusN = 0; }
+
+      // ── Sections ──────────────────────────────────────────────────────
+      else if (/^(start_of_verse|sov)$/.test(k))           { flush(); verseN++;  currentSection.label = v ? v.toUpperCase() : `VERSE ${verseN}`; }
+      else if (/^(start_of_chorus|soc)$/.test(k))          { flush(); chorusN++; currentSection.label = v ? v.toUpperCase() : (chorusN > 1 ? `CHORUS ${chorusN}` : 'CHORUS'); }
+      else if (/^(start_of_bridge|sob)$/.test(k))          { flush(); currentSection.label = v ? v.toUpperCase() : 'BRIDGE'; }
+      else if (/^(start_of_tab|sot)$/.test(k))             { flush(); currentSection.label = v ? v.toUpperCase() : 'TAB'; currentSection.isTab = true; }
+      else if (/^(start_of_grid|sog)$/.test(k))            { flush(); currentSection.label = v ? v.toUpperCase() : 'GRID'; currentSection.isGrid = true; }
+      else if (/^(end_of_verse|eov|end_of_chorus|eoc|end_of_bridge|eob|end_of_tab|eot|end_of_grid|eog)$/.test(k)) {
+        // Save chorus content for later {chorus} repeats
+        if (/chorus/.test(k) && currentSection.lines.length) song.savedChorus = { ...currentSection };
+        flush();
+      }
+      else if (/^(comment|c|comment_italic|ci|comment_box|cb|highlight)$/.test(k)) {
+        flush();
+        currentSection.label = v.toUpperCase();
+        currentSection.isComment = true;
+      }
+
+      // ── {chorus} — repeat the last chorus inline ──────────────────────
+      else if (/^chorus$/.test(k)) {
+        flush();
+        if (song.savedChorus) {
+          const repeatLabel = v ? v.toUpperCase() : (song.savedChorus.label || 'CHORUS');
+          song.sections.push({ ...song.savedChorus, label: repeatLabel, isRepeat: true });
+        }
+      }
+
+      // ── Layout ────────────────────────────────────────────────────────
+      else if (/^(new_page|np)$/.test(k))                  { flush(); currentSection.label = '\x00PAGE_BREAK\x00'; flush(); }
+      else if (/^(column_break|cb)$/.test(k))              { /* ignored — no column layout */ }
+
       continue;
     }
 
@@ -628,23 +742,50 @@ function renderSong(song) {
   const div = document.createElement('div');
   div.className = 'song';
 
-  // Header
+  // ── Header ────────────────────────────────────────────────────────────
   if (song.title) {
     const h = document.createElement('div');
     h.className = 'song-title';
     h.textContent = song.title;
     div.appendChild(h);
   }
-  if (song.artist) {
+  if (song.subtitle) {
+    const s = document.createElement('div');
+    s.className = 'song-subtitle';
+    s.textContent = song.subtitle;
+    div.appendChild(s);
+  }
+
+  // Artist / composer / lyricist line
+  const creditParts = [];
+  if (song.artist)    creditParts.push(song.artist);
+  if (song.composer && song.composer !== song.artist) creditParts.push(`Music: ${song.composer}`);
+  if (song.lyricist)  creditParts.push(`Lyrics: ${song.lyricist}`);
+  if (creditParts.length) {
     const a = document.createElement('div');
     a.className = 'song-artist';
-    a.textContent = song.artist;
+    a.textContent = creditParts.join('  ·  ');
     div.appendChild(a);
   }
+
+  // Album / year line
+  const albumParts = [];
+  if (song.album) albumParts.push(song.album);
+  if (song.year)  albumParts.push(song.year);
+  if (albumParts.length) {
+    const al = document.createElement('div');
+    al.className = 'song-album';
+    al.textContent = albumParts.join(', ');
+    div.appendChild(al);
+  }
+
+  // Key / tempo / time / capo / duration line
   const metaParts = [];
-  if (song.key)   metaParts.push(`Key - ${song.key}`);
-  if (song.tempo) metaParts.push(`Tempo - ${song.tempo}`);
-  if (song.time)  metaParts.push(`Time - ${song.time}`);
+  if (song.key)      metaParts.push(`Key - ${song.key}`);
+  if (song.capo)     metaParts.push(`Capo ${song.capo}`);
+  if (song.tempo)    metaParts.push(`Tempo - ${song.tempo}`);
+  if (song.time)     metaParts.push(`Time - ${song.time}`);
+  if (song.duration) metaParts.push(`Duration - ${song.duration}`);
   if (metaParts.length) {
     const m = document.createElement('div');
     m.className = 'song-meta';
@@ -652,32 +793,44 @@ function renderSong(song) {
     div.appendChild(m);
   }
 
-  if (song.title || song.artist || metaParts.length) {
+  if (song.title || creditParts.length || albumParts.length || metaParts.length) {
     const d = document.createElement('div');
     d.className = 'song-divider';
     div.appendChild(d);
   }
 
-  // Sections
+  // ── Sections ──────────────────────────────────────────────────────────
   for (const section of song.sections) {
+    // Page break marker
+    if (section.label === '\x00PAGE_BREAK\x00') {
+      const pb = document.createElement('div');
+      pb.className = 'page-break-marker';
+      div.appendChild(pb);
+      continue;
+    }
+
     const secEl = document.createElement('div');
     secEl.className = 'section';
+    if (section.isRepeat) secEl.classList.add('section-repeat');
+    if (section.isTab)    secEl.classList.add('section-tab');
+    if (section.isGrid)   secEl.classList.add('section-grid');
 
     if (section.label) {
       const lbl = document.createElement('div');
       lbl.className = 'section-label';
       lbl.textContent = section.label;
+      if (section.isRepeat) lbl.classList.add('section-label-repeat');
       secEl.appendChild(lbl);
     }
 
     for (const line of section.lines) {
-      secEl.appendChild(renderLine(line));
+      secEl.appendChild(renderLine(line, section.isTab));
     }
 
     div.appendChild(secEl);
   }
 
-  // Musician footer
+  // ── Musician footer ───────────────────────────────────────────────────
   const footer = document.createElement('div');
   footer.className = 'song-footer';
 
@@ -691,6 +844,7 @@ function renderSong(song) {
 
   const chipData = [];
   if (song.key)   chipData.push(['KEY', song.key]);
+  if (song.capo)  chipData.push(['CAPO', song.capo]);
   if (song.tempo) chipData.push(['BPM', song.tempo]);
   if (song.time)  chipData.push(['TIME', song.time]);
 
@@ -707,11 +861,10 @@ function renderSong(song) {
   return div;
 }
 
-function renderLine(line) {
-  if (!line.hasChords) {
-    // Pure lyric line
+function renderLine(line, isTab) {
+  if (isTab || !line.hasChords) {
     const el = document.createElement('span');
-    el.className = 'lyric-only';
+    el.className = isTab ? 'tab-line' : 'lyric-only';
     el.textContent = line.rawLyric;
     return el;
   }
@@ -726,7 +879,16 @@ function renderLine(line) {
 
     const chordEl = document.createElement('span');
     chordEl.className = 'token-chord';
-    chordEl.textContent = token.chord || '';
+    if (token.chord) {
+      const { root, sup } = splitChord(token.chord);
+      chordEl.appendChild(document.createTextNode(root));
+      if (sup) {
+        const supEl = document.createElement('sup');
+        supEl.className = 'token-chord-sup';
+        supEl.textContent = sup;
+        chordEl.appendChild(supEl);
+      }
+    }
     tok.appendChild(chordEl);
 
     const lyricEl = document.createElement('span');
@@ -741,7 +903,25 @@ function renderLine(line) {
   return row;
 }
 
-// ─── Live update ─────────────────────────────────────────────────────────────
+// Split a chord string into root and superscript suffix
+// e.g. "Dmaj7" → {root:"D", sup:"maj7"}
+//      "F#m7"  → {root:"F#", sup:"m7"}
+//      "C/E"   → {root:"C", sup:"/E"}
+//      "G"     → {root:"G", sup:""}
+function splitChord(chord) {
+  if (!chord) return { root: '', sup: '' };
+  // Slash chords stay whole — no superscript
+  if (chord.includes('/')) return { root: chord, sup: '' };
+  // Root = note + optional b/# + optional standalone m/M (minor)
+  // But don't grab 'm' if it's the start of 'maj', 'min' etc.
+  const m = chord.match(/^([A-G][b#]?(?:m(?!aj|in)|M(?!aj|in))?)(.+)$/);
+  if (!m) return { root: chord, sup: '' };
+  const sup = m[2];
+  if (/^(maj|min|sus|add|aug|dim|[0-9].*)/.test(sup)) return { root: m[1], sup };
+  return { root: chord, sup: '' };
+}
+
+
 
 let renderTimeout = null;
 
@@ -998,24 +1178,29 @@ function printSongs() {
   const songPages = Array.from(songs).map(song => {
     const clone = song.cloneNode(true);
     clone.style.cssText = '';
+    // Replace screen page-break markers with print page-break divs
+    clone.querySelectorAll('.page-break-marker').forEach(el => {
+      el.style.cssText = 'page-break-before:always;break-before:page;margin:0;height:0;border:none;';
+      el.removeAttribute('class');
+    });
     return `<div class="song-page">${clone.innerHTML}</div>`;
   }).join('\n');
 
   const printCSS = `
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; }
 
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 18mm 20mm 16mm; }
 
     body {
       background: white;
+      margin: 0;
+      padding: 0;
       font-family: 'Libre Baskerville', Georgia, serif;
       color: #1a1a22;
     }
 
     .song-page {
-      width: 210mm;
-      min-height: 297mm;
-      padding: 18mm 20mm 16mm;
+      width: 100%;
       page-break-after: always;
       break-after: page;
       position: relative;
@@ -1026,16 +1211,22 @@ function printSongs() {
     }
 
     .song-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: #1a1a22; margin-bottom: 2px; }
+    .song-subtitle { font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 400; font-style: italic; color: #5a5a6a; margin-bottom: 2px; }
     .song-artist { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; color: #5a5a6a; margin-bottom: 1px; }
+    .song-album { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: #5a5a6a; margin-bottom: 2px; }
     .song-meta { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; color: #1a1a22; margin-bottom: 10px; }
     .song-divider { height: 1px; background: #c8c0b0; margin-bottom: 16px; }
 
     .section { margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
+    .section-repeat { opacity: 0.8; }
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; }
+    .section-label-repeat { opacity: 0.55; }
+    .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
 
     .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; }
     .token { display: inline-flex; flex-direction: column; align-items: flex-start; }
     .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
+    .token-chord-sup { font-size: 7.5px; font-weight: 700; position: relative; top: -0.4em; letter-spacing: 0.01em; }
     .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1; white-space: pre; }
     .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1.6; display: block; }
 
@@ -1078,7 +1269,261 @@ function printSongs() {
   });
 }
 
+// ─── Help Modal ───────────────────────────────────────────────────────────────
+
+function showHelp() {
+  document.getElementById('helpModal').classList.add('open');
+}
+
+function hideHelp(e) {
+  if (!e || e.target === document.getElementById('helpModal')) {
+    document.getElementById('helpModal').classList.remove('open');
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideHelp();
+});
 
 </script>
+
+<!-- ─── HELP MODAL ──────────────────────────────────────────────────────── -->
+<div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">ChordPro Reference</div>
+      <button class="modal-close" onclick="hideHelp()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="help-section">
+        <div class="help-section-title">Chords</div>
+        <table class="help-table">
+          <tr><td><code>[C]</code></td><td>Inline chord — placed directly before the syllable it falls on</td></tr>
+          <tr><td><code>[Am]</code> <code>[F#m7]</code></td><td>Any chord name: major, minor, 7th, sus, add, dim, aug, etc.</td></tr>
+          <tr><td><code>[C/E]</code></td><td>Slash chord — bass note after the slash</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Song Metadata</div>
+        <table class="help-table">
+          <tr><td><code>{title: My Song}</code></td><td>Song title — displayed large at the top</td></tr>
+          <tr><td><code>{t: My Song}</code></td><td>Shorthand for title</td></tr>
+          <tr><td><code>{subtitle: Live Version}</code></td><td>Secondary title line — shown below the title in italics</td></tr>
+          <tr><td><code>{st: …}</code></td><td>Shorthand for subtitle</td></tr>
+          <tr><td><code>{artist: Name}</code></td><td>Artist or performer name</td></tr>
+          <tr><td><code>{composer: Name}</code></td><td>Music composer — shown separately if different from artist</td></tr>
+          <tr><td><code>{lyricist: Name}</code></td><td>Lyrics writer</td></tr>
+          <tr><td><code>{key: G}</code></td><td>Key signature — shown in header badge and footer chip</td></tr>
+          <tr><td><code>{capo: 2}</code></td><td>Capo position — shown in meta line and footer chip</td></tr>
+          <tr><td><code>{tempo: 120}</code></td><td>Tempo in BPM — shown in footer chip</td></tr>
+          <tr><td><code>{bpm: 120}</code></td><td>Shorthand for tempo</td></tr>
+          <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip</td></tr>
+          <tr><td><code>{duration: 3:45}</code></td><td>Song duration — shown in meta line</td></tr>
+          <tr><td><code>{album: Album Name}</code></td><td>Album name — shown below artist</td></tr>
+          <tr><td><code>{year: 2024}</code></td><td>Release year — shown alongside album</td></tr>
+          <tr><td><code>{ccli: 1234567}</code></td><td>CCLI song number</td></tr>
+          <tr><td><code>{copyright: © 2024 …}</code></td><td>Copyright line</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Sections</div>
+        <table class="help-table">
+          <tr><td><code>{start_of_verse}</code></td><td>Begin a verse — auto-numbered Verse 1, Verse 2…</td></tr>
+          <tr><td><code>{start_of_verse: Intro}</code></td><td>Begin a verse with a custom label</td></tr>
+          <tr><td><code>{end_of_verse}</code></td><td>End a verse</td></tr>
+          <tr><td><code>{sov}</code> / <code>{eov}</code></td><td>Shorthands for start / end of verse</td></tr>
+          <tr><td><code>{start_of_chorus}</code></td><td>Begin a chorus — auto-numbered after the first</td></tr>
+          <tr><td><code>{start_of_chorus: Refrain}</code></td><td>Begin a chorus with a custom label</td></tr>
+          <tr><td><code>{end_of_chorus}</code></td><td>End a chorus</td></tr>
+          <tr><td><code>{soc}</code> / <code>{eoc}</code></td><td>Shorthands for start / end of chorus</td></tr>
+          <tr><td><code>{start_of_bridge}</code></td><td>Begin a bridge</td></tr>
+          <tr><td><code>{end_of_bridge}</code></td><td>End a bridge</td></tr>
+          <tr><td><code>{sob}</code> / <code>{eob}</code></td><td>Shorthands for start / end of bridge</td></tr>
+          <tr><td><code>{start_of_tab}</code></td><td>Begin a tab / instrumental section</td></tr>
+          <tr><td><code>{end_of_tab}</code></td><td>End a tab section</td></tr>
+          <tr><td><code>{comment: Label}</code></td><td>Standalone labelled section — e.g. <code>{comment: Instrumental}</code></td></tr>
+          <tr><td><code>{c: Label}</code></td><td>Shorthand for comment</td></tr>
+          <tr><td><code>{chorus}</code></td><td>Repeat the last defined chorus inline — shown dimmed</td></tr>
+          <tr><td><code>{chorus: x2}</code></td><td>Repeat chorus with a custom label</td></tr>
+          <tr><td><code>{start_of_tab}</code></td><td>Begin a tab section — rendered in monospace font</td></tr>
+          <tr><td><code>{end_of_tab}</code></td><td>End a tab section</td></tr>
+          <tr><td><code>{sot}</code> / <code>{eot}</code></td><td>Shorthands for start / end of tab</td></tr>
+          <tr><td><code>{start_of_grid}</code></td><td>Begin a chord grid section</td></tr>
+          <tr><td><code>{end_of_grid}</code></td><td>End a chord grid section</td></tr>
+          <tr><td><code>{sog}</code> / <code>{eog}</code></td><td>Shorthands for start / end of grid</td></tr>
+          <tr><td><code>{comment_italic: …}</code></td><td>Same as comment</td></tr>
+          <tr><td><code>{comment_box: …}</code></td><td>Same as comment</td></tr>
+          <tr><td><code>{highlight: …}</code></td><td>Same as comment</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Layout</div>
+        <table class="help-table">
+          <tr><td><code>{new_page}</code></td><td>Force a page break — shown as a dashed line in the preview</td></tr>
+          <tr><td><code>{np}</code></td><td>Shorthand for new_page</td></tr>
+          <tr><td><code>{new_song}</code></td><td>Mark the start of a new song — resets verse/chorus counters</td></tr>
+          <tr><td><code>{ns}</code></td><td>Shorthand for new_song</td></tr>
+          <tr><td>(blank line)</td><td>Ends the current section and adds vertical spacing</td></tr>
+          <tr><td><code>---</code></td><td>Separator between multiple songs in one document</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Example</div>
+        <pre class="help-example">{title: Amazing Grace}
+{artist: John Newton}
+{key: G}
+{tempo: 76}
+{time: 3/4}
+
+{start_of_verse: Verse 1}
+[G]Amazing [G7]grace how [C]sweet the [G]sound
+That [G]saved a [Em]wretch like [D]me
+{end_of_verse}
+
+{new_page}
+
+{start_of_chorus: Chorus}
+[G]Praise [C]God praise [G]God
+[Em]From whom all [D]blessings [G]flow
+{end_of_chorus}
+
+---
+
+{title: Second Song}
+…</pre>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ─── MODAL ─────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.open {
+    display: flex;
+  }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .modal-title {
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1;
+  }
+  .modal-close:hover { color: var(--text); background: var(--surface2); }
+  .modal-body {
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .modal-body::-webkit-scrollbar { width: 6px; }
+  .modal-body::-webkit-scrollbar-track { background: transparent; }
+  .modal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ─── HELP CONTENT ───────────────────────────────────────────────────── */
+  .help-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .help-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .help-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .help-table tr:hover td { background: var(--surface2); }
+  .help-table td {
+    padding: 5px 8px;
+    font-size: 12.5px;
+    color: var(--text);
+    vertical-align: top;
+    line-height: 1.5;
+    border-radius: 3px;
+  }
+  .help-table td:first-child {
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 20px;
+  }
+  .help-table td:last-child {
+    color: var(--text-dim);
+  }
+  .help-table code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .help-example {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    color: var(--text-dim);
+    overflow-x: auto;
+    white-space: pre;
+  }
+</style>
+
 </body>
 </html>
