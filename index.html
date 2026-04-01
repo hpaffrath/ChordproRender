@@ -6,6 +6,7 @@
 <title>ChordPro Editor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -345,7 +346,7 @@
   }
   .section-label {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -394,7 +395,7 @@
 
   .token-chord {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     color: var(--chord-color);
     letter-spacing: 0.02em;
@@ -404,7 +405,7 @@
     min-width: 4px;
   }
   .token-chord-sup {
-    font-size: 7.5px;
+    font-size: 8px;
     font-weight: 700;
     position: relative;
     top: -0.4em;
@@ -413,7 +414,7 @@
 
   .token-lyric {
     font-family: 'Libre Baskerville', Georgia, serif;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--ink);
     line-height: 1;
     white-space: pre;
@@ -421,7 +422,7 @@
 
   .lyric-only {
     font-family: 'Libre Baskerville', Georgia, serif;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--ink);
     line-height: 1.6;
     display: block;
@@ -541,6 +542,64 @@
     }
     .page-break-marker::after { display: none; }
   }
+
+  /* ─── FILE PANEL ──────────────────────────────────────────────────── */
+  .file-panel { width: 220px; min-width: 220px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: width 0.2s, min-width 0.2s; }
+  .file-panel.collapsed { width: 0; min-width: 0; border-left: none; }
+  .file-panel-header { height: 36px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--border); gap: 6px; flex-shrink: 0; }
+  .file-panel-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); flex: 1; }
+  .file-icon-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 3px 6px; border-radius: 3px; font-size: 13px; line-height: 1; }
+  .file-icon-btn:hover { background: var(--surface2); color: var(--text); }
+
+  .fp-auth { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; gap: 14px; text-align: center; }
+  .fp-auth-icon { font-size: 28px; opacity: 0.3; }
+  .fp-auth-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
+  .fp-auth-sub { font-size: 11px; color: var(--text-faint); line-height: 1.5; }
+  .fp-input { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 4px; outline: none; width: 100%; }
+  .fp-input:focus { border-color: var(--accent); }
+  .fp-input::placeholder { color: var(--text-faint); }
+  .fp-form { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .fp-err { font-size: 10px; color: #e05a5a; text-align: center; min-height: 14px; }
+  .fp-switch { font-size: 10px; color: var(--text-faint); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .fp-switch:hover { color: var(--text-dim); }
+
+  .fp-user { padding: 7px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .fp-user-email { font-size: 10.5px; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-signout { font-size: 10px; color: var(--text-faint); background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+  .fp-signout:hover { color: var(--text); background: var(--surface2); }
+  .fp-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
+  .fp-actions .btn { flex: 1; font-size: 11px; padding: 5px 8px; }
+  .fp-current { padding: 4px 12px; font-size: 10px; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; min-height: 22px; display: flex; align-items: center; gap: 4px; }
+  .fp-current b { color: var(--accent); font-weight: 600; }
+  .fp-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .fp-list::-webkit-scrollbar { width: 4px; }
+  .fp-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .fp-item { display: flex; align-items: center; padding: 6px 12px; gap: 8px; cursor: pointer; transition: background 0.1s; }
+  .fp-item:hover { background: var(--surface2); }
+  .fp-item.active { background: rgba(232,184,75,0.1); }
+  .fp-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
+  .fp-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-item.active .fp-item-name { color: var(--accent); }
+  .fp-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .fp-item:hover .fp-item-del { opacity: 1; }
+  .fp-item-del:hover { color: #e05a5a; background: rgba(224,90,90,0.1); }
+  .fp-empty { padding: 20px 14px; text-align: center; font-size: 11px; color: var(--text-faint); line-height: 1.6; }
+  .fp-loading { padding: 20px 14px; text-align: center; font-size: 11px; color: var(--text-faint); }
+
+  #fp-files-view { flex-direction: column; flex: 1; overflow: hidden; }
+
+  .btn-files { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-files:hover { background: var(--surface2); color: var(--text); }
+  .btn-files.active { border-color: var(--accent); color: var(--accent); }
+
+  .saveas-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 2000; align-items: center; justify-content: center; }
+  .saveas-overlay.open { display: flex; }
+  .saveas-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; width: 360px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 12px; }
+  .saveas-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+  .saveas-input { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 4px; outline: none; width: 100%; }
+  .saveas-input:focus { border-color: var(--accent); }
+  .saveas-hint { font-size: 10px; color: var(--text-dim); }
+  .saveas-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -556,6 +615,7 @@
   </div>
 
   <div class="header-actions">
+    <button class="btn btn-files" id="filesToggleBtn" onclick="toggleFilePanel()">⊞ Files</button>
     <button class="btn btn-ghost" onclick="showHelp()">? Help</button>
     <button class="btn btn-ghost" onclick="loadExample()">Load Example</button>
     <button class="btn btn-ghost" onclick="clearEditor()">Clear</button>
@@ -607,9 +667,285 @@
     </div>
   </div>
 
+  <!-- FILE PANEL -->
+  <div class="file-panel collapsed" id="filePanel">
+    <div class="file-panel-header">
+      <span class="file-panel-label">My Files</span>
+      <button class="file-icon-btn" onclick="refreshFileList()" title="Refresh">↺</button>
+      <button class="file-icon-btn" onclick="toggleFilePanel()" title="Close">✕</button>
+    </div>
+    <!-- Auth view -->
+    <div id="fp-auth-view" class="fp-auth">
+      <div class="fp-auth-icon">♩</div>
+      <div class="fp-auth-title">Sign In</div>
+      <div class="fp-auth-sub">Save and access your ChordPro files from any device</div>
+      <div class="fp-form" id="fp-login-form">
+        <input class="fp-input" id="fp-email" type="email" placeholder="Email">
+        <input class="fp-input" id="fp-password" type="password" placeholder="Password">
+        <div class="fp-err" id="fp-err"></div>
+        <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignIn()">Sign In</button>
+        <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignUp()">Create account</span></div>
+      </div>
+      <div class="fp-form" id="fp-signup-form" style="display:none">
+        <input class="fp-input" id="fp-signup-email" type="email" placeholder="Email">
+        <input class="fp-input" id="fp-signup-password" type="password" placeholder="Password (6+ chars)">
+        <div class="fp-err" id="fp-signup-err"></div>
+        <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignUp()">Create Account</button>
+        <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
+      </div>
+    </div>
+    <!-- Logged-in view -->
+    <div id="fp-files-view" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="fp-user">
+        <span class="fp-user-email" id="fp-user-email"></span>
+        <button class="fp-signout" onclick="fpSignOut()">Sign out</button>
+      </div>
+      <div class="fp-actions">
+        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpNew()">New</button>
+        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save</button>
+      </div>
+      <div class="fp-current" id="fp-current">No file open</div>
+      <div class="fp-list" id="fp-list">
+        <div class="fp-loading">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Save-as dialog -->
+<div class="saveas-overlay" id="saveasOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Save As</div>
+    <input class="saveas-input" id="saveasInput" placeholder="filename" spellcheck="false">
+    <div class="saveas-hint">.cho extension will be added automatically</div>
+    <div class="fp-err" id="saveas-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeSaveAs()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSaveAs()">Save</button>
+    </div>
+  </div>
 </div>
 
 <script>
+// ─── Supabase ────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = 'https://enrpbyewclsuitcnhhep.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_9UjCm2Ggo9Dqo_hvhK_0iA_CpntKhQ0';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentFilename = null;
+let filePanelOpen = false;
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+async function fpInit() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    fpShowFilesView();
+    refreshFileList();
+  }
+  sb.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    if (currentUser) {
+      fpShowFilesView();
+      refreshFileList();
+    } else {
+      fpShowAuthView();
+    }
+  });
+}
+
+async function fpSignIn() {
+  const email = document.getElementById('fp-email').value.trim();
+  const password = document.getElementById('fp-password').value;
+  document.getElementById('fp-err').textContent = '';
+  if (!email || !password) { document.getElementById('fp-err').textContent = 'Please enter email and password.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) document.getElementById('fp-err').textContent = error.message;
+}
+
+async function fpSignUp() {
+  const email = document.getElementById('fp-signup-email').value.trim();
+  const password = document.getElementById('fp-signup-password').value;
+  document.getElementById('fp-signup-err').textContent = '';
+  if (!email || !password) { document.getElementById('fp-signup-err').textContent = 'Please enter email and password.'; return; }
+  const { error } = await sb.auth.signUp({ email, password });
+  if (error) document.getElementById('fp-signup-err').textContent = error.message;
+  else document.getElementById('fp-signup-err').textContent = 'Check your email to confirm your account.';
+}
+
+async function fpSignOut() {
+  await sb.auth.signOut();
+  currentFilename = null;
+  fpShowAuthView();
+}
+
+function fpShowSignUp() {
+  document.getElementById('fp-login-form').style.display = 'none';
+  document.getElementById('fp-signup-form').style.display = 'flex';
+}
+function fpShowSignIn() {
+  document.getElementById('fp-signup-form').style.display = 'none';
+  document.getElementById('fp-login-form').style.display = 'flex';
+}
+
+function fpShowAuthView() {
+  document.getElementById('fp-auth-view').style.display = 'flex';
+  document.getElementById('fp-files-view').style.display = 'none';
+}
+function fpShowFilesView() {
+  document.getElementById('fp-auth-view').style.display = 'none';
+  document.getElementById('fp-files-view').style.display = 'flex';
+  document.getElementById('fp-user-email').textContent = currentUser.email;
+}
+
+// ─── File operations ──────────────────────────────────────────────────────────
+
+async function refreshFileList() {
+  const list = document.getElementById('fp-list');
+  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb
+    .from('songs')
+    .select('id, filename, title, updated_at')
+    .order('filename');
+  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  if (!data.length) { list.innerHTML = '<div class="fp-empty">No files yet.<br>Write something and hit Save.</div>'; return; }
+  list.innerHTML = '';
+  data.forEach(row => {
+    const item = document.createElement('div');
+    item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '');
+    item.dataset.filename = row.filename;
+    item.innerHTML = `
+      <span class="fp-item-icon">♩</span>
+      <span class="fp-item-name">${row.filename}</span>
+      <button class="fp-item-del" title="Delete" onclick="fpDelete('${row.filename}',event)">×</button>`;
+    item.addEventListener('click', () => fpLoad(row.filename));
+    list.appendChild(item);
+  });
+}
+
+async function fpLoad(filename) {
+  const { data, error } = await sb
+    .from('songs')
+    .select('content')
+    .eq('filename', filename)
+    .single();
+  if (error) { alert('Error loading file: ' + error.message); return; }
+  document.getElementById('editor').value = data.content;
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentFilename = filename;
+  updateCurrentFile();
+  refreshFileList();
+}
+
+async function fpSave() {
+  if (!currentUser) return;
+  const content = document.getElementById('editor').value;
+  if (!content.trim()) return;
+  if (!currentFilename) { openSaveAs(); return; }
+  const title = extractTitle(content);
+  const { error } = await sb.from('songs').upsert({
+    user_id: currentUser.id,
+    filename: currentFilename,
+    title: title || currentFilename,
+    content,
+  }, { onConflict: 'user_id,filename' });
+  if (error) alert('Save failed: ' + error.message);
+  else { refreshFileList(); flashSaved(); }
+}
+
+function fpNew() {
+  if (document.getElementById('editor').value.trim()) {
+    if (!confirm('Start a new file? Unsaved changes will be lost.')) return;
+  }
+  document.getElementById('editor').value = '';
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentFilename = null;
+  updateCurrentFile();
+  refreshFileList();
+}
+
+async function fpDelete(filename, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete "${filename}"?`)) return;
+  const { error } = await sb.from('songs').delete().eq('filename', filename).eq('user_id', currentUser.id);
+  if (error) alert('Delete failed: ' + error.message);
+  else {
+    if (currentFilename === filename) { currentFilename = null; updateCurrentFile(); }
+    refreshFileList();
+  }
+}
+
+function extractTitle(content) {
+  const m = content.match(/^\{title:\s*(.+)\}/m);
+  return m ? m[1].trim() : '';
+}
+
+function updateCurrentFile() {
+  const el = document.getElementById('fp-current');
+  el.innerHTML = currentFilename ? `✎ <b>${currentFilename}</b>` : 'No file open';
+}
+
+function flashSaved() {
+  const el = document.getElementById('fp-current');
+  const prev = el.innerHTML;
+  el.innerHTML = '✓ Saved';
+  el.style.color = '#6a9e5a';
+  setTimeout(() => { el.innerHTML = prev; el.style.color = ''; }, 1500);
+}
+
+// ─── Save-as dialog ───────────────────────────────────────────────────────────
+
+function openSaveAs() {
+  const suggested = extractTitle(document.getElementById('editor').value).replace(/[^a-z0-9\-_ ]/gi, '').trim() || 'untitled';
+  document.getElementById('saveasInput').value = suggested;
+  document.getElementById('saveas-err').textContent = '';
+  document.getElementById('saveasOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('saveasInput').select(), 50);
+}
+
+function closeSaveAs() {
+  document.getElementById('saveasOverlay').classList.remove('open');
+}
+
+async function confirmSaveAs() {
+  let name = document.getElementById('saveasInput').value.trim();
+  if (!name) { document.getElementById('saveas-err').textContent = 'Please enter a filename.'; return; }
+  if (!name.endsWith('.cho')) name += '.cho';
+  document.getElementById('saveas-err').textContent = '';
+  currentFilename = name;
+  closeSaveAs();
+  await fpSave();
+}
+
+document.getElementById('saveasInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmSaveAs();
+  if (e.key === 'Escape') closeSaveAs();
+});
+
+// ─── File panel toggle ────────────────────────────────────────────────────────
+
+function toggleFilePanel() {
+  filePanelOpen = !filePanelOpen;
+  document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
+  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
+}
+
+// Keyboard shortcut: Ctrl/Cmd+S to save
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (currentUser) fpSave();
+  }
+});
+
+// Init on load
+fpInit();
+
 // ─── ChordPro Parser ────────────────────────────────────────────────────────
 
 function parseChordPro(text) {
@@ -1219,16 +1555,16 @@ function printSongs() {
 
     .section { margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
     .section-repeat { opacity: 0.8; }
-    .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; }
+    .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: 12pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; }
     .section-label-repeat { opacity: 0.55; }
     .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
 
     .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; }
     .token { display: inline-flex; flex-direction: column; align-items: flex-start; }
-    .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
-    .token-chord-sup { font-size: 7.5px; font-weight: 700; position: relative; top: -0.4em; letter-spacing: 0.01em; }
-    .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1; white-space: pre; }
-    .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: 11.5px; color: #1a1a22; line-height: 1.6; display: block; }
+    .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: 12pt; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
+    .token-chord-sup { font-size: 8pt; font-weight: 700; position: relative; top: -0.4em; letter-spacing: 0.01em; }
+    .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: 12pt; color: #1a1a22; line-height: 1; white-space: pre; }
+    .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: 12pt; color: #1a1a22; line-height: 1.6; display: block; }
 
     .song-footer { margin-top: 24px; padding-top: 8px; border-top: 1.5px solid #c8c0b0; display: flex; align-items: center; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; gap: 8px; }
     .song-footer-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #888; flex: 1; }
