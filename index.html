@@ -346,7 +346,7 @@
   }
   .section-label {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 12px;
+    font-size: var(--preview-fs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -395,7 +395,7 @@
 
   .token-chord {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 12px;
+    font-size: var(--preview-fs);
     font-weight: 700;
     color: var(--chord-color);
     letter-spacing: 0.02em;
@@ -405,7 +405,7 @@
     min-width: 4px;
   }
   .token-chord-sup {
-    font-size: 8px;
+    font-size: var(--preview-fs-sup);
     font-weight: 700;
     position: relative;
     top: -0.4em;
@@ -414,7 +414,7 @@
 
   .token-lyric {
     font-family: 'Libre Baskerville', Georgia, serif;
-    font-size: 12px;
+    font-size: var(--preview-fs);
     color: var(--ink);
     line-height: 1;
     white-space: pre;
@@ -422,7 +422,7 @@
 
   .lyric-only {
     font-family: 'Libre Baskerville', Georgia, serif;
-    font-size: 12px;
+    font-size: var(--preview-fs);
     color: var(--ink);
     line-height: 1.6;
     display: block;
@@ -600,6 +600,127 @@
   .saveas-input:focus { border-color: var(--accent); }
   .saveas-hint { font-size: 10px; color: var(--text-dim); }
   .saveas-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ─── TRANSPOSE + FONT SIZE CONTROLS ─────────────────────────────── */
+  .key-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ctrl-offset {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    min-width: 20px;
+  }
+  .fontsize-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    background: var(--surface2);
+  }
+  .ctrl-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+  }
+  .ctrl-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 22px;
+    text-align: center;
+  }
+  .ctrl-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+  .ctrl-btn:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+
+  /* ─── FILE PANEL TABS ─────────────────────────────────────────────── */
+  .fp-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .fp-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .fp-tab:hover { color: var(--text-dim); }
+  .fp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ─── TAGS TREE ───────────────────────────────────────────────────── */
+  .tag-group { }
+  .tag-header {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    cursor: pointer;
+    gap: 6px;
+    user-select: none;
+  }
+  .tag-header:hover { background: var(--surface2); }
+  .tag-arrow { font-size: 9px; color: var(--text-faint); transition: transform 0.15s; width: 10px; }
+  .tag-arrow.open { transform: rotate(90deg); }
+  .tag-name { font-size: 11px; font-weight: 600; color: var(--text-dim); flex: 1; }
+  .tag-count { font-size: 10px; color: var(--text-faint); }
+  .tag-children { display: none; padding-left: 12px; }
+  .tag-children.open { display: block; }
+
+  /* ─── SETLIST TAB ─────────────────────────────────────────────────── */
+  .sl-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .sl-list::-webkit-scrollbar { width: 4px; }
+  .sl-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sl-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .sl-item:hover { background: var(--surface2); }
+  .sl-item.active { background: rgba(232,184,75,0.1); }
+  .sl-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
+  .sl-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sl-item.active .sl-item-name { color: var(--accent); }
+  .sl-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .sl-item:hover .sl-item-del { opacity: 1; }
+  .sl-item-del:hover { color: #e05a5a; }
+  .sl-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
+  .sl-actions .btn { flex: 1; font-size: 11px; padding: 5px 8px; }
+  .sl-current { padding: 4px 12px; font-size: 10px; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; min-height: 22px; display: flex; align-items: center; gap: 4px; }
+  .sl-current b { color: var(--accent); font-weight: 600; }
+
+  /* ─── TAG INPUT ON SAVE ───────────────────────────────────────────── */
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; cursor: text; min-height: 34px; align-items: center; }
+  .tag-pill { background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; padding: 2px 6px; border-radius: 10px; display: flex; align-items: center; gap: 4px; }
+  .tag-pill-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .tag-pill-del:hover { color: #e05a5a; }
+  .tag-text-input { background: none; border: none; outline: none; color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; min-width: 80px; flex: 1; }
 </style>
 </head>
 <body>
@@ -610,10 +731,21 @@
     <span class="logo-pro">Editor</span>
   </div>
 
-  <div class="key-badge">
-    Key <span id="key-display">—</span>
+  <div class="key-control">
+    <button class="ctrl-btn" onclick="transpose(-1)" title="Transpose down ♭">−</button>
+    <div class="key-badge">
+      Key <span id="key-display">—</span>
+    </div>
+    <button class="ctrl-btn" onclick="transpose(+1)" title="Transpose up ♯">+</button>
+    <span class="ctrl-offset" id="transpose-display"></span>
   </div>
 
+  <div class="fontsize-group">
+    <span class="ctrl-label">Text</span>
+    <button class="ctrl-btn" onclick="changeFontSize(-1)" title="Decrease font size">−</button>
+    <span class="ctrl-val" id="fontsize-display">12</span>
+    <button class="ctrl-btn" onclick="changeFontSize(+1)" title="Increase font size">+</button>
+  </div>
   <div class="header-actions">
     <button class="btn btn-files" id="filesToggleBtn" onclick="toggleFilePanel()">⊞ Files</button>
     <button class="btn btn-ghost" onclick="showHelp()">? Help</button>
@@ -684,7 +816,11 @@
         <input class="fp-input" id="fp-password" type="password" placeholder="Password">
         <div class="fp-err" id="fp-err"></div>
         <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignIn()">Sign In</button>
-        <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignUp()">Create account</span></div>
+        <div style="text-align:center;display:flex;gap:12px;justify-content:center;">
+          <span class="fp-switch" onclick="fpShowSignUp()">Create account</span>
+          <span style="color:var(--text-faint);font-size:10px;">·</span>
+          <span class="fp-switch" onclick="fpShowForgot()">Forgot password</span>
+        </div>
       </div>
       <div class="fp-form" id="fp-signup-form" style="display:none">
         <input class="fp-input" id="fp-signup-email" type="email" placeholder="Email">
@@ -693,27 +829,165 @@
         <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignUp()">Create Account</button>
         <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
       </div>
+      <div class="fp-form" id="fp-forgot-form" style="display:none">
+        <input class="fp-input" id="fp-forgot-email" type="email" placeholder="Your email address">
+        <div class="fp-err" id="fp-forgot-err"></div>
+        <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSendReset()">Send Reset Email</button>
+        <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
+      </div>
     </div>
     <!-- Logged-in view -->
     <div id="fp-files-view" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
       <div class="fp-user">
         <span class="fp-user-email" id="fp-user-email"></span>
+        <button class="fp-signout" onclick="showSettings()" title="Settings">⚙</button>
         <button class="fp-signout" onclick="fpSignOut()">Sign out</button>
       </div>
-      <div class="fp-actions">
-        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpNew()">New</button>
-        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save</button>
+      <!-- Tabs -->
+      <div class="fp-tabs">
+        <button class="fp-tab active" id="tab-songs" onclick="fpSwitchTab('songs')">Songs</button>
+        <button class="fp-tab" id="tab-tags" onclick="fpSwitchTab('tags')">Tags</button>
+        <button class="fp-tab" id="tab-setlists" onclick="fpSwitchTab('setlists')">Setlists</button>
       </div>
-      <div class="fp-current" id="fp-current">No file open</div>
-      <div class="fp-list" id="fp-list">
-        <div class="fp-loading">Loading…</div>
+
+      <!-- Songs tab -->
+      <div id="fp-tab-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="fp-actions">
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpNew()">New</button>
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpEditTags()" id="fp-tags-btn" title="Edit tags for current file">Tags</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save</button>
+        </div>
+        <div class="fp-current" id="fp-current">No file open</div>
+        <div class="fp-list" id="fp-list">
+          <div class="fp-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Tags tab -->
+      <div id="fp-tab-tags" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="fp-list" id="fp-tag-tree">
+          <div class="fp-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Setlists tab -->
+      <div id="fp-tab-setlists" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="sl-actions">
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="slNew()">New Setlist</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="slLoad()" id="sl-load-btn" disabled>Open</button>
+        </div>
+        <div class="sl-current" id="sl-current">No setlist open</div>
+        <div class="sl-list" id="sl-list">
+          <div class="fp-loading">Loading…</div>
+        </div>
       </div>
     </div>
   </div>
 
 </div>
 
-<!-- Save-as dialog -->
+
+<!-- Setlist builder modal -->
+<div class="saveas-overlay" id="slBuilderOverlay">
+  <div class="saveas-box" style="width:480px;max-width:95vw;">
+    <div class="saveas-title" id="sl-builder-title">New Setlist</div>
+    <input class="saveas-input" id="sl-name-input" placeholder="Setlist name (e.g. Sunday 7 April)">
+    <div style="font-size:10px;color:var(--text-dim);margin-top:-4px;">Songs in setlist (drag to reorder)</div>
+    <div id="sl-song-picker" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;min-height:36px;max-height:120px;overflow-y:auto;"></div>
+    <div style="font-size:10px;color:var(--text-dim);">Available songs — click to add</div>
+    <div id="sl-available-songs" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;min-height:36px;max-height:100px;overflow-y:auto;"></div>
+    <div class="fp-err" id="sl-builder-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeSlBuilder()">Cancel</button>
+      <button class="btn btn-primary" onclick="slSave()">Save Setlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tags editor modal (shown when saving) -->
+<div class="saveas-overlay" id="tagsOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Save — Add Tags</div>
+    <div style="font-size:11px;color:var(--text-dim);">Tags help organise your library (optional)</div>
+    <div class="tag-input-wrap" id="tag-input-wrap" onclick="document.getElementById('tag-text').focus()">
+      <input class="tag-text-input" id="tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
+    </div>
+    <div style="font-size:10px;color:var(--text-faint);">Press Enter or comma to add · Click × to remove</div>
+    <div class="fp-err" id="tags-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeTagsOverlay()">Skip</button>
+      <button class="btn btn-primary" onclick="confirmTagsAndSave()">Save</button>
+    </div>
+  </div>
+</div>
+<!-- Settings modal -->
+<div class="saveas-overlay" id="settingsOverlay">
+  <div class="saveas-box" style="max-width:420px;">
+    <div class="saveas-title">Settings</div>
+
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-faint);margin-bottom:6px;">Account</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;" id="settings-email-display"></div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-faint);">Change Password</div>
+      <input class="saveas-input" id="s-cp-new" type="password" placeholder="New password (6+ chars)">
+      <input class="saveas-input" id="s-cp-confirm" type="password" placeholder="Confirm new password">
+      <div class="fp-err" id="s-cp-err"></div>
+      <button class="btn btn-ghost" style="align-self:flex-start;font-size:11px;" onclick="settingsChangePassword()">Update Password</button>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-faint);">Display Name</div>
+      <input class="saveas-input" id="s-display-name" type="text" placeholder="Your name (shown in shared files)">
+      <div class="fp-err" id="s-name-err"></div>
+      <button class="btn btn-ghost" style="align-self:flex-start;font-size:11px;" onclick="settingsSaveName()">Save Name</button>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-faint);">Danger Zone</div>
+      <button class="btn btn-ghost" style="align-self:flex-start;font-size:11px;color:#e05a5a;border-color:#e05a5a;" onclick="settingsDeleteAccount()">Delete Account…</button>
+    </div>
+
+    <div class="saveas-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeSettings()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Tags modal -->
+<div class="saveas-overlay" id="editTagsOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Edit Tags</div>
+    <div style="font-size:11px;color:var(--text-dim);" id="edit-tags-filename"></div>
+    <div class="tag-input-wrap" id="edit-tag-wrap" onclick="document.getElementById('edit-tag-text').focus()">
+      <input class="tag-text-input" id="edit-tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
+    </div>
+    <div style="font-size:10px;color:var(--text-faint);">Press Enter or comma to add · Click × to remove</div>
+    <div class="fp-err" id="edit-tags-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeEditTags()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmEditTags()">Save Tags</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change password modal -->
+<div class="saveas-overlay" id="changePwOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Change Password</div>
+    <input class="saveas-input" id="cp-new" type="password" placeholder="New password (6+ chars)">
+    <input class="saveas-input" id="cp-confirm" type="password" placeholder="Confirm new password">
+    <div class="fp-err" id="cp-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeChangePassword()">Cancel</button>
+      <button class="btn btn-primary" onclick="fpChangePassword()">Update Password</button>
+    </div>
+  </div>
+</div>
 <div class="saveas-overlay" id="saveasOverlay">
   <div class="saveas-box">
     <div class="saveas-title">Save As</div>
@@ -786,12 +1060,203 @@ async function fpSignOut() {
 
 function fpShowSignUp() {
   document.getElementById('fp-login-form').style.display = 'none';
+  document.getElementById('fp-forgot-form').style.display = 'none';
   document.getElementById('fp-signup-form').style.display = 'flex';
 }
 function fpShowSignIn() {
   document.getElementById('fp-signup-form').style.display = 'none';
+  document.getElementById('fp-forgot-form').style.display = 'none';
   document.getElementById('fp-login-form').style.display = 'flex';
 }
+function fpShowForgot() {
+  document.getElementById('fp-login-form').style.display = 'none';
+  document.getElementById('fp-signup-form').style.display = 'none';
+  document.getElementById('fp-forgot-form').style.display = 'flex';
+  const email = document.getElementById('fp-email').value;
+  if (email) document.getElementById('fp-forgot-email').value = email;
+}
+
+async function fpSendReset() {
+  const email = document.getElementById('fp-forgot-email').value.trim();
+  const errEl = document.getElementById('fp-forgot-err');
+  errEl.textContent = '';
+  if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if (error) {
+    errEl.textContent = error.message;
+  } else {
+    errEl.style.color = '#6a9e5a';
+    errEl.textContent = 'Reset email sent — check your inbox.';
+    setTimeout(() => { errEl.style.color = ''; errEl.textContent = ''; fpShowSignIn(); }, 3000);
+  }
+}
+
+function fpShowChangePassword() {
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-err').textContent = '';
+  document.getElementById('changePwOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('cp-new').focus(), 50);
+}
+
+function closeChangePassword() {
+  document.getElementById('changePwOverlay').classList.remove('open');
+}
+
+async function fpChangePassword() {
+  const pw = document.getElementById('cp-new').value;
+  const confirm = document.getElementById('cp-confirm').value;
+  const errEl = document.getElementById('cp-err');
+  errEl.textContent = '';
+  if (pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if (error) {
+    errEl.textContent = error.message;
+  } else {
+    errEl.style.color = '#6a9e5a';
+    errEl.textContent = 'Password updated!';
+    setTimeout(() => { errEl.style.color = ''; closeChangePassword(); }, 1500);
+  }
+}
+
+// Close change password on Escape
+document.getElementById('changePwOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('changePwOverlay')) closeChangePassword();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeChangePassword();
+});
+
+// ─── Settings modal ───────────────────────────────────────────────────────────
+
+function showSettings() {
+  document.getElementById('s-cp-new').value = '';
+  document.getElementById('s-cp-confirm').value = '';
+  document.getElementById('s-cp-err').textContent = '';
+  document.getElementById('s-name-err').textContent = '';
+  if (currentUser) {
+    document.getElementById('settings-email-display').textContent = currentUser.email;
+    const name = currentUser.user_metadata?.display_name || '';
+    document.getElementById('s-display-name').value = name;
+  }
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+document.getElementById('settingsOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+});
+
+async function settingsChangePassword() {
+  const pw = document.getElementById('s-cp-new').value;
+  const confirm = document.getElementById('s-cp-confirm').value;
+  const errEl = document.getElementById('s-cp-err');
+  errEl.style.color = '';
+  errEl.textContent = '';
+  if (pw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if (error) { errEl.textContent = error.message; }
+  else {
+    errEl.style.color = '#6a9e5a';
+    errEl.textContent = '✓ Password updated!';
+    document.getElementById('s-cp-new').value = '';
+    document.getElementById('s-cp-confirm').value = '';
+  }
+}
+
+async function settingsSaveName() {
+  const name = document.getElementById('s-display-name').value.trim();
+  const errEl = document.getElementById('s-name-err');
+  errEl.style.color = '';
+  errEl.textContent = '';
+  const { error } = await sb.auth.updateUser({ data: { display_name: name } });
+  if (error) { errEl.textContent = error.message; }
+  else { errEl.style.color = '#6a9e5a'; errEl.textContent = '✓ Name saved!'; }
+}
+
+async function settingsDeleteAccount() {
+  if (!confirm('Delete your account and ALL your songs? This cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure? All files will be permanently deleted.')) return;
+  // Delete all songs first, then sign out (account deletion requires server-side in Supabase)
+  await sb.from('songs').delete().eq('user_id', currentUser.id);
+  await sb.from('setlists').delete().eq('user_id', currentUser.id);
+  await sb.auth.signOut();
+  closeSettings();
+  alert('Your data has been deleted and you have been signed out.');
+}
+
+// ─── Edit Tags ────────────────────────────────────────────────────────────────
+
+let editTagsFilename = null;
+let editTagsCurrent = [];
+
+async function fpEditTags() {
+  if (!currentFilename) { alert('Please open a file first.'); return; }
+  // Load current tags from DB
+  const { data, error } = await sb.from('songs').select('tags').eq('filename', currentFilename).eq('user_id', currentUser.id).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  editTagsFilename = currentFilename;
+  editTagsCurrent = data.tags || [];
+  // Populate modal
+  document.getElementById('edit-tags-filename').textContent = currentFilename;
+  document.getElementById('edit-tags-err').textContent = '';
+  document.getElementById('edit-tag-text').value = '';
+  // Clear and re-render pills
+  const wrap = document.getElementById('edit-tag-wrap');
+  wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
+  editTagsCurrent.forEach(tag => addEditTagPill(tag));
+  document.getElementById('editTagsOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('edit-tag-text').focus(), 50);
+}
+
+function addEditTagPill(tag) {
+  tag = tag.trim().toLowerCase().replace(/,/g, '');
+  if (!tag || editTagsCurrent.includes(tag)) return;
+  if (!editTagsCurrent.includes(tag)) editTagsCurrent.push(tag);
+  const wrap = document.getElementById('edit-tag-wrap');
+  const pill = document.createElement('span');
+  pill.className = 'tag-pill';
+  pill.dataset.tag = tag;
+  pill.innerHTML = `${tag}<button class="tag-pill-del" onclick="removeEditTagPill(this,'${tag}')">×</button>`;
+  wrap.insertBefore(pill, document.getElementById('edit-tag-text'));
+}
+
+function removeEditTagPill(btn, tag) {
+  editTagsCurrent = editTagsCurrent.filter(t => t !== tag);
+  btn.parentElement.remove();
+}
+
+function closeEditTags() {
+  document.getElementById('editTagsOverlay').classList.remove('open');
+}
+
+async function confirmEditTags() {
+  // Flush any pending text
+  const text = document.getElementById('edit-tag-text').value.trim();
+  if (text) addEditTagPill(text);
+  const { error } = await sb.from('songs')
+    .update({ tags: editTagsCurrent })
+    .eq('filename', editTagsFilename)
+    .eq('user_id', currentUser.id);
+  if (error) { document.getElementById('edit-tags-err').textContent = error.message; return; }
+  closeEditTags();
+  if (currentTab === 'tags') refreshTagTree();
+  refreshFileList();
+}
+
+document.getElementById('edit-tag-text')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEditTagPill(document.getElementById('edit-tag-text').value); document.getElementById('edit-tag-text').value = ''; }
+  if (e.key === 'Escape') closeEditTags();
+});
+
+document.getElementById('editTagsOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('editTagsOverlay')) closeEditTags();
+});
 
 function fpShowAuthView() {
   document.getElementById('fp-auth-view').style.display = 'flex';
@@ -847,16 +1312,11 @@ async function fpSave() {
   const content = document.getElementById('editor').value;
   if (!content.trim()) return;
   if (!currentFilename) { openSaveAs(); return; }
-  const title = extractTitle(content);
-  const { error } = await sb.from('songs').upsert({
-    user_id: currentUser.id,
-    filename: currentFilename,
-    title: title || currentFilename,
-    content,
-  }, { onConflict: 'user_id,filename' });
-  if (error) alert('Save failed: ' + error.message);
-  else { refreshFileList(); flashSaved(); }
+  // For existing files, save directly without re-prompting for tags
+  await doSave(currentFilename, undefined);
 }
+
+// doSave with undefined tags will preserve existing tags via upsert
 
 function fpNew() {
   if (document.getElementById('editor').value.trim()) {
@@ -917,15 +1377,412 @@ async function confirmSaveAs() {
   if (!name) { document.getElementById('saveas-err').textContent = 'Please enter a filename.'; return; }
   if (!name.endsWith('.cho')) name += '.cho';
   document.getElementById('saveas-err').textContent = '';
-  currentFilename = name;
   closeSaveAs();
-  await fpSave();
+  openTagsOverlay(name);
 }
 
 document.getElementById('saveasInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') confirmSaveAs();
   if (e.key === 'Escape') closeSaveAs();
 });
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+
+let currentTab = 'songs';
+
+function fpSwitchTab(tab) {
+  currentTab = tab;
+  ['songs', 'tags', 'setlists'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+    document.getElementById(`fp-tab-${t}`).style.display = t === tab ? 'flex' : 'none';
+  });
+  if (tab === 'tags') refreshTagTree();
+  if (tab === 'setlists') refreshSetlists();
+}
+
+// ─── Transpose ────────────────────────────────────────────────────────────────
+
+const SHARPS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLATS  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+// Normalise enharmonic variants to sharp index
+const NOTE_MAP = {
+  'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'Fb':4,'E#':5,
+  'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11,'Cb':11,'B#':0
+};
+
+// Keys that prefer flats
+const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm','Ebm']);
+
+let transposeOffset = 0;
+
+function transposeNote(note, semitones, preferFlats) {
+  const base = NOTE_MAP[note];
+  if (base === undefined) return note;
+  const idx = ((base + semitones) % 12 + 12) % 12;
+  return preferFlats ? FLATS[idx] : SHARPS[idx];
+}
+
+function transposeChord(chord, semitones, preferFlats) {
+  if (!chord || semitones === 0) return chord;
+  // Match root note (with optional #/b) and the rest
+  return chord.replace(/^([A-G][b#]?)(.*?)(?:\/([A-G][b#]?))?$/, (_, root, qual, bass) => {
+    const newRoot = transposeNote(root, semitones, preferFlats);
+    const newBass = bass ? '/' + transposeNote(bass, semitones, preferFlats) : '';
+    return newRoot + qual + newBass;
+  });
+}
+
+function transpose(delta) {
+  const editor = document.getElementById('editor');
+  const text = editor.value;
+  if (!text.trim()) return;
+
+  transposeOffset += delta;
+  const offsetEl = document.getElementById('transpose-display');
+  if (offsetEl) offsetEl.textContent = transposeOffset === 0 ? '' : (transposeOffset > 0 ? '+' + transposeOffset : String(transposeOffset));
+
+  // Detect key from {key:} directive to decide sharps vs flats
+  const keyMatch = text.match(/\{key:\s*([A-G][b#]?m?)\}/i);
+  const key = keyMatch ? keyMatch[1] : '';
+  const preferFlats = FLAT_KEYS.has(key);
+
+  // Transpose all [Chord] inline markers
+  const transposed = text.replace(/\[([^\]]+)\]/g, (_, chord) => {
+    return '[' + transposeChord(chord, delta, preferFlats) + ']';
+  });
+
+  // Also update {key:} directive
+  const result = transposed.replace(/(\{key:\s*)([A-G][b#]?m?)(\})/gi, (_, pre, k, post) => {
+    // Transpose just the note part of the key, keeping m if present
+    const mSuffix = k.endsWith('m') ? 'm' : '';
+    const noteOnly = mSuffix ? k.slice(0, -1) : k;
+    return pre + transposeNote(noteOnly, delta, preferFlats) + mSuffix + post;
+  });
+
+  editor.value = result;
+  editor.dispatchEvent(new Event('input'));
+}
+
+function resetTranspose() {
+  transposeOffset = 0;
+  const el = document.getElementById('transpose-display');
+  if (el) el.textContent = '';
+}
+
+// ─── Font size ────────────────────────────────────────────────────────────────
+
+let previewFontSize = parseInt(localStorage.getItem('previewFontSize') || '12');
+
+function applyFontSize() {
+  const supSize = Math.round(previewFontSize * 0.67);
+  document.documentElement.style.setProperty('--preview-fs', previewFontSize + 'px');
+  document.documentElement.style.setProperty('--preview-fs-sup', supSize + 'px');
+  const el = document.getElementById('fontsize-display');
+  if (el) el.textContent = previewFontSize;
+  localStorage.setItem('previewFontSize', previewFontSize);
+}
+
+function changeFontSize(delta) {
+  previewFontSize = Math.min(20, Math.max(8, previewFontSize + delta));
+  applyFontSize();
+}
+
+// Apply font size after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  applyFontSize();
+  const el = document.getElementById('fontsize-display');
+  if (el) el.textContent = previewFontSize;
+});
+// Also apply immediately for CSS variables (these don't need DOM)
+(function() {
+  const supSize = Math.round(previewFontSize * 0.67);
+  document.documentElement.style.setProperty('--preview-fs', previewFontSize + 'px');
+  document.documentElement.style.setProperty('--preview-fs-sup', supSize + 'px');
+})();
+
+// ─── Tags ─────────────────────────────────────────────────────────────────────
+
+let pendingTags = [];
+let pendingSaveFilename = null;
+
+async function refreshTagTree() {
+  const tree = document.getElementById('fp-tag-tree');
+  tree.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb.from('songs').select('filename, title, tags').order('filename');
+  if (error) { tree.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+
+  // Build tag → songs map
+  const tagMap = {};
+  const untagged = [];
+  data.forEach(song => {
+    const tags = song.tags || [];
+    if (!tags.length) { untagged.push(song); return; }
+    tags.forEach(tag => {
+      if (!tagMap[tag]) tagMap[tag] = [];
+      tagMap[tag].push(song);
+    });
+  });
+
+  tree.innerHTML = '';
+
+  // Render each tag group
+  const sortedTags = Object.keys(tagMap).sort();
+  sortedTags.forEach(tag => {
+    const group = buildTagGroup(tag, tagMap[tag]);
+    tree.appendChild(group);
+  });
+
+  // Untagged group
+  if (untagged.length) {
+    const group = buildTagGroup('Untagged', untagged, true);
+    tree.appendChild(group);
+  }
+
+  if (!sortedTags.length && !untagged.length) {
+    tree.innerHTML = '<div class="fp-empty">No songs yet.</div>';
+  }
+}
+
+function buildTagGroup(tag, songs, faded) {
+  const group = document.createElement('div');
+  group.className = 'tag-group';
+
+  const header = document.createElement('div');
+  header.className = 'tag-header';
+  header.innerHTML = `<span class="tag-arrow">▶</span><span class="tag-name"${faded ? ' style="opacity:.5"' : ''}>${tag}</span><span class="tag-count">${songs.length}</span>`;
+  header.addEventListener('click', () => {
+    const children = group.querySelector('.tag-children');
+    const arrow = header.querySelector('.tag-arrow');
+    const open = children.classList.toggle('open');
+    arrow.classList.toggle('open', open);
+  });
+
+  const children = document.createElement('div');
+  children.className = 'tag-children';
+  songs.forEach(song => {
+    const item = document.createElement('div');
+    item.className = 'fp-item' + (song.filename === currentFilename ? ' active' : '');
+    item.innerHTML = `<span class="fp-item-icon">♩</span><span class="fp-item-name">${song.filename}</span>`;
+    item.addEventListener('click', () => { fpLoad(song.filename); fpSwitchTab('songs'); });
+    children.appendChild(item);
+  });
+
+  group.appendChild(header);
+  group.appendChild(children);
+  return group;
+}
+
+// Tags overlay (shown after save-as naming)
+function openTagsOverlay(filename) {
+  pendingSaveFilename = filename;
+  pendingTags = [];
+  document.getElementById('tag-input-wrap').querySelectorAll('.tag-pill').forEach(p => p.remove());
+  document.getElementById('tag-text').value = '';
+  document.getElementById('tags-err').textContent = '';
+  document.getElementById('tagsOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('tag-text').focus(), 50);
+}
+
+function closeTagsOverlay() {
+  document.getElementById('tagsOverlay').classList.remove('open');
+  // Save without tags
+  if (pendingSaveFilename) doSave(pendingSaveFilename, []);
+}
+
+async function confirmTagsAndSave() {
+  // Flush any text still in input
+  const text = document.getElementById('tag-text').value.trim();
+  if (text) addTagPill(text);
+  document.getElementById('tagsOverlay').classList.remove('open');
+  await doSave(pendingSaveFilename, [...pendingTags]);
+}
+
+function addTagPill(tag) {
+  tag = tag.trim().toLowerCase().replace(/,/g, '');
+  if (!tag || pendingTags.includes(tag)) return;
+  pendingTags.push(tag);
+  const wrap = document.getElementById('tag-input-wrap');
+  const pill = document.createElement('span');
+  pill.className = 'tag-pill';
+  pill.innerHTML = `${tag}<button class="tag-pill-del" onclick="removeTagPill(this,'${tag}')">×</button>`;
+  wrap.insertBefore(pill, document.getElementById('tag-text'));
+  document.getElementById('tag-text').value = '';
+}
+
+function removeTagPill(btn, tag) {
+  pendingTags = pendingTags.filter(t => t !== tag);
+  btn.parentElement.remove();
+}
+
+document.getElementById('tag-text')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTagPill(document.getElementById('tag-text').value); }
+  if (e.key === 'Escape') closeTagsOverlay();
+});
+
+document.getElementById('tagsOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('tagsOverlay')) closeTagsOverlay();
+});
+
+// ─── Setlists ─────────────────────────────────────────────────────────────────
+
+let currentSetlistId = null;
+let currentSetlistName = null;
+let selectedSetlistId = null;
+let allSongs = [];
+
+async function refreshSetlists() {
+  const list = document.getElementById('sl-list');
+  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb.from('setlists').select('id, name, song_filenames').order('name');
+  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  if (!data.length) { list.innerHTML = '<div class="fp-empty">No setlists yet.<br>Click New Setlist to create one.</div>'; return; }
+  list.innerHTML = '';
+  data.forEach(sl => {
+    const item = document.createElement('div');
+    item.className = 'sl-item' + (sl.id === currentSetlistId ? ' active' : '');
+    item.dataset.id = sl.id;
+    item.innerHTML = `
+      <span class="sl-item-icon">☰</span>
+      <span class="sl-item-name">${sl.name}</span>
+      <span style="font-size:10px;color:var(--text-faint);flex-shrink:0;">${(sl.song_filenames||[]).length}</span>
+      <button class="sl-item-del" onclick="slDelete('${sl.id}',event)" title="Delete">×</button>`;
+    item.addEventListener('click', () => {
+      selectedSetlistId = sl.id;
+      document.querySelectorAll('.sl-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.getElementById('sl-load-btn').disabled = false;
+    });
+    list.appendChild(item);
+  });
+}
+
+async function slLoad() {
+  if (!selectedSetlistId) return;
+  const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  // Load each song's content and join with ---
+  const contents = [];
+  for (const fn of (data.song_filenames || [])) {
+    const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).single();
+    if (sd) contents.push(sd.content.trim());
+  }
+  document.getElementById('editor').value = contents.join('\n\n---\n\n');
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentSetlistId = selectedSetlistId;
+  currentSetlistName = data.name;
+  document.getElementById('sl-current').innerHTML = `☰ <b>${data.name}</b>`;
+  resetTranspose();
+}
+
+async function slDelete(id, e) {
+  e.stopPropagation();
+  if (!confirm('Delete this setlist?')) return;
+  await sb.from('setlists').delete().eq('id', id);
+  if (currentSetlistId === id) { currentSetlistId = null; document.getElementById('sl-current').textContent = 'No setlist open'; }
+  refreshSetlists();
+}
+
+async function slNew() {
+  // Load all songs for the picker
+  const { data } = await sb.from('songs').select('filename, title').order('filename');
+  allSongs = data || [];
+
+  document.getElementById('sl-name-input').value = '';
+  document.getElementById('sl-builder-title').textContent = 'New Setlist';
+  document.getElementById('sl-builder-err').textContent = '';
+  renderSlPicker([]);
+  renderSlAvailable(allSongs.map(s => s.filename));
+  document.getElementById('slBuilderOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('sl-name-input').focus(), 50);
+}
+
+let slSelectedSongs = [];
+
+function renderSlPicker(filenames) {
+  slSelectedSongs = [...filenames];
+  const el = document.getElementById('sl-song-picker');
+  el.innerHTML = slSelectedSongs.length ? '' : '<span style="font-size:10px;color:var(--text-faint);padding:4px;">No songs added yet</span>';
+  slSelectedSongs.forEach((fn, i) => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.style.cursor = 'grab';
+    pill.innerHTML = `${fn}<button class="tag-pill-del" onclick="slRemoveSong('${fn}')">×</button>`;
+    el.appendChild(pill);
+  });
+}
+
+function renderSlAvailable(filenames) {
+  const el = document.getElementById('sl-available-songs');
+  el.innerHTML = '';
+  filenames.filter(fn => !slSelectedSongs.includes(fn)).forEach(fn => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.style.cursor = 'pointer';
+    pill.textContent = fn;
+    pill.addEventListener('click', () => slAddSong(fn));
+    el.appendChild(pill);
+  });
+}
+
+function slAddSong(fn) {
+  if (!slSelectedSongs.includes(fn)) {
+    slSelectedSongs.push(fn);
+    renderSlPicker(slSelectedSongs);
+    renderSlAvailable(allSongs.map(s => s.filename));
+  }
+}
+
+function slRemoveSong(fn) {
+  slSelectedSongs = slSelectedSongs.filter(s => s !== fn);
+  renderSlPicker(slSelectedSongs);
+  renderSlAvailable(allSongs.map(s => s.filename));
+}
+
+async function slSave() {
+  const name = document.getElementById('sl-name-input').value.trim();
+  const errEl = document.getElementById('sl-builder-err');
+  if (!name) { errEl.textContent = 'Please enter a setlist name.'; return; }
+  const { error } = await sb.from('setlists').insert({
+    user_id: currentUser.id,
+    name,
+    song_filenames: slSelectedSongs,
+  });
+  if (error) { errEl.textContent = error.message; return; }
+  closeSlBuilder();
+  refreshSetlists();
+}
+
+function closeSlBuilder() {
+  document.getElementById('slBuilderOverlay').classList.remove('open');
+}
+
+document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('slBuilderOverlay')) closeSlBuilder();
+});
+
+// ─── Updated save flow (with tags) ────────────────────────────────────────────
+
+async function doSave(filename, tags) {
+  const content = document.getElementById('editor').value;
+  const title = extractTitle(content);
+  const record = {
+    user_id: currentUser.id,
+    filename,
+    title: title || filename,
+    content,
+  };
+  // Only set tags if explicitly provided (undefined = preserve existing)
+  if (tags !== undefined) record.tags = tags;
+  const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
+  if (error) alert('Save failed: ' + error.message);
+  else {
+    currentFilename = filename;
+    updateCurrentFile();
+    refreshFileList();
+    if (currentTab === 'tags') refreshTagTree();
+    flashSaved();
+  }
+}
 
 // ─── File panel toggle ────────────────────────────────────────────────────────
 
@@ -1537,13 +2394,12 @@ function printSongs() {
 
     .song-page {
       width: 100%;
-      page-break-after: always;
-      break-after: page;
       position: relative;
     }
-    .song-page:last-child {
-      page-break-after: avoid;
-      break-after: avoid;
+    .song-page + .song-page {
+      margin-top: 24pt;
+      padding-top: 20pt;
+      border-top: 1pt solid #c8c0b0;
     }
 
     .song-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: #1a1a22; margin-bottom: 2px; }
@@ -1553,18 +2409,18 @@ function printSongs() {
     .song-meta { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; color: #1a1a22; margin-bottom: 10px; }
     .song-divider { height: 1px; background: #c8c0b0; margin-bottom: 16px; }
 
-    .section { margin-bottom: 14px; break-inside: avoid; page-break-inside: avoid; }
+    .section { margin-bottom: 14px; }
     .section-repeat { opacity: 0.8; }
-    .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: 12pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; }
+    .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
     .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
 
     .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; }
     .token { display: inline-flex; flex-direction: column; align-items: flex-start; }
-    .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: 12pt; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
-    .token-chord-sup { font-size: 8pt; font-weight: 700; position: relative; top: -0.4em; letter-spacing: 0.01em; }
-    .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: 12pt; color: #1a1a22; line-height: 1; white-space: pre; }
-    .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: 12pt; color: #1a1a22; line-height: 1.6; display: block; }
+    .token-chord { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; color: #1a3a8a; line-height: 1; margin-bottom: 1px; white-space: nowrap; min-width: 4px; }
+    .token-chord-sup { font-size: ${Math.round(previewFontSize * 0.67)}pt; font-weight: 700; position: relative; top: -0.4em; letter-spacing: 0.01em; }
+    .token-lyric { font-family: 'Libre Baskerville', Georgia, serif; font-size: ${previewFontSize}pt; color: #1a1a22; line-height: 1; white-space: pre; }
+    .lyric-only { font-family: 'Libre Baskerville', Georgia, serif; font-size: ${previewFontSize}pt; color: #1a1a22; line-height: 1.6; display: block; }
 
     .song-footer { margin-top: 24px; padding-top: 8px; border-top: 1.5px solid #c8c0b0; display: flex; align-items: center; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; gap: 8px; }
     .song-footer-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #888; flex: 1; }
@@ -1578,7 +2434,128 @@ function printSongs() {
 <head>
   <meta charset="UTF-8">
   <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>${printCSS}</style>
+  <style>${printCSS}
+  /* ─── TRANSPOSE + FONT SIZE CONTROLS ─────────────────────────────── */
+  .key-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ctrl-offset {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    min-width: 20px;
+  }
+  .fontsize-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    background: var(--surface2);
+  }
+  .ctrl-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+  }
+  .ctrl-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 22px;
+    text-align: center;
+  }
+  .ctrl-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+  .ctrl-btn:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+
+  /* ─── FILE PANEL TABS ─────────────────────────────────────────────── */
+  .fp-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .fp-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .fp-tab:hover { color: var(--text-dim); }
+  .fp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ─── TAGS TREE ───────────────────────────────────────────────────── */
+  .tag-group { }
+  .tag-header {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    cursor: pointer;
+    gap: 6px;
+    user-select: none;
+  }
+  .tag-header:hover { background: var(--surface2); }
+  .tag-arrow { font-size: 9px; color: var(--text-faint); transition: transform 0.15s; width: 10px; }
+  .tag-arrow.open { transform: rotate(90deg); }
+  .tag-name { font-size: 11px; font-weight: 600; color: var(--text-dim); flex: 1; }
+  .tag-count { font-size: 10px; color: var(--text-faint); }
+  .tag-children { display: none; padding-left: 12px; }
+  .tag-children.open { display: block; }
+
+  /* ─── SETLIST TAB ─────────────────────────────────────────────────── */
+  .sl-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .sl-list::-webkit-scrollbar { width: 4px; }
+  .sl-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .sl-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .sl-item:hover { background: var(--surface2); }
+  .sl-item.active { background: rgba(232,184,75,0.1); }
+  .sl-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
+  .sl-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sl-item.active .sl-item-name { color: var(--accent); }
+  .sl-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .sl-item:hover .sl-item-del { opacity: 1; }
+  .sl-item-del:hover { color: #e05a5a; }
+  .sl-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
+  .sl-actions .btn { flex: 1; font-size: 11px; padding: 5px 8px; }
+  .sl-current { padding: 4px 12px; font-size: 10px; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; min-height: 22px; display: flex; align-items: center; gap: 4px; }
+  .sl-current b { color: var(--accent); font-weight: 600; }
+
+  /* ─── TAG INPUT ON SAVE ───────────────────────────────────────────── */
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; cursor: text; min-height: 34px; align-items: center; }
+  .tag-pill { background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; padding: 2px 6px; border-radius: 10px; display: flex; align-items: center; gap: 4px; }
+  .tag-pill-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .tag-pill-del:hover { color: #e05a5a; }
+  .tag-text-input { background: none; border: none; outline: none; color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; min-width: 80px; flex: 1; }
+</style>
 </head>
 <body>${songPages}</body>
 </html>`;
@@ -1732,6 +2709,22 @@ That [G]saved a [Em]wretch like [D]me
 
 {title: Second Song}
 …</pre>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Files, Tags &amp; Setlists</div>
+        <table class="help-table">
+          <tr><td><b>⊞ Files</b></td><td>Open the file panel — sign in to save and access your songs from any device</td></tr>
+          <tr><td><b>Songs tab</b></td><td>Lists all your saved <code>.cho</code> files — click a file to load it into the editor</td></tr>
+          <tr><td><b>New</b></td><td>Clears the editor to start a new song (prompts if unsaved changes)</td></tr>
+          <tr><td><b>Save</b></td><td>Saves the current file — prompts for a filename if new, then asks for tags</td></tr>
+          <tr><td><b>Tags button</b></td><td>Edit the tags on the currently open file — type a tag and press Enter to add, × to remove</td></tr>
+          <tr><td><b>Tags tab</b></td><td>Shows all songs grouped by tag in a collapsible tree — click any song to load it</td></tr>
+          <tr><td><b>Setlists tab</b></td><td>Create and open setlists — opens multiple songs joined by <code>---</code> separators</td></tr>
+          <tr><td><b>New Setlist</b></td><td>Name a setlist and click songs from your library to add them</td></tr>
+          <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, or delete your account</td></tr>
+          <tr><td><b>Ctrl/Cmd+S</b></td><td>Keyboard shortcut to save the current file at any time</td></tr>
+        </table>
       </div>
 
     </div>
