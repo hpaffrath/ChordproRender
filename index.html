@@ -721,6 +721,66 @@
   .tag-pill-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
   .tag-pill-del:hover { color: #e05a5a; }
   .tag-text-input { background: none; border: none; outline: none; color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; min-width: 80px; flex: 1; }
+
+  /* ─── FILE LIST CONTROLS ──────────────────────────────────────────── */
+  .fp-search-row {
+    display: flex;
+    gap: 5px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .fp-search {
+    flex: 1;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+  }
+  .fp-search:focus { border-color: var(--accent); }
+  .fp-search::placeholder { color: var(--text-faint); }
+  .fp-sort-btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .fp-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .fp-sort-btn.active { color: var(--accent); border-color: var(--accent); }
+
+  /* Unsaved dot */
+  .unsaved-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-left: 4px;
+    vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .unsaved-dot.visible { opacity: 1; }
+
+  /* Rename button on file items */
+  .fp-item-ren {
+    background: none; border: none; color: var(--text-faint);
+    cursor: pointer; padding: 2px 4px; border-radius: 3px;
+    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
+  .fp-item:hover .fp-item-ren { opacity: 1; }
+  .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
 </style>
 </head>
 <body>
@@ -855,7 +915,13 @@
         <div class="fp-actions">
           <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpNew()">New</button>
           <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpEditTags()" id="fp-tags-btn" title="Edit tags for current file">Tags</button>
-          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save<span class="unsaved-dot" id="unsaved-dot"></span></button>
+        </div>
+        <div class="fp-search-row">
+          <input class="fp-search" id="fp-search" placeholder="Search…" oninput="renderFileList()" autocomplete="off">
+          <button class="fp-sort-btn active" id="sort-btn-name" onclick="setSort('name')" title="Sort by name">A–Z</button>
+          <button class="fp-sort-btn" id="sort-btn-date" onclick="setSort('date')" title="Sort by date">Date</button>
+          <button class="fp-sort-btn" id="sort-btn-key" onclick="setSort('key')" title="Sort by key">Key</button>
         </div>
         <div class="fp-current" id="fp-current">No file open</div>
         <div class="fp-list" id="fp-list">
@@ -889,13 +955,25 @@
 
 <!-- Setlist builder modal -->
 <div class="saveas-overlay" id="slBuilderOverlay">
-  <div class="saveas-box" style="width:480px;max-width:95vw;">
+  <div class="saveas-box" style="width:640px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;">
     <div class="saveas-title" id="sl-builder-title">New Setlist</div>
     <input class="saveas-input" id="sl-name-input" placeholder="Setlist name (e.g. Sunday 7 April)">
-    <div style="font-size:10px;color:var(--text-dim);margin-top:-4px;">Songs in setlist (drag to reorder)</div>
-    <div id="sl-song-picker" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;min-height:36px;max-height:120px;overflow-y:auto;"></div>
-    <div style="font-size:10px;color:var(--text-dim);">Available songs — click to add</div>
-    <div id="sl-available-songs" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;min-height:36px;max-height:100px;overflow-y:auto;"></div>
+    <div style="display:flex;gap:12px;flex:1;overflow:hidden;min-height:0;">
+
+      <!-- Available songs (left) -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Available Songs</div>
+        <input class="saveas-input" id="sl-search" placeholder="Search…" oninput="renderSlAvailableFiltered()" autocomplete="off" style="padding:5px 8px;font-size:12px;">
+        <div id="sl-available-songs" style="flex:1;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 0;"></div>
+      </div>
+
+      <!-- Setlist order (right) -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Setlist Order <span id="sl-count" style="font-weight:400;color:var(--text-faint);text-transform:none;letter-spacing:0;">(0 songs)</span></div>
+        <div id="sl-song-picker" style="flex:1;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 0;"></div>
+      </div>
+
+    </div>
     <div class="fp-err" id="sl-builder-err"></div>
     <div class="saveas-actions">
       <button class="btn btn-ghost" onclick="closeSlBuilder()">Cancel</button>
@@ -985,6 +1063,19 @@
     <div class="saveas-actions">
       <button class="btn btn-ghost" onclick="closeChangePassword()">Cancel</button>
       <button class="btn btn-primary" onclick="fpChangePassword()">Update Password</button>
+    </div>
+  </div>
+</div>
+<!-- Rename modal -->
+<div class="saveas-overlay" id="renameOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Rename File</div>
+    <input class="saveas-input" id="renameInput" placeholder="New filename" spellcheck="false">
+    <div class="saveas-hint">.cho extension will be added automatically</div>
+    <div class="fp-err" id="rename-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeRename()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRename()">Rename</button>
     </div>
   </div>
 </div>
@@ -1125,7 +1216,17 @@ document.getElementById('changePwOverlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('changePwOverlay')) closeChangePassword();
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeChangePassword();
+  if (e.key === 'Escape') {
+    // Close whichever modal is currently open
+    if (document.getElementById('changePwOverlay')?.classList.contains('open')) closeChangePassword();
+    else if (document.getElementById('settingsOverlay')?.classList.contains('open')) closeSettings();
+    else if (document.getElementById('editTagsOverlay')?.classList.contains('open')) closeEditTags();
+    else if (document.getElementById('renameOverlay')?.classList.contains('open')) closeRename();
+    else if (document.getElementById('saveasOverlay')?.classList.contains('open')) closeSaveAs();
+    else if (document.getElementById('tagsOverlay')?.classList.contains('open')) closeTagsOverlay();
+    else if (document.getElementById('slBuilderOverlay')?.classList.contains('open')) closeSlBuilder();
+    else if (document.getElementById('helpModal')?.classList.contains('open')) hideHelp();
+  }
 });
 
 // ─── Settings modal ───────────────────────────────────────────────────────────
@@ -1206,18 +1307,21 @@ async function fpEditTags() {
   document.getElementById('edit-tags-filename').textContent = currentFilename;
   document.getElementById('edit-tags-err').textContent = '';
   document.getElementById('edit-tag-text').value = '';
-  // Clear and re-render pills
+  // Clear and re-render pills (pass skipArrayPush=true since tags already in editTagsCurrent)
   const wrap = document.getElementById('edit-tag-wrap');
   wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
-  editTagsCurrent.forEach(tag => addEditTagPill(tag));
+  editTagsCurrent.forEach(tag => addEditTagPill(tag, true));
   document.getElementById('editTagsOverlay').classList.add('open');
   setTimeout(() => document.getElementById('edit-tag-text').focus(), 50);
 }
 
-function addEditTagPill(tag) {
+function addEditTagPill(tag, skipArrayPush) {
   tag = tag.trim().toLowerCase().replace(/,/g, '');
-  if (!tag || editTagsCurrent.includes(tag)) return;
-  if (!editTagsCurrent.includes(tag)) editTagsCurrent.push(tag);
+  if (!tag) return;
+  if (!skipArrayPush) {
+    if (editTagsCurrent.includes(tag)) return; // already added
+    editTagsCurrent.push(tag);
+  }
   const wrap = document.getElementById('edit-tag-wrap');
   const pill = document.createElement('span');
   pill.className = 'tag-pill';
@@ -1270,30 +1374,118 @@ function fpShowFilesView() {
 
 // ─── File operations ──────────────────────────────────────────────────────────
 
+let allFiles = [];       // cached file list
+let sortMode = 'name';   // 'name' | 'date' | 'key'
+let hasUnsavedChanges = false;
+let autoSaveTimer = null;
+
+function setUnsaved(val) {
+  hasUnsavedChanges = val;
+  const dot = document.getElementById('unsaved-dot');
+  if (dot) dot.classList.toggle('visible', val);
+}
+
+function setSort(mode) {
+  sortMode = mode;
+  ['name','date','key'].forEach(m => {
+    const btn = document.getElementById(`sort-btn-${m}`);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+  renderFileList();
+}
+
 async function refreshFileList() {
   const list = document.getElementById('fp-list');
-  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
   const { data, error } = await sb
     .from('songs')
     .select('id, filename, title, updated_at')
     .order('filename');
-  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
-  if (!data.length) { list.innerHTML = '<div class="fp-empty">No files yet.<br>Write something and hit Save.</div>'; return; }
+  if (error) {
+    console.error('refreshFileList error:', error);
+    if (list) list.innerHTML = `<div class="fp-empty">Error: ${error.message}</div>`;
+    return;
+  }
+  allFiles = data || [];
+  renderFileList();
+}
+
+function renderFileList() {
+  const list = document.getElementById('fp-list');
+  if (!list) return;
+  const query = (document.getElementById('fp-search')?.value || '').toLowerCase();
+
+  // Filter
+  let files = allFiles.filter(f =>
+    !query || f.filename.toLowerCase().includes(query) || (f.title || '').toLowerCase().includes(query)
+  );
+
+  // Sort
+  if (sortMode === 'name') {
+    files.sort((a, b) => a.filename.localeCompare(b.filename));
+  } else if (sortMode === 'date') {
+    files.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  } else if (sortMode === 'key') {
+    files.sort((a, b) => (a.key || 'zzz').localeCompare(b.key || 'zzz'));
+  }
+
+  if (!files.length) {
+    list.innerHTML = query
+      ? `<div class="fp-empty">No files matching "${query}"</div>`
+      : '<div class="fp-empty">No files yet.<br>Write something and hit Save.</div>';
+    return;
+  }
+
   list.innerHTML = '';
-  data.forEach(row => {
+  files.forEach(row => {
     const item = document.createElement('div');
     item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '');
-    item.dataset.filename = row.filename;
-    item.innerHTML = `
-      <span class="fp-item-icon">♩</span>
-      <span class="fp-item-name">${row.filename}</span>
-      <button class="fp-item-del" title="Delete" onclick="fpDelete('${row.filename}',event)">×</button>`;
+
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon';
+    icon.textContent = '♩';
+
+    const name = document.createElement('span');
+    name.className = 'fp-item-name';
+    name.textContent = row.filename;
+
+    const renBtn = document.createElement('button');
+    renBtn.className = 'fp-item-ren';
+    renBtn.title = 'Rename';
+    renBtn.textContent = '✎';
+    renBtn.addEventListener('click', e => { e.stopPropagation(); fpRename(row.filename); });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'fp-item-del';
+    delBtn.title = 'Delete';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); fpDelete(row.filename, e); });
+
+    item.appendChild(icon);
+    item.appendChild(name);
+
+    // Badge for sort context
+    if (sortMode === 'key' && row.key) {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--text-faint);flex-shrink:0;';
+      badge.textContent = row.key;
+      item.appendChild(badge);
+    } else if (sortMode === 'date' && row.updated_at) {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--text-faint);flex-shrink:0;';
+      badge.textContent = new Date(row.updated_at).toLocaleDateString();
+      item.appendChild(badge);
+    }
+
+    item.appendChild(renBtn);
+    item.appendChild(delBtn);
     item.addEventListener('click', () => fpLoad(row.filename));
     list.appendChild(item);
   });
 }
 
 async function fpLoad(filename) {
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
   const { data, error } = await sb
     .from('songs')
     .select('content')
@@ -1303,8 +1495,10 @@ async function fpLoad(filename) {
   document.getElementById('editor').value = data.content;
   document.getElementById('editor').dispatchEvent(new Event('input'));
   currentFilename = filename;
+  setUnsaved(false);
+  resetTranspose();
   updateCurrentFile();
-  refreshFileList();
+  renderFileList();
 }
 
 async function fpSave() {
@@ -1312,21 +1506,23 @@ async function fpSave() {
   const content = document.getElementById('editor').value;
   if (!content.trim()) return;
   if (!currentFilename) { openSaveAs(); return; }
-  // For existing files, save directly without re-prompting for tags
   await doSave(currentFilename, undefined);
 }
 
 // doSave with undefined tags will preserve existing tags via upsert
 
 function fpNew() {
-  if (document.getElementById('editor').value.trim()) {
+  if (hasUnsavedChanges) {
     if (!confirm('Start a new file? Unsaved changes will be lost.')) return;
+  } else if (document.getElementById('editor').value.trim()) {
+    if (!confirm('Start a new file?')) return;
   }
   document.getElementById('editor').value = '';
   document.getElementById('editor').dispatchEvent(new Event('input'));
   currentFilename = null;
+  setUnsaved(false);
   updateCurrentFile();
-  refreshFileList();
+  renderFileList();
 }
 
 async function fpDelete(filename, e) {
@@ -1335,10 +1531,67 @@ async function fpDelete(filename, e) {
   const { error } = await sb.from('songs').delete().eq('filename', filename).eq('user_id', currentUser.id);
   if (error) alert('Delete failed: ' + error.message);
   else {
-    if (currentFilename === filename) { currentFilename = null; updateCurrentFile(); }
-    refreshFileList();
+    if (currentFilename === filename) { currentFilename = null; setUnsaved(false); updateCurrentFile(); }
+    allFiles = allFiles.filter(f => f.filename !== filename);
+    renderFileList();
   }
 }
+
+// ─── Rename ───────────────────────────────────────────────────────────────────
+
+let renameTarget = null;
+
+function fpRename(filename) {
+  renameTarget = filename;
+  const nameWithoutExt = filename.endsWith('.cho') ? filename.slice(0, -4) : filename;
+  document.getElementById('renameInput').value = nameWithoutExt;
+  document.getElementById('rename-err').textContent = '';
+  document.getElementById('renameOverlay').classList.add('open');
+  setTimeout(() => { document.getElementById('renameInput').select(); }, 50);
+}
+
+function closeRename() {
+  document.getElementById('renameOverlay').classList.remove('open');
+  renameTarget = null;
+}
+
+async function confirmRename() {
+  let newName = document.getElementById('renameInput').value.trim();
+  if (!newName) { document.getElementById('rename-err').textContent = 'Please enter a name.'; return; }
+  if (!newName.endsWith('.cho')) newName += '.cho';
+  if (newName === renameTarget) { closeRename(); return; }
+  // Check for name collision
+  if (allFiles.some(f => f.filename === newName)) {
+    document.getElementById('rename-err').textContent = 'A file with that name already exists.'; return;
+  }
+  // Load full content of file to re-save under new name
+  const { data, error } = await sb.from('songs').select('content, tags').eq('filename', renameTarget).eq('user_id', currentUser.id).single();
+  if (error) { document.getElementById('rename-err').textContent = error.message; return; }
+  // Insert new, delete old
+  const title = extractTitle(data.content);
+  const { error: insErr } = await sb.from('songs').insert({
+    user_id: currentUser.id, filename: newName,
+    title: title || newName, content: data.content, tags: data.tags || []
+  });
+  if (insErr) { document.getElementById('rename-err').textContent = insErr.message; return; }
+  await sb.from('songs').delete().eq('filename', renameTarget).eq('user_id', currentUser.id);
+  if (currentFilename === renameTarget) {
+    currentFilename = newName;
+    updateCurrentFile();
+  }
+  closeRename();
+  await refreshFileList();
+}
+
+document.getElementById('renameInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmRename();
+  if (e.key === 'Escape') closeRename();
+});
+document.getElementById('renameOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('renameOverlay')) closeRename();
+});
+
+// ─── Unsaved changes tracking ─────────────────────────────────────────────────
 
 function extractTitle(content) {
   const m = content.match(/^\{title:\s*(.+)\}/m);
@@ -1351,11 +1604,24 @@ function updateCurrentFile() {
 }
 
 function flashSaved() {
+  setUnsaved(false);
   const el = document.getElementById('fp-current');
   const prev = el.innerHTML;
   el.innerHTML = '✓ Saved';
   el.style.color = '#6a9e5a';
   setTimeout(() => { el.innerHTML = prev; el.style.color = ''; }, 1500);
+}
+
+// ─── Auto-save ────────────────────────────────────────────────────────────────
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!currentUser || !currentFilename) return;
+  autoSaveTimer = setTimeout(async () => {
+    if (hasUnsavedChanges && currentFilename) {
+      await doSave(currentFilename, undefined);
+    }
+  }, 30000); // 30 seconds
 }
 
 // ─── Save-as dialog ───────────────────────────────────────────────────────────
@@ -1658,6 +1924,7 @@ async function refreshSetlists() {
 
 async function slLoad() {
   if (!selectedSetlistId) return;
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load setlist anyway?')) return;
   const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
   if (error) { alert('Error: ' + error.message); return; }
   // Load each song's content and join with ---
@@ -1668,6 +1935,9 @@ async function slLoad() {
   }
   document.getElementById('editor').value = contents.join('\n\n---\n\n');
   document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentFilename = null;  // setlist is not a single file
+  setUnsaved(false);
+  updateCurrentFile();
   currentSetlistId = selectedSetlistId;
   currentSetlistName = data.name;
   document.getElementById('sl-current').innerHTML = `☰ <b>${data.name}</b>`;
@@ -1683,15 +1953,16 @@ async function slDelete(id, e) {
 }
 
 async function slNew() {
-  // Load all songs for the picker
   const { data } = await sb.from('songs').select('filename, title').order('filename');
   allSongs = data || [];
 
   document.getElementById('sl-name-input').value = '';
   document.getElementById('sl-builder-title').textContent = 'New Setlist';
   document.getElementById('sl-builder-err').textContent = '';
+  const searchEl = document.getElementById('sl-search');
+  if (searchEl) searchEl.value = '';
   renderSlPicker([]);
-  renderSlAvailable(allSongs.map(s => s.filename));
+  renderSlAvailableFiltered();
   document.getElementById('slBuilderOverlay').classList.add('open');
   setTimeout(() => document.getElementById('sl-name-input').focus(), 50);
 }
@@ -1701,41 +1972,78 @@ let slSelectedSongs = [];
 function renderSlPicker(filenames) {
   slSelectedSongs = [...filenames];
   const el = document.getElementById('sl-song-picker');
-  el.innerHTML = slSelectedSongs.length ? '' : '<span style="font-size:10px;color:var(--text-faint);padding:4px;">No songs added yet</span>';
+  const countEl = document.getElementById('sl-count');
+  if (countEl) countEl.textContent = `(${slSelectedSongs.length} song${slSelectedSongs.length !== 1 ? 's' : ''})`;
+  el.innerHTML = '';
+  if (!slSelectedSongs.length) {
+    el.innerHTML = '<div style="padding:16px 12px;font-size:11px;color:var(--text-faint);text-align:center;">Click songs on the left to add them</div>';
+    return;
+  }
   slSelectedSongs.forEach((fn, i) => {
-    const pill = document.createElement('span');
-    pill.className = 'tag-pill';
-    pill.style.cursor = 'grab';
-    pill.innerHTML = `${fn}<button class="tag-pill-del" onclick="slRemoveSong('${fn}')">×</button>`;
-    el.appendChild(pill);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;padding:5px 10px;gap:8px;cursor:default;';
+    row.innerHTML = `
+      <span style="font-size:10px;color:var(--text-faint);min-width:16px;text-align:right;">${i + 1}</span>
+      <span style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fn}</span>
+      <button onclick="slMoveSong(${i},-1)" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:1px 3px;" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button onclick="slMoveSong(${i},1)" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;padding:1px 3px;" title="Move down" ${i === slSelectedSongs.length - 1 ? 'disabled' : ''}>↓</button>
+      <button onclick="slRemoveSong('${fn.replace(/'/g, "\\'")}')" style="background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:14px;padding:1px 4px;" title="Remove">×</button>`;
+    row.addEventListener('mouseenter', () => row.style.background = 'var(--surface2)');
+    row.addEventListener('mouseleave', () => row.style.background = '');
+    el.appendChild(row);
   });
 }
 
 function renderSlAvailable(filenames) {
+  renderSlAvailableFiltered();
+}
+
+function renderSlAvailableFiltered() {
   const el = document.getElementById('sl-available-songs');
+  const query = (document.getElementById('sl-search')?.value || '').toLowerCase();
   el.innerHTML = '';
-  filenames.filter(fn => !slSelectedSongs.includes(fn)).forEach(fn => {
-    const pill = document.createElement('span');
-    pill.className = 'tag-pill';
-    pill.style.cursor = 'pointer';
-    pill.textContent = fn;
-    pill.addEventListener('click', () => slAddSong(fn));
-    el.appendChild(pill);
+  const filtered = allSongs
+    .map(s => s.filename)
+    .filter(fn => !slSelectedSongs.includes(fn) && (!query || fn.toLowerCase().includes(query)));
+  if (!filtered.length) {
+    el.innerHTML = `<div style="padding:16px 12px;font-size:11px;color:var(--text-faint);text-align:center;">${query ? 'No matches' : 'All songs added'}</div>`;
+    return;
+  }
+  filtered.forEach(fn => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;padding:5px 10px;gap:8px;cursor:pointer;';
+    row.innerHTML = `
+      <span style="font-size:11px;opacity:0.4;flex-shrink:0;">♩</span>
+      <span style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fn}</span>
+      <span style="font-size:11px;color:var(--accent);flex-shrink:0;">+</span>`;
+    row.addEventListener('mouseenter', () => row.style.background = 'var(--surface2)');
+    row.addEventListener('mouseleave', () => row.style.background = '');
+    row.addEventListener('click', () => slAddSong(fn));
+    el.appendChild(row);
   });
+}
+
+function slMoveSong(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= slSelectedSongs.length) return;
+  const arr = [...slSelectedSongs];
+  [arr[index], arr[newIndex]] = [arr[newIndex], arr[index]];
+  renderSlPicker(arr);
+  renderSlAvailableFiltered();
 }
 
 function slAddSong(fn) {
   if (!slSelectedSongs.includes(fn)) {
     slSelectedSongs.push(fn);
     renderSlPicker(slSelectedSongs);
-    renderSlAvailable(allSongs.map(s => s.filename));
+    renderSlAvailableFiltered();
   }
 }
 
 function slRemoveSong(fn) {
   slSelectedSongs = slSelectedSongs.filter(s => s !== fn);
   renderSlPicker(slSelectedSongs);
-  renderSlAvailable(allSongs.map(s => s.filename));
+  renderSlAvailableFiltered();
 }
 
 async function slSave() {
@@ -1765,20 +2073,26 @@ document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
 async function doSave(filename, tags) {
   const content = document.getElementById('editor').value;
   const title = extractTitle(content);
+  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
+  const key = keyMatch ? keyMatch[1] : null;
   const record = {
     user_id: currentUser.id,
     filename,
     title: title || filename,
     content,
   };
-  // Only set tags if explicitly provided (undefined = preserve existing)
   if (tags !== undefined) record.tags = tags;
   const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
   if (error) alert('Save failed: ' + error.message);
   else {
+    clearTimeout(autoSaveTimer);
     currentFilename = filename;
     updateCurrentFile();
-    refreshFileList();
+    // Update local cache entry
+    const idx = allFiles.findIndex(f => f.filename === filename);
+    const entry = { filename, title: title || filename, key, updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
+    if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
+    renderFileList();
     if (currentTab === 'tags') refreshTagTree();
     flashSaved();
   }
@@ -1790,6 +2104,8 @@ function toggleFilePanel() {
   filePanelOpen = !filePanelOpen;
   document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
   document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
+  // Refresh list when opening panel if logged in
+  if (filePanelOpen && currentUser) refreshFileList();
 }
 
 // Keyboard shortcut: Ctrl/Cmd+S to save
@@ -2205,6 +2521,8 @@ editor.addEventListener('input', () => {
   updateLineNumbers();
   clearTimeout(renderTimeout);
   renderTimeout = setTimeout(updatePreview, 120);
+  // Mark unsaved if a file is open
+  if (currentFilename) { setUnsaved(true); scheduleAutoSave(); }
 });
 
 editor.addEventListener('scroll', () => {
@@ -2555,6 +2873,66 @@ function printSongs() {
   .tag-pill-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
   .tag-pill-del:hover { color: #e05a5a; }
   .tag-text-input { background: none; border: none; outline: none; color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-size: 12px; min-width: 80px; flex: 1; }
+
+  /* ─── FILE LIST CONTROLS ──────────────────────────────────────────── */
+  .fp-search-row {
+    display: flex;
+    gap: 5px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .fp-search {
+    flex: 1;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+  }
+  .fp-search:focus { border-color: var(--accent); }
+  .fp-search::placeholder { color: var(--text-faint); }
+  .fp-sort-btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .fp-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .fp-sort-btn.active { color: var(--accent); border-color: var(--accent); }
+
+  /* Unsaved dot */
+  .unsaved-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-left: 4px;
+    vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .unsaved-dot.visible { opacity: 1; }
+
+  /* Rename button on file items */
+  .fp-item-ren {
+    background: none; border: none; color: var(--text-faint);
+    cursor: pointer; padding: 2px 4px; border-radius: 3px;
+    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
+  .fp-item:hover .fp-item-ren { opacity: 1; }
+  .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
 </style>
 </head>
 <body>${songPages}</body>
@@ -2593,10 +2971,6 @@ function hideHelp(e) {
     document.getElementById('helpModal').classList.remove('open');
   }
 }
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') hideHelp();
-});
 
 </script>
 
