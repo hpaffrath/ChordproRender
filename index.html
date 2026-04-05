@@ -991,6 +991,10 @@
       <input class="tag-text-input" id="tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
     </div>
     <div style="font-size:10px;color:var(--text-faint);">Press Enter or comma to add · Click × to remove</div>
+    <div id="tag-suggestions-wrap" style="display:none;flex-direction:column;gap:5px;">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Existing tags — click to add</div>
+      <div id="tag-suggestions" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
     <div class="fp-err" id="tags-err"></div>
     <div class="saveas-actions">
       <button class="btn btn-ghost" onclick="closeTagsOverlay()">Skip</button>
@@ -1045,6 +1049,10 @@
       <input class="tag-text-input" id="edit-tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
     </div>
     <div style="font-size:10px;color:var(--text-faint);">Press Enter or comma to add · Click × to remove</div>
+    <div id="edit-tag-suggestions-wrap" style="display:none;flex-direction:column;gap:5px;">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Existing tags — click to add</div>
+      <div id="edit-tag-suggestions" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
     <div class="fp-err" id="edit-tags-err"></div>
     <div class="saveas-actions">
       <button class="btn btn-ghost" onclick="closeEditTags()">Cancel</button>
@@ -1307,19 +1315,70 @@ async function fpEditTags() {
   document.getElementById('edit-tags-filename').textContent = currentFilename;
   document.getElementById('edit-tags-err').textContent = '';
   document.getElementById('edit-tag-text').value = '';
+  document.getElementById('edit-tag-suggestions-wrap').style.display = 'none';
+  document.getElementById('edit-tag-suggestions').innerHTML = '';
   // Clear and re-render pills (pass skipArrayPush=true since tags already in editTagsCurrent)
   const wrap = document.getElementById('edit-tag-wrap');
   wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
   editTagsCurrent.forEach(tag => addEditTagPill(tag, true));
   document.getElementById('editTagsOverlay').classList.add('open');
   setTimeout(() => document.getElementById('edit-tag-text').focus(), 50);
+  // Fetch all existing tags for suggestions
+  const { data: allData } = await sb.from('songs').select('tags');
+  if (allData) {
+    const allTags = [...new Set(allData.flatMap(r => r.tags || []))].sort();
+    if (allTags.length) {
+      renderEditTagSuggestions(allTags);
+      document.getElementById('edit-tag-suggestions-wrap').style.display = 'flex';
+    }
+  }
+}
+
+function renderEditTagSuggestions(allTags) {
+  const container = document.getElementById('edit-tag-suggestions');
+  container.innerHTML = '';
+  allTags.forEach(tag => {
+    const pill = document.createElement('span');
+    const isActive = editTagsCurrent.includes(tag);
+    pill.className = 'tag-pill';
+    pill.dataset.tag = tag;
+    pill.style.cursor = isActive ? 'default' : 'pointer';
+    pill.style.opacity = isActive ? '0.4' : '1';
+    pill.textContent = tag;
+    if (!isActive) {
+      pill.addEventListener('click', () => {
+        addEditTagPill(tag);
+        refreshEditTagSuggestions();
+      });
+    }
+    container.appendChild(pill);
+  });
+}
+
+function refreshEditTagSuggestions() {
+  const container = document.getElementById('edit-tag-suggestions');
+  if (!container) return;
+  container.querySelectorAll('[data-tag]').forEach(pill => {
+    const tag = pill.dataset.tag;
+    const isActive = editTagsCurrent.includes(tag);
+    const fresh = pill.cloneNode(true);
+    fresh.style.cursor = isActive ? 'default' : 'pointer';
+    fresh.style.opacity = isActive ? '0.4' : '1';
+    if (!isActive) {
+      fresh.addEventListener('click', () => {
+        addEditTagPill(tag);
+        refreshEditTagSuggestions();
+      });
+    }
+    pill.replaceWith(fresh);
+  });
 }
 
 function addEditTagPill(tag, skipArrayPush) {
   tag = tag.trim().toLowerCase().replace(/,/g, '');
   if (!tag) return;
   if (!skipArrayPush) {
-    if (editTagsCurrent.includes(tag)) return; // already added
+    if (editTagsCurrent.includes(tag)) return;
     editTagsCurrent.push(tag);
   }
   const wrap = document.getElementById('edit-tag-wrap');
@@ -1333,6 +1392,7 @@ function addEditTagPill(tag, skipArrayPush) {
 function removeEditTagPill(btn, tag) {
   editTagsCurrent = editTagsCurrent.filter(t => t !== tag);
   btn.parentElement.remove();
+  refreshEditTagSuggestions();
 }
 
 function closeEditTags() {
@@ -1644,7 +1704,7 @@ async function confirmSaveAs() {
   if (!name.endsWith('.cho')) name += '.cho';
   document.getElementById('saveas-err').textContent = '';
   closeSaveAs();
-  openTagsOverlay(name);
+  await openTagsOverlay(name);
 }
 
 document.getElementById('saveasInput')?.addEventListener('keydown', e => {
@@ -1839,14 +1899,69 @@ function buildTagGroup(tag, songs, faded) {
 }
 
 // Tags overlay (shown after save-as naming)
-function openTagsOverlay(filename) {
+async function openTagsOverlay(filename) {
   pendingSaveFilename = filename;
   pendingTags = [];
   document.getElementById('tag-input-wrap').querySelectorAll('.tag-pill').forEach(p => p.remove());
   document.getElementById('tag-text').value = '';
   document.getElementById('tags-err').textContent = '';
+  document.getElementById('tag-suggestions-wrap').style.display = 'none';
+  document.getElementById('tag-suggestions').innerHTML = '';
   document.getElementById('tagsOverlay').classList.add('open');
   setTimeout(() => document.getElementById('tag-text').focus(), 50);
+
+  // Fetch all existing tags across all songs
+  const { data } = await sb.from('songs').select('tags');
+  if (data) {
+    const allTags = [...new Set(data.flatMap(r => r.tags || []))].sort();
+    if (allTags.length) {
+      renderTagSuggestions(allTags);
+      document.getElementById('tag-suggestions-wrap').style.display = 'flex';
+    }
+  }
+}
+
+function renderTagSuggestions(allTags) {
+  const container = document.getElementById('tag-suggestions');
+  container.innerHTML = '';
+  allTags.forEach(tag => {
+    const pill = document.createElement('span');
+    const isActive = pendingTags.includes(tag);
+    pill.className = 'tag-pill';
+    pill.dataset.tag = tag;
+    pill.style.cursor = isActive ? 'default' : 'pointer';
+    pill.style.opacity = isActive ? '0.4' : '1';
+    pill.textContent = tag;
+    if (!isActive) {
+      pill.addEventListener('click', () => {
+        addTagPill(tag);
+        refreshTagSuggestions();
+      });
+    }
+    container.appendChild(pill);
+  });
+}
+
+function refreshTagSuggestions() {
+  const container = document.getElementById('tag-suggestions');
+  if (!container) return;
+  container.querySelectorAll('[data-tag]').forEach(pill => {
+    const tag = pill.dataset.tag;
+    const isActive = pendingTags.includes(tag);
+    pill.style.cursor = isActive ? 'default' : 'pointer';
+    pill.style.opacity = isActive ? '0.4' : '1';
+    // Replace listener by cloning
+    const fresh = pill.cloneNode(true);
+    fresh.style.cursor = isActive ? 'default' : 'pointer';
+    fresh.style.opacity = isActive ? '0.4' : '1';
+    if (!isActive) {
+      fresh.addEventListener('click', () => {
+        addTagPill(tag);
+        refreshTagSuggestions();
+      });
+    }
+    pill.replaceWith(fresh);
+  });
 }
 
 function closeTagsOverlay() {
@@ -1878,6 +1993,7 @@ function addTagPill(tag) {
 function removeTagPill(btn, tag) {
   pendingTags = pendingTags.filter(t => t !== tag);
   btn.parentElement.remove();
+  refreshTagSuggestions();
 }
 
 document.getElementById('tag-text')?.addEventListener('keydown', e => {
