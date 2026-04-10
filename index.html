@@ -2317,8 +2317,15 @@ function parseChordPro(text) {
       continue;
     }
 
-    // Blank line = section break
-    if (!line.trim()) { flush(); continue; }
+    // Blank line — inside a tab/grid section keep it as an empty line, otherwise flush
+    if (!line.trim()) {
+      if (currentSection.isTab || currentSection.isGrid) {
+        currentSection.lines.push(parseChordLine(''));
+      } else {
+        flush();
+      }
+      continue;
+    }
 
     currentSection.lines.push(parseChordLine(line));
   }
