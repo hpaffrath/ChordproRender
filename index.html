@@ -2836,7 +2836,8 @@ function renderLine(line, isTab) {
   if (isTab || !line.hasChords) {
     const el = document.createElement('span');
     el.className = isTab ? 'tab-line' : 'lyric-only';
-    el.textContent = line.rawLyric;
+    // Empty tab lines need a non-breaking space to preserve their height
+    el.textContent = line.rawLyric || (isTab ? '\u00A0' : '');
     return el;
   }
 
