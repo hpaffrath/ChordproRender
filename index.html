@@ -781,6 +781,56 @@
   }
   .fp-item:hover .fp-item-ren { opacity: 1; }
   .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+
+  /* ─── SHARE ───────────────────────────────────────────────────────── */
+  .fp-item-share {
+    background: none; border: none; color: var(--text-faint);
+    cursor: pointer; padding: 2px 4px; border-radius: 3px;
+    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
+  .fp-item:hover .fp-item-share { opacity: 1; }
+  .fp-item-share:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+  .share-link-box {
+    display: flex; gap: 6px; align-items: center;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-dim); word-break: break-all;
+  }
+  .share-link-text { flex: 1; }
+  .share-copy-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 3px; cursor: pointer;
+    font-size: 10px; padding: 3px 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  .share-copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ─── SHARED SONG VIEW (full-screen read-only) ────────────────────── */
+  .share-view-overlay {
+    display: none; position: fixed; inset: 0;
+    background: var(--bg); z-index: 3000;
+    flex-direction: column; overflow-y: auto;
+  }
+  .share-view-overlay.open { display: flex; }
+  .share-view-header {
+    padding: 12px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); flex-shrink: 0;
+  }
+  .share-view-title {
+    flex: 1; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px; font-weight: 700; color: var(--text);
+  }
+  .share-view-body {
+    max-width: 820px; margin: 0 auto; padding: 32px 24px;
+    width: 100%;
+  }
+  .share-view-notice {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; font-size: 11px;
+    color: var(--text-dim); margin-bottom: 20px;
+    display: flex; gap: 10px; align-items: center;
+  }
 </style>
 </head>
 <body>
@@ -915,6 +965,7 @@
         <div class="fp-actions">
           <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpNew()">New</button>
           <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpEditTags()" id="fp-tags-btn" title="Edit tags for current file">Tags</button>
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpShareSong()" title="Share current song">Share</button>
           <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="fpSave()">Save<span class="unsaved-dot" id="unsaved-dot"></span></button>
         </div>
         <div class="fp-search-row">
@@ -1074,6 +1125,43 @@
     </div>
   </div>
 </div>
+<!-- Share modal -->
+<div class="saveas-overlay" id="shareOverlay">
+  <div class="saveas-box" style="max-width:420px;">
+    <div class="saveas-title">Share</div>
+    <div style="font-size:11px;color:var(--text-dim);" id="share-item-label"></div>
+    <div id="share-generating" style="font-size:11px;color:var(--text-faint);">Generating link…</div>
+    <div id="share-link-area" style="display:none;flex-direction:column;gap:8px;">
+      <div class="share-link-box">
+        <span class="share-link-text" id="share-link-text"></span>
+        <button class="share-copy-btn" onclick="copyShareLink()">Copy</button>
+      </div>
+      <button class="btn btn-primary" style="font-size:12px;" onclick="emailShareLink()">✉ Open in Email</button>
+      <div style="font-size:10px;color:var(--text-faint);">
+        Link expires in 90 days · Recipients with an account can save a copy · Others get a read-only view
+      </div>
+    </div>
+    <div class="fp-err" id="share-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeShare()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared item view (full-screen read-only) -->
+<div class="share-view-overlay" id="shareViewOverlay">
+  <div class="share-view-header">
+    <div class="share-view-title" id="sv-title">Shared Song</div>
+    <button class="btn btn-ghost" style="font-size:11px;" onclick="printSongs()">⎙ Print / PDF</button>
+    <button class="btn btn-primary" style="font-size:11px;" id="sv-save-btn" onclick="svSaveCopy()" style="display:none;">Save to My Library</button>
+    <button class="btn btn-ghost" style="font-size:11px;" onclick="svClose()">✕ Close</button>
+  </div>
+  <div class="share-view-body">
+    <div class="share-view-notice" id="sv-notice"></div>
+    <div id="sv-paper"></div>
+  </div>
+</div>
+
 <!-- Rename modal -->
 <div class="saveas-overlay" id="renameOverlay">
   <div class="saveas-box">
@@ -1233,6 +1321,8 @@ document.addEventListener('keydown', e => {
     else if (document.getElementById('saveasOverlay')?.classList.contains('open')) closeSaveAs();
     else if (document.getElementById('tagsOverlay')?.classList.contains('open')) closeTagsOverlay();
     else if (document.getElementById('slBuilderOverlay')?.classList.contains('open')) closeSlBuilder();
+    else if (document.getElementById('shareOverlay')?.classList.contains('open')) closeShare();
+    else if (document.getElementById('shareViewOverlay')?.classList.contains('open')) svClose();
     else if (document.getElementById('helpModal')?.classList.contains('open')) hideHelp();
   }
 });
@@ -1509,6 +1599,12 @@ function renderFileList() {
     name.className = 'fp-item-name';
     name.textContent = row.filename;
 
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'fp-item-share';
+    shareBtn.title = 'Share';
+    shareBtn.textContent = '↗';
+    shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSong(row.filename); });
+
     const renBtn = document.createElement('button');
     renBtn.className = 'fp-item-ren';
     renBtn.title = 'Rename';
@@ -1539,6 +1635,7 @@ function renderFileList() {
 
     item.appendChild(renBtn);
     item.appendChild(delBtn);
+    item.appendChild(shareBtn);
     item.addEventListener('click', () => fpLoad(row.filename));
     list.appendChild(item);
   });
@@ -2023,11 +2120,40 @@ async function refreshSetlists() {
     const item = document.createElement('div');
     item.className = 'sl-item' + (sl.id === currentSetlistId ? ' active' : '');
     item.dataset.id = sl.id;
-    item.innerHTML = `
-      <span class="sl-item-icon">☰</span>
-      <span class="sl-item-name">${sl.name}</span>
-      <span style="font-size:10px;color:var(--text-faint);flex-shrink:0;">${(sl.song_filenames||[]).length}</span>
-      <button class="sl-item-del" onclick="slDelete('${sl.id}',event)" title="Delete">×</button>`;
+
+    const icon = document.createElement('span');
+    icon.className = 'sl-item-icon';
+    icon.textContent = '☰';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'sl-item-name';
+    nameEl.textContent = sl.name;
+
+    const countEl = document.createElement('span');
+    countEl.style.cssText = 'font-size:10px;color:var(--text-faint);flex-shrink:0;';
+    countEl.textContent = (sl.song_filenames||[]).length;
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'sl-item-del';
+    shareBtn.title = 'Share';
+    shareBtn.textContent = '↗';
+    shareBtn.style.opacity = '0';
+    shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSetlist(sl.id, sl.name); });
+    item.addEventListener('mouseenter', () => shareBtn.style.opacity = '1');
+    item.addEventListener('mouseleave', () => shareBtn.style.opacity = '0');
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'sl-item-del';
+    delBtn.title = 'Delete';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); slDelete(sl.id, e); });
+
+    item.appendChild(icon);
+    item.appendChild(nameEl);
+    item.appendChild(countEl);
+    item.appendChild(shareBtn);
+    item.appendChild(delBtn);
+
     item.addEventListener('click', () => {
       selectedSetlistId = sl.id;
       document.querySelectorAll('.sl-item').forEach(i => i.classList.remove('active'));
@@ -2184,6 +2310,211 @@ document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('slBuilderOverlay')) closeSlBuilder();
 });
 
+// ─── Sharing ──────────────────────────────────────────────────────────────────
+
+const BASE_URL = 'https://chordpro-render.onrender.com';
+let shareCurrentToken = null;
+let shareCurrentTitle = '';
+
+async function shareSong(filename) {
+  // Load song content
+  const { data, error } = await sb.from('songs').select('content, title').eq('filename', filename).eq('user_id', currentUser.id).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  openShareModal(data.title || filename);
+  // Create or reuse share record
+  const { data: existing } = await sb.from('shared_items')
+    .select('token').eq('owner_id', currentUser.id).eq('item_type', 'song')
+    .eq('title', data.title || filename).single();
+  if (existing) {
+    shareCurrentToken = existing.token;
+    showShareLink();
+    return;
+  }
+  const { data: created, error: createErr } = await sb.from('shared_items').insert({
+    owner_id: currentUser.id,
+    item_type: 'song',
+    title: data.title || filename,
+    content: data.content,
+  }).select('token').single();
+  if (createErr) { document.getElementById('share-err').textContent = createErr.message; document.getElementById('share-generating').style.display = 'none'; return; }
+  shareCurrentToken = created.token;
+  showShareLink();
+}
+
+async function shareSetlist(id, name) {
+  openShareModal(name);
+  // Load all songs in setlist
+  const { data: sl, error } = await sb.from('setlists').select('song_filenames').eq('id', id).single();
+  if (error) { document.getElementById('share-err').textContent = error.message; return; }
+  const contents = [];
+  for (const fn of (sl.song_filenames || [])) {
+    const { data: sd } = await sb.from('songs').select('content, title').eq('filename', fn).single();
+    if (sd) contents.push({ filename: fn, title: sd.title || fn, content: sd.content });
+  }
+  // Check for existing share
+  const { data: existing } = await sb.from('shared_items')
+    .select('token').eq('owner_id', currentUser.id).eq('item_type', 'setlist').eq('title', name).single();
+  if (existing) {
+    shareCurrentToken = existing.token;
+    showShareLink();
+    return;
+  }
+  const { data: created, error: createErr } = await sb.from('shared_items').insert({
+    owner_id: currentUser.id,
+    item_type: 'setlist',
+    title: name,
+    setlist_contents: contents,
+  }).select('token').single();
+  if (createErr) { document.getElementById('share-err').textContent = createErr.message; document.getElementById('share-generating').style.display = 'none'; return; }
+  shareCurrentToken = created.token;
+  showShareLink();
+}
+
+function openShareModal(title) {
+  shareCurrentTitle = title;
+  shareCurrentToken = null;
+  document.getElementById('share-item-label').textContent = title;
+  document.getElementById('share-generating').style.display = 'block';
+  document.getElementById('share-link-area').style.display = 'none';
+  document.getElementById('share-err').textContent = '';
+  document.getElementById('shareOverlay').classList.add('open');
+}
+
+function showShareLink() {
+  const url = `${BASE_URL}/#share=${shareCurrentToken}`;
+  document.getElementById('share-link-text').textContent = url;
+  document.getElementById('share-generating').style.display = 'none';
+  document.getElementById('share-link-area').style.display = 'flex';
+}
+
+function copyShareLink() {
+  const url = `${BASE_URL}/#share=${shareCurrentToken}`;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('#shareOverlay .share-copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1800); }
+  });
+}
+
+function emailShareLink() {
+  const url = `${BASE_URL}/#share=${shareCurrentToken}`;
+  const subject = encodeURIComponent(`ChordPro: ${shareCurrentTitle}`);
+  const body = encodeURIComponent(`I'd like to share "${shareCurrentTitle}" with you.\n\nOpen it here:\n${url}\n\nIf you have a ChordPro Editor account you can save a copy to your library. Otherwise you can view and print it as a read-only link.`);
+  window.open(`mailto:?subject=${subject}&body=${body}`);
+}
+
+function closeShare() {
+  document.getElementById('shareOverlay').classList.remove('open');
+  shareCurrentToken = null;
+}
+
+document.getElementById('shareOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('shareOverlay')) closeShare();
+});
+
+// ─── Shared item view ─────────────────────────────────────────────────────────
+
+let svSharedItem = null;
+
+async function checkForShareToken() {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#share=')) return;
+  const token = hash.slice('#share='.length);
+  if (!token) return;
+
+  // Fetch the shared item
+  const { data, error } = await sb.from('shared_items').select('*').eq('token', token).single();
+  if (error || !data) { alert('This share link is invalid or has expired.'); return; }
+
+  // Check expiry
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    alert('This share link has expired.'); return;
+  }
+
+  svSharedItem = data;
+  openShareView(data);
+}
+
+function openShareView(data) {
+  document.getElementById('sv-title').textContent = data.title;
+  // Render content into sv-paper
+  const paper = document.getElementById('sv-paper');
+  paper.innerHTML = '';
+  let text = '';
+  if (data.item_type === 'song') {
+    text = data.content || '';
+  } else if (data.item_type === 'setlist') {
+    const contents = data.setlist_contents || [];
+    text = contents.map(s => s.content).join('\n\n---\n\n');
+  }
+  // Use the existing parser/renderer
+  const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
+  songs.forEach(song => paper.appendChild(renderSong(song)));
+
+  // Notice: save button if logged in
+  const notice = document.getElementById('sv-notice');
+  const saveBtn = document.getElementById('sv-save-btn');
+  if (currentUser) {
+    notice.textContent = `Shared by another user. You can save a copy to your library.`;
+    saveBtn.style.display = 'inline-flex';
+  } else {
+    notice.textContent = `This is a read-only shared link. Create a free account to save a copy to your library.`;
+    saveBtn.style.display = 'none';
+  }
+
+  document.getElementById('shareViewOverlay').classList.add('open');
+  // Clear hash so refreshing doesn't re-open
+  history.replaceState(null, '', window.location.pathname);
+}
+
+async function svSaveCopy() {
+  if (!currentUser || !svSharedItem) return;
+  const btn = document.getElementById('sv-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  if (svSharedItem.item_type === 'song') {
+    const content = svSharedItem.content || '';
+    const title = svSharedItem.title;
+    const filename = title.replace(/[^a-z0-9\-_ ]/gi, '').trim() + '.cho';
+    const { error } = await sb.from('songs').insert({
+      user_id: currentUser.id,
+      filename,
+      title,
+      content,
+      tags: [],
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Save to My Library';
+      alert('Could not save: ' + error.message); return;
+    }
+  } else if (svSharedItem.item_type === 'setlist') {
+    const contents = svSharedItem.setlist_contents || [];
+    // Save each song
+    for (const song of contents) {
+      const filename = song.filename || (song.title.replace(/[^a-z0-9\-_ ]/gi,'').trim()+'.cho');
+      await sb.from('songs').upsert({
+        user_id: currentUser.id, filename,
+        title: song.title, content: song.content, tags: [],
+      }, { onConflict: 'user_id,filename' });
+    }
+    // Save the setlist
+    await sb.from('setlists').insert({
+      user_id: currentUser.id,
+      name: svSharedItem.title,
+      song_filenames: contents.map(s => s.filename || (s.title.replace(/[^a-z0-9\-_ ]/gi,'').trim()+'.cho')),
+    });
+  }
+
+  btn.textContent = '✓ Saved!';
+  setTimeout(() => { btn.disabled = false; btn.textContent = 'Save to My Library'; }, 2000);
+  if (filePanelOpen) refreshFileList();
+}
+
+function svClose() {
+  document.getElementById('shareViewOverlay').classList.remove('open');
+  svSharedItem = null;
+}
+
 // ─── Updated save flow (with tags) ────────────────────────────────────────────
 
 async function doSave(filename, tags) {
@@ -2234,6 +2565,7 @@ document.addEventListener('keydown', e => {
 
 // Init on load
 fpInit();
+checkForShareToken();
 
 // ─── ChordPro Parser ────────────────────────────────────────────────────────
 
@@ -3056,6 +3388,56 @@ function printSongs() {
   }
   .fp-item:hover .fp-item-ren { opacity: 1; }
   .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+
+  /* ─── SHARE ───────────────────────────────────────────────────────── */
+  .fp-item-share {
+    background: none; border: none; color: var(--text-faint);
+    cursor: pointer; padding: 2px 4px; border-radius: 3px;
+    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
+  .fp-item:hover .fp-item-share { opacity: 1; }
+  .fp-item-share:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
+  .share-link-box {
+    display: flex; gap: 6px; align-items: center;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-dim); word-break: break-all;
+  }
+  .share-link-text { flex: 1; }
+  .share-copy-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 3px; cursor: pointer;
+    font-size: 10px; padding: 3px 8px; white-space: nowrap; flex-shrink: 0;
+  }
+  .share-copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ─── SHARED SONG VIEW (full-screen read-only) ────────────────────── */
+  .share-view-overlay {
+    display: none; position: fixed; inset: 0;
+    background: var(--bg); z-index: 3000;
+    flex-direction: column; overflow-y: auto;
+  }
+  .share-view-overlay.open { display: flex; }
+  .share-view-header {
+    padding: 12px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); flex-shrink: 0;
+  }
+  .share-view-title {
+    flex: 1; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 16px; font-weight: 700; color: var(--text);
+  }
+  .share-view-body {
+    max-width: 820px; margin: 0 auto; padding: 32px 24px;
+    width: 100%;
+  }
+  .share-view-notice {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 14px; font-size: 11px;
+    color: var(--text-dim); margin-bottom: 20px;
+    display: flex; gap: 10px; align-items: center;
+  }
 </style>
 </head>
 <body>${songPages}</body>
@@ -3219,6 +3601,7 @@ That [G]saved a [Em]wretch like [D]me
           <tr><td><b>Tags tab</b></td><td>Shows all songs grouped by tag in a collapsible tree — click any song to load it</td></tr>
           <tr><td><b>Setlists tab</b></td><td>Create and open setlists — opens multiple songs joined by <code>---</code> separators</td></tr>
           <tr><td><b>New Setlist</b></td><td>Name a setlist and click songs from your library to add them</td></tr>
+          <tr><td><b>↗ Share</b></td><td>Share a song or setlist — generates a link you can copy or send by email. Recipients with an account can save a copy; others get a read-only view.</td></tr>
           <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, or delete your account</td></tr>
           <tr><td><b>Ctrl/Cmd+S</b></td><td>Keyboard shortcut to save the current file at any time</td></tr>
         </table>
