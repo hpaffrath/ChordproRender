@@ -1159,7 +1159,7 @@
 <div class="share-view-overlay" id="shareViewOverlay">
   <div class="share-view-header">
     <div class="share-view-title" id="sv-title">Shared Song</div>
-    <button class="btn btn-ghost" style="font-size:11px;" onclick="printSongs()">⎙ Print / PDF</button>
+    <button class="btn btn-ghost" style="font-size:11px;" onclick="printSongs(document.getElementById('sv-paper'))">⎙ Print / PDF</button>
     <button class="btn btn-primary" style="font-size:11px;" id="sv-save-btn" onclick="svSaveCopy()" style="display:none;">Save to My Library</button>
     <button class="btn btn-ghost" style="font-size:11px;" onclick="svClose()">✕ Close</button>
   </div>
@@ -3143,8 +3143,8 @@ updateLineNumbers();
 
 // ─── Print ────────────────────────────────────────────────────────────────────
 
-function printSongs() {
-  const paper = document.getElementById('paper');
+function printSongs(paperEl) {
+  const paper = paperEl || document.getElementById('paper');
   const songs = paper.querySelectorAll('.song');
   if (!songs.length) return;
 
