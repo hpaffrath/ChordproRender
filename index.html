@@ -867,7 +867,7 @@
   <div class="header-actions">
     <button class="btn btn-files" id="filesToggleBtn" onclick="toggleFilePanel()">⊞ Files</button>
     <button class="btn btn-ghost" onclick="showHelp()">? Help</button>
-    <button class="btn btn-ghost" onclick="loadExample()">Load Example</button>
+    <button class="btn btn-ghost" id="loadExampleBtn" onclick="loadExample()">Load Example</button>
     <button class="btn btn-ghost" onclick="clearEditor()">Clear</button>
     <button class="btn btn-primary" onclick="printSongs()">⎙ Print / PDF</button>
   </div>
@@ -1083,6 +1083,17 @@
       <input class="saveas-input" id="s-display-name" type="text" placeholder="Your name (shown in shared files)">
       <div class="fp-err" id="s-name-err"></div>
       <button class="btn btn-ghost" style="align-self:flex-start;font-size:11px;" onclick="settingsSaveName()">Save Name</button>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-faint);">Interface</div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="s-show-example" onchange="settingsToggleExample(this.checked)"
+          style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+        <span style="font-size:12px;color:var(--text-dim);">Show "Load Example" button</span>
+      </label>
     </div>
 
     <div style="height:1px;background:var(--border);margin:16px 0;"></div>
@@ -1336,6 +1347,21 @@ document.addEventListener('keydown', e => {
 
 // ─── Settings modal ───────────────────────────────────────────────────────────
 
+function applyInterfacePrefs() {
+  const showExample = localStorage.getItem('showExampleBtn') !== 'false';
+  const btn = document.getElementById('loadExampleBtn');
+  if (btn) btn.style.display = showExample ? '' : 'none';
+}
+
+function settingsToggleExample(checked) {
+  localStorage.setItem('showExampleBtn', checked ? 'true' : 'false');
+  applyInterfacePrefs();
+  // Persist to user metadata if logged in so it follows them across devices
+  if (currentUser) {
+    sb.auth.updateUser({ data: { show_example_btn: checked } });
+  }
+}
+
 function showSettings() {
   document.getElementById('s-cp-new').value = '';
   document.getElementById('s-cp-confirm').value = '';
@@ -1345,7 +1371,16 @@ function showSettings() {
     document.getElementById('settings-email-display').textContent = currentUser.email;
     const name = currentUser.user_metadata?.display_name || '';
     document.getElementById('s-display-name').value = name;
+    // Sync interface prefs from user metadata (cross-device)
+    const metaPref = currentUser.user_metadata?.show_example_btn;
+    if (metaPref !== undefined) {
+      localStorage.setItem('showExampleBtn', metaPref ? 'true' : 'false');
+      applyInterfacePrefs();
+    }
   }
+  // Populate checkbox from current local state
+  const showExample = localStorage.getItem('showExampleBtn') !== 'false';
+  document.getElementById('s-show-example').checked = showExample;
   document.getElementById('settingsOverlay').classList.add('open');
 }
 
@@ -2573,6 +2608,7 @@ document.addEventListener('keydown', e => {
 // Init on load
 fpInit();
 checkForShareToken();
+applyInterfacePrefs();
 
 // ─── ChordPro Parser ────────────────────────────────────────────────────────
 
