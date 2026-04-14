@@ -3462,26 +3462,49 @@ function printSongs(paperEl) {
 <body>${songPages}</body>
 </html>`;
 
-  // Remove any existing iframe
-  const existing = document.getElementById('print-frame');
-  if (existing) existing.remove();
+  // iOS Safari cannot print from a hidden iframe — use a popup window instead
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  const iframe = document.createElement('iframe');
-  iframe.id = 'print-frame';
-  iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
-  document.body.appendChild(iframe);
+  if (isIOS) {
+    // Open print content in a new window, print it, then close
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert('Please allow pop-ups for this site to enable printing.');
+      return;
+    }
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.document.fonts.ready.then(() => {
+      setTimeout(() => {
+        printWin.focus();
+        printWin.print();
+        // Close after a short delay to allow the print dialog to appear
+        setTimeout(() => printWin.close(), 1000);
+      }, 400);
+    });
+  } else {
+    // Desktop: use a hidden iframe (avoids focus-stealing on desktop browsers)
+    const existing = document.getElementById('print-frame');
+    if (existing) existing.remove();
 
-  iframe.contentDocument.open();
-  iframe.contentDocument.write(html);
-  iframe.contentDocument.close();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'print-frame';
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
 
-  // Wait for fonts + layout, then print
-  iframe.contentWindow.document.fonts.ready.then(() => {
-    setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    }, 300);
-  });
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+
+    iframe.contentWindow.document.fonts.ready.then(() => {
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }, 300);
+    });
+  }
 }
 
 // ─── Help Modal ───────────────────────────────────────────────────────────────
