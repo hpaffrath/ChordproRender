@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.6.2/dist/abcjs-basic-min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -370,7 +371,43 @@
     white-space: pre;
   }
 
-  /* ─── CHORD+LYRIC LINE ────────────────────────────────────────────── */
+  /* ─── ABC NOTATION SECTION ───────────────────────────────────────── */
+  .section-abc {
+    background: #ffffff08;
+    border-radius: 4px;
+    padding: 10px;
+    overflow-x: auto;
+  }
+  .section-abc svg {
+    display: block;
+    max-width: 100%;
+  }
+  /* abcjs renders with black on white — invert colours for dark theme */
+  .section-abc .abcjs-note,
+  .section-abc .abcjs-beam-elem,
+  .section-abc .abcjs-bar,
+  .section-abc .abcjs-clef,
+  .section-abc .abcjs-key-signature,
+  .section-abc .abcjs-time-signature,
+  .section-abc .abcjs-staff,
+  .section-abc .abcjs-staff-extra,
+  .section-abc .abcjs-stem,
+  .section-abc .abcjs-slur,
+  .section-abc .abcjs-tie,
+  .section-abc .abcjs-flag,
+  .section-abc .abcjs-dot,
+  .section-abc .abcjs-rest {
+    fill: var(--ink);
+    stroke: var(--ink);
+  }
+  .section-abc .abcjs-tempo,
+  .section-abc .abcjs-annotation,
+  .section-abc .abcjs-chord,
+  .section-abc text {
+    fill: var(--ink) !important;
+  }
+
+
   .chord-line {
     display: block;
     line-height: 1;
@@ -2490,7 +2527,9 @@ function openShareView(data) {
   }
   // Use the existing parser/renderer
   const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
+  pendingAbcRenders = [];
   songs.forEach(song => paper.appendChild(renderSong(song)));
+  flushAbcRenders();
 
   // Notice: save button if logged in
   const notice = document.getElementById('sv-notice');
@@ -2625,7 +2664,7 @@ function parseChordPro(text) {
   let verseN = 0, chorusN = 0;
 
   const flush = () => {
-    if (currentSection.lines.length > 0 || currentSection.label === '\x00PAGE_BREAK\x00') {
+    if (currentSection.lines.length > 0 || currentSection.rawAbc || currentSection.label === '\x00PAGE_BREAK\x00') {
       song.sections.push(currentSection);
     }
     currentSection = { label: '', lines: [] };
@@ -2665,7 +2704,8 @@ function parseChordPro(text) {
       else if (/^(start_of_bridge|sob)$/.test(k))          { flush(); currentSection.label = v ? v.toUpperCase() : 'BRIDGE'; }
       else if (/^(start_of_tab|sot)$/.test(k))             { flush(); currentSection.label = v ? v.toUpperCase() : 'TAB'; currentSection.isTab = true; }
       else if (/^(start_of_grid|sog)$/.test(k))            { flush(); currentSection.label = v ? v.toUpperCase() : 'GRID'; currentSection.isGrid = true; }
-      else if (/^(end_of_verse|eov|end_of_chorus|eoc|end_of_bridge|eob|end_of_tab|eot|end_of_grid|eog)$/.test(k)) {
+      else if (/^(start_of_abc|soabc)$/.test(k))           { flush(); currentSection.label = v ? v.toUpperCase() : ''; currentSection.isAbc = true; }
+      else if (/^(end_of_verse|eov|end_of_chorus|eoc|end_of_bridge|eob|end_of_tab|eot|end_of_grid|eog|end_of_abc|eoabc)$/.test(k)) {
         // Save chorus content for later {chorus} repeats
         if (/chorus/.test(k) && currentSection.lines.length) song.savedChorus = { ...currentSection };
         flush();
@@ -2692,13 +2732,21 @@ function parseChordPro(text) {
       continue;
     }
 
-    // Blank line — inside a tab/grid section keep it as an empty line, otherwise flush
+    // Blank line — inside a tab/grid/abc section keep it as an empty line, otherwise flush
     if (!line.trim()) {
       if (currentSection.isTab || currentSection.isGrid) {
         currentSection.lines.push(parseChordLine(''));
+      } else if (currentSection.isAbc) {
+        currentSection.rawAbc = (currentSection.rawAbc || '') + '\n';
       } else {
         flush();
       }
+      continue;
+    }
+
+    // ABC sections store raw text, not parsed chord lines
+    if (currentSection.isAbc) {
+      currentSection.rawAbc = (currentSection.rawAbc || '') + line + '\n';
       continue;
     }
 
@@ -2821,6 +2869,7 @@ function renderSong(song) {
     if (section.isRepeat) secEl.classList.add('section-repeat');
     if (section.isTab)    secEl.classList.add('section-tab');
     if (section.isGrid)   secEl.classList.add('section-grid');
+    if (section.isAbc)    secEl.classList.add('section-abc');
 
     if (section.label) {
       const lbl = document.createElement('div');
@@ -2828,6 +2877,13 @@ function renderSong(song) {
       lbl.textContent = section.label;
       if (section.isRepeat) lbl.classList.add('section-label-repeat');
       secEl.appendChild(lbl);
+    }
+
+    // ── ABC notation section ─────────────────────────────────────────
+    if (section.isAbc && section.rawAbc) {
+      renderAbcSection(secEl, section.rawAbc);
+      div.appendChild(secEl);
+      continue;
     }
 
     for (const line of section.lines) {
@@ -2866,6 +2922,41 @@ function renderSong(song) {
   div.appendChild(footer);
 
   return div;
+}
+
+// ─── ABC Notation Renderer ────────────────────────────────────────────────────
+
+let abcRenderCount = 0;
+let pendingAbcRenders = []; // collect { id, rawAbc } to render after DOM insertion
+
+function renderAbcSection(container, rawAbc) {
+  const id = 'abc-render-' + (++abcRenderCount);
+  const holder = document.createElement('div');
+  holder.id = id;
+  holder.dataset.abcRaw = rawAbc.trim();
+  container.appendChild(holder);
+  // Actual rendering deferred until element is in the DOM
+  pendingAbcRenders.push(id);
+}
+
+function flushAbcRenders() {
+  if (typeof ABCJS === 'undefined') return;
+  for (const id of pendingAbcRenders) {
+    const holder = document.getElementById(id);
+    if (!holder) continue;
+    const rawAbc = holder.dataset.abcRaw;
+    if (!rawAbc) continue;
+    try {
+      ABCJS.renderAbc(id, rawAbc, {
+        responsive: 'resize',
+        tablature: [{ instrument: 'guitar' }],
+        add_classes: true,
+      });
+    } catch (e) {
+      holder.innerHTML = `<div style="color:#e05a5a;font-size:11px;padding:8px;">ABC error: ${e.message}</div>`;
+    }
+  }
+  pendingAbcRenders = [];
 }
 
 function renderLine(line, isTab) {
@@ -2958,9 +3049,11 @@ function updatePreview() {
   const songs = songTexts.map(parseChordPro);
 
   paper.innerHTML = '';
+  pendingAbcRenders = [];
   for (const song of songs) {
     paper.appendChild(renderSong(song));
   }
+  flushAbcRenders();
 
   // Update key badge (first song's key)
   document.getElementById('key-display').textContent = songs[0].key || '—';
@@ -3162,7 +3255,28 @@ Wish you were [C]here
 [G]Standing in the sunlight laughing [C]hiding behind a rainbow's wall
 [G]Slipping and a sliding [D]all along the waterfall with you
 [G]My brown eyed [C]girl [G]you my [D]brown eyed girl
-{end_of_verse}`;
+{end_of_verse}
+
+---
+
+{title: ABC Notation Example}
+{artist: Example}
+{key: G}
+
+{start_of_verse: Standard Notation + Tab}
+This section uses ABC notation to render music with standard notation above and guitar tab below.
+{end_of_verse}
+
+{start_of_abc}
+X:1
+T:
+M:4/4
+L:1/8
+K:G
+%%staffwidth 550
+|"G"G4 G2AB|"C"c4 c2BA|"G"G4 GABG|"D"D6 DE|
+|"G"G4 G2AB|"C"c4 e2dc|"G"BdgB "D"FADF|"G"G8|]
+{end_of_abc}`;
 
   editor.value = example;
   editor.dispatchEvent(new Event('input'));
@@ -3231,6 +3345,11 @@ function printSongs(paperEl) {
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
     .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
+
+    .section-abc { overflow: visible; page-break-inside: avoid; break-inside: avoid; margin-bottom: 14px; }
+    .section-abc svg { display: block; max-width: 100%; height: auto; }
+    .section-abc text { fill: #1a1a22 !important; }
+    .section-abc path, .section-abc rect, .section-abc polygon { fill: #1a1a22; stroke: #1a1a22; }
 
     .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; break-inside: avoid; page-break-inside: avoid; }
     .token { display: inline-flex; flex-direction: column; align-items: flex-start; break-inside: avoid; page-break-inside: avoid; }
@@ -3592,6 +3711,25 @@ function hideHelp(e) {
           <tr><td><code>{comment_box: …}</code></td><td>Same as comment</td></tr>
           <tr><td><code>{highlight: …}</code></td><td>Same as comment</td></tr>
         </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">ABC Music Notation</div>
+        <table class="help-table">
+          <tr><td><code>{start_of_abc}</code></td><td>Begin an ABC notation block — renders standard notation with guitar tab below</td></tr>
+          <tr><td><code>{end_of_abc}</code></td><td>End the ABC notation block</td></tr>
+          <tr><td><code>{soabc}</code> / <code>{eoabc}</code></td><td>Shorthands for start / end of ABC notation</td></tr>
+        </table>
+        <pre class="help-example">{start_of_abc}
+X:1
+M:4/4
+L:1/8
+K:G
+|"G"G4 G2AB|"C"c4 c2BA|"D"D6 DE|"G"G8|]
+{end_of_abc}</pre>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">
+          ABC notation is a text-based music standard. Each block must begin with <code>X:1</code> (tune number), <code>M:</code> (time signature), <code>L:</code> (note length), and <code>K:</code> (key). Learn more at <a href="https://abcnotation.com" target="_blank" style="color:var(--accent);">abcnotation.com</a>.
+        </div>
       </div>
 
       <div class="help-section">
