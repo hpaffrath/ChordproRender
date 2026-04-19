@@ -585,7 +585,7 @@
   .file-panel.collapsed { width: 0; min-width: 0; border-left: none; }
   .file-panel-header { height: 36px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--border); gap: 6px; flex-shrink: 0; }
   .file-panel-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); flex: 1; }
-  .file-icon-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 3px 6px; border-radius: 3px; font-size: 13px; line-height: 1; }
+  .file-icon-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 7px; border-radius: 3px; font-size: 15px; line-height: 1; }
   .file-icon-btn:hover { background: var(--surface2); color: var(--text); }
 
   .fp-auth { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; gap: 14px; text-align: center; }
@@ -602,7 +602,7 @@
 
   .fp-user { padding: 7px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .fp-user-email { font-size: 10.5px; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fp-signout { font-size: 10px; color: var(--text-faint); background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+  .fp-signout { font-size: 12px; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 3px 7px; border-radius: 3px; white-space: nowrap; }
   .fp-signout:hover { color: var(--text); background: var(--surface2); }
   .fp-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
   .fp-actions .btn { flex: 1; font-size: 11px; padding: 5px 8px; }
@@ -617,7 +617,7 @@
   .fp-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
   .fp-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fp-item.active .fp-item-name { color: var(--accent); }
-  .fp-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .fp-item-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 15px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
   .fp-item:hover .fp-item-del { opacity: 1; }
   .fp-item-del:hover { color: #e05a5a; background: rgba(224,90,90,0.1); }
   .fp-empty { padding: 20px 14px; text-align: center; font-size: 11px; color: var(--text-faint); line-height: 1.6; }
@@ -744,7 +744,7 @@
   .sl-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
   .sl-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sl-item.active .sl-item-name { color: var(--accent); }
-  .sl-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .sl-item-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 15px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
   .sl-item:hover .sl-item-del { opacity: 1; }
   .sl-item-del:hover { color: #e05a5a; }
   .sl-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
@@ -812,18 +812,18 @@
 
   /* Rename button on file items */
   .fp-item-ren {
-    background: none; border: none; color: var(--text-faint);
-    cursor: pointer; padding: 2px 4px; border-radius: 3px;
-    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 2px 5px; border-radius: 3px;
+    font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1;
   }
   .fp-item:hover .fp-item-ren { opacity: 1; }
   .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
 
-  /* ─── SHARE ───────────────────────────────────────────────────────── */
   .fp-item-share {
-    background: none; border: none; color: var(--text-faint);
-    cursor: pointer; padding: 2px 4px; border-radius: 3px;
-    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 2px 5px; border-radius: 3px;
+    font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+  }
   }
   .fp-item:hover .fp-item-share { opacity: 1; }
   .fp-item-share:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
@@ -1003,6 +1003,7 @@
         <button class="fp-tab active" id="tab-songs" onclick="fpSwitchTab('songs')">Songs</button>
         <button class="fp-tab" id="tab-tags" onclick="fpSwitchTab('tags')">Tags</button>
         <button class="fp-tab" id="tab-setlists" onclick="fpSwitchTab('setlists')">Setlists</button>
+        <button class="fp-tab" id="tab-groups" onclick="fpSwitchTab('groups')">Groups</button>
       </div>
 
       <!-- Songs tab -->
@@ -1042,6 +1043,55 @@
           <div class="fp-loading">Loading…</div>
         </div>
       </div>
+
+      <!-- Groups tab -->
+      <div id="fp-tab-groups" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="fp-actions">
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpCreate()">New Group</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpJoinPrompt()">Join Group</button>
+        </div>
+        <div class="sl-list" id="grp-list">
+          <div class="fp-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Group mode — shown instead of normal tabs when a group is active -->
+    </div>
+  </div>
+
+  <!-- Group mode — shown instead of fp-files-view when a group is active -->
+  <div id="fp-group-mode" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+    <div style="padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <button class="fp-signout" onclick="grpExitMode()" title="Back to My Files">← Back</button>
+      <span style="font-size:12px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="grp-mode-name"></span>
+      <button class="fp-signout" onclick="grpManage()" title="Manage group">⚙</button>
+    </div>
+    <div class="fp-tabs" style="flex-shrink:0;">
+      <button class="fp-tab active" id="grp-tab-songs" onclick="grpSwitchTab('songs')">Songs</button>
+      <button class="fp-tab" id="grp-tab-setlists" onclick="grpSwitchTab('setlists')">Setlists</button>
+    </div>
+
+    <!-- Group Songs -->
+    <div id="grp-panel-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="fp-actions">
+        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpAddSong()">Add Song</button>
+        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSaveSong()" id="grp-save-btn">Save to Group</button>
+      </div>
+      <div class="fp-search-row">
+        <input class="fp-search" id="grp-search" placeholder="Search…" oninput="grpRenderSongList()" autocomplete="off">
+      </div>
+      <div class="fp-current" id="grp-current">No song open</div>
+      <div class="fp-list" id="grp-song-list"><div class="fp-loading">Loading…</div></div>
+    </div>
+
+    <!-- Group Setlists -->
+    <div id="grp-panel-setlists" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="sl-actions">
+        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlNew()">New Setlist</button>
+        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlLoad()" id="grp-sl-load-btn" disabled>Open</button>
+      </div>
+      <div class="sl-current" id="grp-sl-current">No setlist open</div>
+      <div class="sl-list" id="grp-sl-list"><div class="fp-loading">Loading…</div></div>
     </div>
   </div>
 
@@ -1217,6 +1267,73 @@
   </div>
 </div>
 
+<!-- Create Group modal -->
+<div class="saveas-overlay" id="grpCreateOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">New Group</div>
+    <input class="saveas-input" id="grp-create-name" placeholder="Group name (e.g. Sunday Team)">
+    <div class="fp-err" id="grp-create-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeModal('grpCreateOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="grpCreateConfirm()">Create Group</button>
+    </div>
+  </div>
+</div>
+
+<!-- Join Group modal -->
+<div class="saveas-overlay" id="grpJoinOverlay">
+  <div class="saveas-box">
+    <div class="saveas-title">Join Group</div>
+    <div style="font-size:11px;color:var(--text-dim);">Enter an invite code or paste a join link</div>
+    <input class="saveas-input" id="grp-join-token" placeholder="Invite code or join link">
+    <div class="fp-err" id="grp-join-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeModal('grpJoinOverlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="grpJoinConfirm()">Join Group</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manage Group modal -->
+<div class="saveas-overlay" id="grpManageOverlay">
+  <div class="saveas-box" style="max-width:440px;">
+    <div class="saveas-title" id="grp-manage-title">Manage Group</div>
+
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Invite Link</div>
+    <div class="share-link-box">
+      <span class="share-link-text" id="grp-invite-link"></span>
+      <button class="share-copy-btn" onclick="grpCopyInvite()">Copy</button>
+    </div>
+    <button class="btn btn-ghost" style="font-size:11px;align-self:flex-start;" onclick="grpEmailInvite()">✉ Email Invite</button>
+    <button class="btn btn-ghost" style="font-size:11px;align-self:flex-start;" onclick="grpRegenerateInvite()">Regenerate invite link</button>
+
+    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Rename Group</div>
+    <div style="display:flex;gap:6px;">
+      <input class="saveas-input" id="grp-rename-input" placeholder="New group name" style="flex:1;">
+      <button class="btn btn-ghost" style="font-size:11px;flex-shrink:0;" onclick="grpRenameConfirm()">Rename</button>
+    </div>
+    <div class="fp-err" id="grp-manage-err"></div>
+
+    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);">Members</div>
+    <div id="grp-members-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+
+    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" style="font-size:11px;color:#e05a5a;border-color:#e05a5a;" id="grp-delete-btn" onclick="grpDelete()">Delete Group…</button>
+      <button class="btn btn-ghost" style="font-size:11px;" onclick="grpLeave()">Leave Group</button>
+    </div>
+
+    <div class="saveas-actions">
+      <button class="btn btn-primary" onclick="closeModal('grpManageOverlay')">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rename modal -->
 <div class="saveas-overlay" id="renameOverlay">
   <div class="saveas-box">
@@ -1258,17 +1375,27 @@ let filePanelOpen = false;
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 async function fpInit() {
+  // If there's a join token in the URL but no session, save it so it survives login
+  if (window.location.hash.startsWith('#join=') ) {
+    const token = window.location.hash.slice('#join='.length);
+    if (token) localStorage.setItem('pendingJoinToken', token);
+    history.replaceState(null, '', window.location.pathname);
+  }
+
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     currentUser = session.user;
     fpShowFilesView();
     refreshFileList();
+    checkForJoinToken();
   }
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     if (currentUser) {
       fpShowFilesView();
       refreshFileList();
+      // Check for pending join token (set before login or in URL)
+      checkForJoinToken();
     } else {
       fpShowAuthView();
     }
@@ -1376,6 +1503,9 @@ document.addEventListener('keydown', e => {
     else if (document.getElementById('saveasOverlay')?.classList.contains('open')) closeSaveAs();
     else if (document.getElementById('tagsOverlay')?.classList.contains('open')) closeTagsOverlay();
     else if (document.getElementById('slBuilderOverlay')?.classList.contains('open')) closeSlBuilder();
+    else if (document.getElementById('grpCreateOverlay')?.classList.contains('open')) closeModal('grpCreateOverlay');
+    else if (document.getElementById('grpJoinOverlay')?.classList.contains('open')) closeModal('grpJoinOverlay');
+    else if (document.getElementById('grpManageOverlay')?.classList.contains('open')) closeModal('grpManageOverlay');
     else if (document.getElementById('shareOverlay')?.classList.contains('open')) closeShare();
     else if (document.getElementById('shareViewOverlay')?.classList.contains('open')) svClose();
     else if (document.getElementById('helpModal')?.classList.contains('open')) hideHelp();
@@ -1894,12 +2024,13 @@ let currentTab = 'songs';
 
 function fpSwitchTab(tab) {
   currentTab = tab;
-  ['songs', 'tags', 'setlists'].forEach(t => {
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`fp-tab-${t}`).style.display = t === tab ? 'flex' : 'none';
+  ['songs', 'tags', 'setlists', 'groups'].forEach(t => {
+    document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
+    document.getElementById(`fp-tab-${t}`)?.style && (document.getElementById(`fp-tab-${t}`).style.display = t === tab ? 'flex' : 'none');
   });
   if (tab === 'tags') refreshTagTree();
   if (tab === 'setlists') refreshSetlists();
+  if (tab === 'groups') refreshGroupList();
 }
 
 // ─── Transpose ────────────────────────────────────────────────────────────────
@@ -2371,6 +2502,22 @@ async function slSave() {
   const name = document.getElementById('sl-name-input').value.trim();
   const errEl = document.getElementById('sl-builder-err');
   if (!name) { errEl.textContent = 'Please enter a setlist name.'; return; }
+
+  if (window._grpSetlistMode && currentGroup) {
+    // Save as group setlist
+    const { error } = await sb.from('group_setlists').insert({
+      group_id: currentGroup.id,
+      name,
+      song_filenames: slSelectedSongs,
+      created_by: currentUser.id,
+    });
+    if (error) { errEl.textContent = error.message; return; }
+    window._grpSetlistMode = false;
+    closeSlBuilder();
+    refreshGroupSetlists();
+    return;
+  }
+
   const { error } = await sb.from('setlists').insert({
     user_id: currentUser.id,
     name,
@@ -2383,6 +2530,7 @@ async function slSave() {
 
 function closeSlBuilder() {
   document.getElementById('slBuilderOverlay').classList.remove('open');
+  window._grpSetlistMode = false;
 }
 
 document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
@@ -2594,6 +2742,567 @@ async function svSaveCopy() {
 function svClose() {
   document.getElementById('shareViewOverlay').classList.remove('open');
   svSharedItem = null;
+}
+
+// ─── Groups ───────────────────────────────────────────────────────────────────
+
+const GRP_BASE_URL = 'https://chordpro-render.onrender.com';
+let currentGroup = null;        // { id, name, invite_token, myRole }
+let currentGroupTab = 'songs';
+let grpAllSongs = [];           // cached group song list
+let grpSelectedSetlistId = null;
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+
+function grpIsAdmin() {
+  return currentGroup?.myRole === 'admin';
+}
+
+// ── Tab & mode switching ──────────────────────────────────────────────────────
+
+function grpEnterMode(group) {
+  currentGroup = group;
+  document.getElementById('grp-mode-name').textContent = group.name;
+  // Siblings inside .file-panel — hide personal view, show group view
+  document.getElementById('fp-auth-view').style.display = 'none';
+  document.getElementById('fp-files-view').style.display = 'none';
+  document.getElementById('fp-group-mode').style.display = 'flex';
+  // Admin-only save button
+  document.getElementById('grp-save-btn').style.display = grpIsAdmin() ? '' : 'none';
+  grpSwitchTab('songs');
+  refreshGroupSongs();
+}
+
+function grpExitMode() {
+  currentGroup = null;
+  currentGroupSongId = null;
+  currentGroupSongFilename = null;
+  document.getElementById('fp-group-mode').style.display = 'none';
+  document.getElementById('fp-files-view').style.display = 'flex';
+  fpSwitchTab('groups');
+}
+
+function grpSwitchTab(tab) {
+  currentGroupTab = tab;
+  ['songs', 'setlists'].forEach(t => {
+    document.getElementById(`grp-tab-${t}`).classList.toggle('active', t === tab);
+    document.getElementById(`grp-panel-${t}`).style.display = t === tab ? 'flex' : 'none';
+  });
+  if (tab === 'setlists') refreshGroupSetlists();
+}
+
+// ── Groups list ───────────────────────────────────────────────────────────────
+
+async function refreshGroupList() {
+  const list = document.getElementById('grp-list');
+  if (!list) return;
+  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  // Fetch groups this user belongs to (via group_members join)
+  const { data, error } = await sb
+    .from('group_members')
+    .select('role, groups(id, name, invite_token)')
+    .eq('user_id', currentUser.id);
+  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  if (!data.length) {
+    list.innerHTML = '<div class="fp-empty">No groups yet.<br>Create one or join with an invite link.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  data.forEach(row => {
+    const g = row.groups;
+    const item = document.createElement('div');
+    item.className = 'sl-item';
+    const icon = document.createElement('span');
+    icon.className = 'sl-item-icon';
+    icon.textContent = '⊕';
+    const name = document.createElement('span');
+    name.className = 'sl-item-name';
+    name.textContent = g.name;
+    const roleBadge = document.createElement('span');
+    roleBadge.style.cssText = 'font-size:9px;color:var(--text-faint);flex-shrink:0;';
+    roleBadge.textContent = row.role;
+    item.appendChild(icon);
+    item.appendChild(name);
+    item.appendChild(roleBadge);
+    item.addEventListener('click', () => grpEnterMode({ id: g.id, name: g.name, invite_token: g.invite_token, myRole: row.role }));
+    list.appendChild(item);
+  });
+}
+
+// ── Create group ──────────────────────────────────────────────────────────────
+
+function grpCreate() {
+  document.getElementById('grp-create-name').value = '';
+  document.getElementById('grp-create-err').textContent = '';
+  document.getElementById('grpCreateOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('grp-create-name').focus(), 50);
+}
+
+async function grpCreateConfirm() {
+  const name = document.getElementById('grp-create-name').value.trim();
+  const errEl = document.getElementById('grp-create-err');
+  if (!name) { errEl.textContent = 'Please enter a group name.'; return; }
+
+  // Create the group — don't select() immediately as member row doesn't exist yet
+  const { error: grpErr } = await sb.from('groups')
+    .insert({ name, created_by: currentUser.id });
+  if (grpErr) { errEl.textContent = grpErr.message; return; }
+
+  // Fetch the new group by created_by + name (creator policy allows this)
+  const { data: grp, error: fetchErr } = await sb.from('groups')
+    .select('id, name, invite_token')
+    .eq('created_by', currentUser.id)
+    .eq('name', name)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+  if (fetchErr) { errEl.textContent = fetchErr.message; return; }
+
+  // Add creator as admin member
+  const { error: memErr } = await sb.from('group_members').insert({
+    group_id: grp.id,
+    user_id: currentUser.id,
+    role: 'admin',
+    display_name: currentUser.user_metadata?.display_name || currentUser.email,
+  });
+  if (memErr) { errEl.textContent = memErr.message; return; }
+
+  closeModal('grpCreateOverlay');
+  refreshGroupList();
+  grpEnterMode({ id: grp.id, name: grp.name, invite_token: grp.invite_token, myRole: 'admin' });
+}
+
+document.getElementById('grpCreateOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('grpCreateOverlay')) closeModal('grpCreateOverlay');
+});
+document.getElementById('grp-create-name')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') grpCreateConfirm();
+  if (e.key === 'Escape') closeModal('grpCreateOverlay');
+});
+
+// ── Join group ────────────────────────────────────────────────────────────────
+
+function grpJoinPrompt() {
+  document.getElementById('grp-join-token').value = '';
+  document.getElementById('grp-join-err').textContent = '';
+  document.getElementById('grpJoinOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('grp-join-token').focus(), 50);
+}
+
+async function grpJoinConfirm() {
+  let raw = document.getElementById('grp-join-token').value.trim();
+  const errEl = document.getElementById('grp-join-err');
+  // Extract token from URL if pasted as full link
+  const match = raw.match(/[#?]join=([a-zA-Z0-9]+)/);
+  const token = match ? match[1] : raw;
+  if (!token) { errEl.textContent = 'Please enter an invite code or link.'; return; }
+  await grpJoinByToken(token, errEl);
+}
+
+async function grpJoinByToken(token, errEl) {
+  // Look up group by token
+  const { data: grp, error } = await sb.from('groups')
+    .select('id, name, invite_token')
+    .eq('invite_token', token)
+    .single();
+  if (error || !grp) {
+    if (errEl) errEl.textContent = 'Invalid or expired invite code.';
+    else alert('Invalid or expired invite code.');
+    return;
+  }
+  // Check if already a member
+  const { data: existing } = await sb.from('group_members')
+    .select('id').eq('group_id', grp.id).eq('user_id', currentUser.id).single();
+  if (existing) {
+    closeModal('grpJoinOverlay');
+    alert(`You're already a member of "${grp.name}".`);
+    refreshGroupList();
+    return;
+  }
+  // Join as member
+  const { error: joinErr } = await sb.from('group_members').insert({
+    group_id: grp.id,
+    user_id: currentUser.id,
+    role: 'member',
+    display_name: currentUser.user_metadata?.display_name || currentUser.email,
+  });
+  if (joinErr) {
+    if (errEl) errEl.textContent = joinErr.message;
+    else alert(joinErr.message);
+    return;
+  }
+  closeModal('grpJoinOverlay');
+  refreshGroupList();
+  grpEnterMode({ id: grp.id, name: grp.name, invite_token: grp.invite_token, myRole: 'member' });
+}
+
+document.getElementById('grpJoinOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('grpJoinOverlay')) closeModal('grpJoinOverlay');
+});
+document.getElementById('grp-join-token')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') grpJoinConfirm();
+  if (e.key === 'Escape') closeModal('grpJoinOverlay');
+});
+
+// ── Check for join token in URL (like share links) ────────────────────────────
+
+async function checkForJoinToken() {
+  if (!currentUser) return;
+
+  // Check URL hash first (already logged in when link opened)
+  let token = null;
+  if (window.location.hash.startsWith('#join=')) {
+    token = window.location.hash.slice('#join='.length);
+    history.replaceState(null, '', window.location.pathname);
+  }
+
+  // Fall back to pending token saved before login
+  if (!token) {
+    token = localStorage.getItem('pendingJoinToken');
+  }
+
+  if (!token) return;
+  localStorage.removeItem('pendingJoinToken');
+  await grpJoinByToken(token, null);
+}
+
+// ── Manage group ──────────────────────────────────────────────────────────────
+
+async function grpManage() {
+  if (!currentGroup) return;
+  document.getElementById('grp-manage-title').textContent = currentGroup.name;
+  document.getElementById('grp-rename-input').value = currentGroup.name;
+  document.getElementById('grp-manage-err').textContent = '';
+  document.getElementById('grp-invite-link').textContent =
+    `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
+  document.getElementById('grp-delete-btn').style.display = grpIsAdmin() ? '' : 'none';
+  await grpLoadMembers();
+  document.getElementById('grpManageOverlay').classList.add('open');
+}
+
+async function grpLoadMembers() {
+  const list = document.getElementById('grp-members-list');
+  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb.from('group_members')
+    .select('id, user_id, role, display_name')
+    .eq('group_id', currentGroup.id);
+  if (error) { list.innerHTML = `<div style="color:#e05a5a;font-size:11px;">${error.message}</div>`; return; }
+  list.innerHTML = '';
+  data.forEach(m => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;';
+    const nameEl = document.createElement('span');
+    nameEl.style.flex = '1';
+    nameEl.style.color = 'var(--text-dim)';
+    nameEl.textContent = m.display_name || m.user_id.slice(0, 8) + '…';
+    const roleEl = document.createElement('span');
+    roleEl.style.cssText = 'font-size:9px;color:var(--text-faint);padding:2px 5px;border:1px solid var(--border);border-radius:3px;';
+    roleEl.textContent = m.role;
+    row.appendChild(nameEl);
+    row.appendChild(roleEl);
+    // Admin controls for other members
+    if (grpIsAdmin() && m.user_id !== currentUser.id) {
+      const promoteBtn = document.createElement('button');
+      promoteBtn.style.cssText = 'background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:10px;padding:2px 4px;';
+      promoteBtn.textContent = m.role === 'admin' ? '↓ member' : '↑ admin';
+      promoteBtn.title = m.role === 'admin' ? 'Demote to member' : 'Promote to admin';
+      promoteBtn.addEventListener('click', async () => {
+        const newRole = m.role === 'admin' ? 'member' : 'admin';
+        await sb.from('group_members').update({ role: newRole }).eq('id', m.id);
+        grpLoadMembers();
+      });
+      const removeBtn = document.createElement('button');
+      removeBtn.style.cssText = 'background:none;border:none;color:#e05a5a;cursor:pointer;font-size:12px;padding:2px 4px;';
+      removeBtn.textContent = '×';
+      removeBtn.title = 'Remove member';
+      removeBtn.addEventListener('click', async () => {
+        if (!confirm(`Remove ${nameEl.textContent} from the group?`)) return;
+        await sb.from('group_members').delete().eq('id', m.id);
+        grpLoadMembers();
+      });
+      row.appendChild(promoteBtn);
+      row.appendChild(removeBtn);
+    }
+    list.appendChild(row);
+  });
+}
+
+function grpEmailInvite() {
+  const url = `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
+  const subject = encodeURIComponent(`Join my group on ChordPro Editor: ${currentGroup.name}`);
+  const body = encodeURIComponent(`Hi,\n\nI'd like to invite you to collaborate on "${currentGroup.name}" in ChordPro Editor.\n\nClick the link below to join:\n${url}\n\nYou'll need a free account to join. If you don't have one, you can create one when you open the link.`);
+  window.open(`mailto:?subject=${subject}&body=${body}`);
+}
+
+function grpCopyInvite() {
+  const url = `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('#grpManageOverlay .share-copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1800); }
+  });
+}
+
+async function grpRegenerateInvite() {
+  if (!confirm('Regenerate the invite link? The old link will stop working.')) return;
+  const newToken = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+  const { error } = await sb.from('groups').update({ invite_token: newToken }).eq('id', currentGroup.id);
+  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
+  currentGroup.invite_token = newToken;
+  document.getElementById('grp-invite-link').textContent = `${GRP_BASE_URL}/#join=${newToken}`;
+}
+
+async function grpRenameConfirm() {
+  const name = document.getElementById('grp-rename-input').value.trim();
+  const errEl = document.getElementById('grp-manage-err');
+  if (!name) { errEl.textContent = 'Please enter a name.'; return; }
+  const { error } = await sb.from('groups').update({ name }).eq('id', currentGroup.id);
+  if (error) { errEl.textContent = error.message; return; }
+  currentGroup.name = name;
+  document.getElementById('grp-mode-name').textContent = name;
+  document.getElementById('grp-manage-title').textContent = name;
+  errEl.style.color = '#6a9e5a'; errEl.textContent = '✓ Renamed!';
+  setTimeout(() => { errEl.style.color = ''; errEl.textContent = ''; }, 1500);
+  refreshGroupList();
+}
+
+async function grpDelete() {
+  if (!confirm(`Delete group "${currentGroup.name}"? This removes all group songs and setlists.`)) return;
+  if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
+  const { error } = await sb.from('groups').delete().eq('id', currentGroup.id);
+  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
+  closeModal('grpManageOverlay');
+  grpExitMode();
+}
+
+async function grpLeave() {
+  if (!confirm(`Leave group "${currentGroup.name}"?`)) return;
+  const { error } = await sb.from('group_members')
+    .delete().eq('group_id', currentGroup.id).eq('user_id', currentUser.id);
+  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
+  closeModal('grpManageOverlay');
+  grpExitMode();
+}
+
+document.getElementById('grpManageOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('grpManageOverlay')) closeModal('grpManageOverlay');
+});
+
+// ── Group Songs ───────────────────────────────────────────────────────────────
+
+async function refreshGroupSongs() {
+  const list = document.getElementById('grp-song-list');
+  if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb.from('group_songs')
+    .select('id, filename, title, updated_at')
+    .eq('group_id', currentGroup.id)
+    .order('filename');
+  if (error) { if (list) list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  grpAllSongs = data || [];
+  grpRenderSongList();
+}
+
+function grpRenderSongList() {
+  const list = document.getElementById('grp-song-list');
+  if (!list) return;
+  const query = (document.getElementById('grp-search')?.value || '').toLowerCase();
+  const files = grpAllSongs.filter(f =>
+    !query || f.filename.toLowerCase().includes(query) || (f.title||'').toLowerCase().includes(query)
+  );
+  if (!files.length) {
+    list.innerHTML = query
+      ? `<div class="fp-empty">No songs matching "${query}"</div>`
+      : '<div class="fp-empty">No songs yet.<br>Add a song to get started.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  files.forEach(row => {
+    const item = document.createElement('div');
+    item.className = 'fp-item';
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+    const name = document.createElement('span');
+    name.className = 'fp-item-name'; name.textContent = row.filename;
+    item.appendChild(icon);
+    item.appendChild(name);
+    // Admins can delete
+    if (grpIsAdmin()) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'fp-item-del'; delBtn.textContent = '×'; delBtn.title = 'Remove from group';
+      delBtn.addEventListener('click', e => { e.stopPropagation(); grpDeleteSong(row.id, row.filename, e); });
+      item.appendChild(delBtn);
+    }
+    item.addEventListener('click', () => grpLoadSong(row));
+    list.appendChild(item);
+  });
+}
+
+async function grpLoadSong(row) {
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
+  const { data, error } = await sb.from('group_songs').select('content').eq('id', row.id).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  document.getElementById('editor').value = data.content;
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentFilename = null; // group songs don't use personal filename
+  setUnsaved(false);
+  resetTranspose();
+  document.getElementById('grp-current').innerHTML = `⊕ <b>${row.filename}</b>`;
+  // Store which group song is open
+  currentGroupSongId = row.id;
+  currentGroupSongFilename = row.filename;
+  grpRenderSongList();
+}
+
+let currentGroupSongId = null;
+let currentGroupSongFilename = null;
+
+async function grpSaveSong() {
+  if (!currentGroupSongId) { alert('No group song open. Use "Add Song" to add the current song to the group.'); return; }
+  if (!currentGroup) return;
+  const content = document.getElementById('editor').value;
+  if (!content.trim()) return;
+  const title = extractTitle(content);
+  const { error } = await sb.from('group_songs').update({
+    content, title: title || currentGroupSongFilename,
+    last_edited_by: currentUser.id,
+  }).eq('id', currentGroupSongId);
+  if (error) { alert('Save failed: ' + error.message); return; }
+  setUnsaved(false);
+  document.getElementById('grp-current').innerHTML = `✓ Saved — ⊕ <b>${currentGroupSongFilename}</b>`;
+  setTimeout(() => {
+    document.getElementById('grp-current').innerHTML = `⊕ <b>${currentGroupSongFilename}</b>`;
+  }, 1500);
+  refreshGroupSongs();
+}
+
+async function grpAddSong() {
+  const content = document.getElementById('editor').value.trim();
+  if (!content) { alert('Nothing in the editor to add. Write or load a song first.'); return; }
+  const title = extractTitle(content);
+  const suggested = (title || 'untitled').replace(/[^a-z0-9\-_ ]/gi, '').trim();
+  const filename = prompt('Filename for this song in the group:', suggested + '.cho');
+  if (!filename) return;
+  const finalName = filename.endsWith('.cho') ? filename : filename + '.cho';
+  if (grpAllSongs.some(s => s.filename === finalName)) {
+    alert(`A song named "${finalName}" already exists in this group.`); return;
+  }
+  const { error } = await sb.from('group_songs').insert({
+    group_id: currentGroup.id,
+    filename: finalName,
+    title: title || finalName,
+    content,
+    added_by: currentUser.id,
+    last_edited_by: currentUser.id,
+  });
+  if (error) { alert('Error: ' + error.message); return; }
+  // Refresh to get the real ID from the server
+  await refreshGroupSongs();
+  // Find the newly inserted song in the refreshed list
+  const newSong = grpAllSongs.find(s => s.filename === finalName);
+  if (newSong) {
+    currentGroupSongId = newSong.id;
+    currentGroupSongFilename = finalName;
+  }
+  document.getElementById('grp-current').innerHTML = `⊕ <b>${finalName}</b>`;
+  setUnsaved(false);
+}
+
+async function grpDeleteSong(id, filename, e) {
+  e.stopPropagation();
+  if (!confirm(`Remove "${filename}" from the group?`)) return;
+  const { error } = await sb.from('group_songs').delete().eq('id', id);
+  if (error) { alert('Error: ' + error.message); return; }
+  if (currentGroupSongId === id) {
+    currentGroupSongId = null; currentGroupSongFilename = null;
+    document.getElementById('grp-current').textContent = 'No song open';
+  }
+  grpAllSongs = grpAllSongs.filter(s => s.id !== id);
+  grpRenderSongList();
+}
+
+// ── Group Setlists ────────────────────────────────────────────────────────────
+
+async function refreshGroupSetlists() {
+  const list = document.getElementById('grp-sl-list');
+  if (!list) return;
+  list.innerHTML = '<div class="fp-loading">Loading…</div>';
+  const { data, error } = await sb.from('group_setlists')
+    .select('id, name, song_filenames').eq('group_id', currentGroup.id).order('name');
+  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  if (!data.length) { list.innerHTML = '<div class="fp-empty">No setlists yet.</div>'; return; }
+  list.innerHTML = '';
+  data.forEach(sl => {
+    const item = document.createElement('div');
+    item.className = 'sl-item';
+    item.dataset.id = sl.id;
+    const icon = document.createElement('span'); icon.className = 'sl-item-icon'; icon.textContent = '☰';
+    const name = document.createElement('span'); name.className = 'sl-item-name'; name.textContent = sl.name;
+    const count = document.createElement('span');
+    count.style.cssText = 'font-size:10px;color:var(--text-faint);flex-shrink:0;';
+    count.textContent = (sl.song_filenames||[]).length;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'sl-item-del'; delBtn.textContent = '×'; delBtn.title = 'Delete setlist';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); grpSlDelete(sl.id, e); });
+    item.appendChild(icon); item.appendChild(name); item.appendChild(count); item.appendChild(delBtn);
+    item.addEventListener('click', () => {
+      grpSelectedSetlistId = sl.id;
+      document.querySelectorAll('#grp-sl-list .sl-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      document.getElementById('grp-sl-load-btn').disabled = false;
+    });
+    list.appendChild(item);
+  });
+}
+
+async function grpSlLoad() {
+  if (!grpSelectedSetlistId) return;
+  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
+  const { data, error } = await sb.from('group_setlists')
+    .select('name, song_filenames').eq('id', grpSelectedSetlistId).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  const contents = [];
+  for (const fn of (data.song_filenames || [])) {
+    const { data: sd } = await sb.from('group_songs').select('content')
+      .eq('group_id', currentGroup.id).eq('filename', fn).single();
+    if (sd) contents.push(sd.content.trim());
+  }
+  document.getElementById('editor').value = contents.join('\n\n---\n\n');
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+  currentGroupSongId = null; currentGroupSongFilename = null;
+  currentFilename = null; setUnsaved(false); resetTranspose();
+  document.getElementById('grp-sl-current').innerHTML = `☰ <b>${data.name}</b>`;
+}
+
+async function grpSlNew() {
+  // Reuse the existing setlist builder but backed by group_songs
+  const { data } = await sb.from('group_songs').select('filename, title')
+    .eq('group_id', currentGroup.id).order('filename');
+  allSongs = data || [];
+  document.getElementById('sl-name-input').value = '';
+  document.getElementById('sl-builder-title').textContent = 'New Group Setlist';
+  document.getElementById('sl-builder-err').textContent = '';
+  const searchEl = document.getElementById('sl-search');
+  if (searchEl) searchEl.value = '';
+  renderSlPicker([]);
+  renderSlAvailableFiltered();
+  // Override slSave to save to group_setlists
+  window._grpSetlistMode = true;
+  document.getElementById('slBuilderOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('sl-name-input').focus(), 50);
+}
+
+async function grpSlDelete(id, e) {
+  e.stopPropagation();
+  if (!confirm('Delete this group setlist?')) return;
+  await sb.from('group_setlists').delete().eq('id', id);
+  if (grpSelectedSetlistId === id) {
+    grpSelectedSetlistId = null;
+    document.getElementById('grp-sl-current').textContent = 'No setlist open';
+  }
+  refreshGroupSetlists();
 }
 
 // ─── Updated save flow (with tags) ────────────────────────────────────────────
@@ -3477,7 +4186,7 @@ function printSongs(paperEl) {
   .sl-item-icon { font-size: 11px; opacity: 0.45; flex-shrink: 0; }
   .sl-item-name { font-size: 11.5px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sl-item.active .sl-item-name { color: var(--accent); }
-  .sl-item-del { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
+  .sl-item-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 15px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
   .sl-item:hover .sl-item-del { opacity: 1; }
   .sl-item-del:hover { color: #e05a5a; }
   .sl-actions { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
@@ -3545,9 +4254,9 @@ function printSongs(paperEl) {
 
   /* Rename button on file items */
   .fp-item-ren {
-    background: none; border: none; color: var(--text-faint);
-    cursor: pointer; padding: 2px 4px; border-radius: 3px;
-    font-size: 11px; opacity: 0; transition: opacity 0.1s; line-height: 1;
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 2px 5px; border-radius: 3px;
+    font-size: 13px; opacity: 0; transition: opacity 0.1s; line-height: 1;
   }
   .fp-item:hover .fp-item-ren { opacity: 1; }
   .fp-item-ren:hover { color: var(--accent); background: rgba(232,184,75,0.1); }
