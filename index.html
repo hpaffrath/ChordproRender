@@ -251,6 +251,18 @@
   }
   .drag-handle:hover, .drag-handle.dragging { background: var(--accent); }
 
+  /* ─── PANEL DRAG HANDLE (flex sibling between preview and file panel) */
+  .panel-drag-handle {
+    width: 5px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    display: none;  /* hidden until file panel is open */
+  }
+  .panel-drag-handle.visible { display: block; }
+  .panel-drag-handle:hover, .panel-drag-handle.dragging { background: var(--accent); }
+
   /* ─── RIGHT: PREVIEW ──────────────────────────────────────────────── */
   .preview-pane {
     flex: 1;
@@ -699,14 +711,14 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-faint);
+    color: var(--text-dim);
     background: none;
     border: none;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.15s;
   }
-  .fp-tab:hover { color: var(--text-dim); }
+  .fp-tab:hover { color: var(--text); }
   .fp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
   /* ─── TAGS TREE ───────────────────────────────────────────────────── */
@@ -954,9 +966,12 @@
     </div>
   </div>
 
+  <!-- PANEL DRAG HANDLE (between preview and file panel) -->
+  <div class="panel-drag-handle" id="panelDragHandle"></div>
+
   <!-- FILE PANEL -->
   <div class="file-panel collapsed" id="filePanel">
-    <div class="file-panel-header">
+    <div class="file-panel-header" id="file-panel-header">
       <span class="file-panel-label">My Files</span>
       <button class="file-icon-btn" onclick="refreshFileList()" title="Refresh">↺</button>
       <button class="file-icon-btn" onclick="toggleFilePanel()" title="Close">✕</button>
@@ -1057,41 +1072,41 @@
 
       <!-- Group mode — shown instead of normal tabs when a group is active -->
     </div>
-  </div>
 
-  <!-- Group mode — shown instead of fp-files-view when a group is active -->
-  <div id="fp-group-mode" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
-    <div style="padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;">
-      <button class="fp-signout" onclick="grpExitMode()" title="Back to My Files">← Back</button>
-      <span style="font-size:12px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="grp-mode-name"></span>
-      <button class="fp-signout" onclick="grpManage()" title="Manage group">⚙</button>
-    </div>
-    <div class="fp-tabs" style="flex-shrink:0;">
-      <button class="fp-tab active" id="grp-tab-songs" onclick="grpSwitchTab('songs')">Songs</button>
-      <button class="fp-tab" id="grp-tab-setlists" onclick="grpSwitchTab('setlists')">Setlists</button>
-    </div>
+    <!-- Group mode — sibling of fp-files-view inside filePanel -->
+    <div id="fp-group-mode" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div style="padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="fp-signout" onclick="grpExitMode()" title="Back to My Files">← Back</button>
+        <span style="font-size:12px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="grp-mode-name"></span>
+        <button class="fp-signout" onclick="grpManage()" title="Manage group">⚙</button>
+      </div>
+      <div class="fp-tabs" style="flex-shrink:0;">
+        <button class="fp-tab active" id="grp-tab-songs" onclick="grpSwitchTab('songs')">Songs</button>
+        <button class="fp-tab" id="grp-tab-setlists" onclick="grpSwitchTab('setlists')">Setlists</button>
+      </div>
 
-    <!-- Group Songs -->
-    <div id="grp-panel-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
-      <div class="fp-actions">
-        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpAddSong()">Add Song</button>
-        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSaveSong()" id="grp-save-btn">Save to Group</button>
+      <!-- Group Songs -->
+      <div id="grp-panel-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="fp-actions">
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpAddSong()">Add Song</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSaveSong()" id="grp-save-btn">Save to Group</button>
+        </div>
+        <div class="fp-search-row">
+          <input class="fp-search" id="grp-search" placeholder="Search…" oninput="grpRenderSongList()" autocomplete="off">
+        </div>
+        <div class="fp-current" id="grp-current">No song open</div>
+        <div class="fp-list" id="grp-song-list"><div class="fp-loading">Loading…</div></div>
       </div>
-      <div class="fp-search-row">
-        <input class="fp-search" id="grp-search" placeholder="Search…" oninput="grpRenderSongList()" autocomplete="off">
-      </div>
-      <div class="fp-current" id="grp-current">No song open</div>
-      <div class="fp-list" id="grp-song-list"><div class="fp-loading">Loading…</div></div>
-    </div>
 
-    <!-- Group Setlists -->
-    <div id="grp-panel-setlists" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
-      <div class="sl-actions">
-        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlNew()">New Setlist</button>
-        <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlLoad()" id="grp-sl-load-btn" disabled>Open</button>
+      <!-- Group Setlists -->
+      <div id="grp-panel-setlists" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="sl-actions">
+          <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlNew()">New Setlist</button>
+          <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSlLoad()" id="grp-sl-load-btn" disabled>Open</button>
+        </div>
+        <div class="sl-current" id="grp-sl-current">No setlist open</div>
+        <div class="sl-list" id="grp-sl-list"><div class="fp-loading">Loading…</div></div>
       </div>
-      <div class="sl-current" id="grp-sl-current">No setlist open</div>
-      <div class="sl-list" id="grp-sl-list"><div class="fp-loading">Loading…</div></div>
     </div>
   </div>
 
@@ -1392,9 +1407,9 @@ async function fpInit() {
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     if (currentUser) {
-      fpShowFilesView();
+      // Don't disrupt group mode on token refresh or other auth events
+      if (!currentGroup) fpShowFilesView();
       refreshFileList();
-      // Check for pending join token (set before login or in URL)
       checkForJoinToken();
     } else {
       fpShowAuthView();
@@ -2767,10 +2782,19 @@ function grpIsAdmin() {
 function grpEnterMode(group) {
   currentGroup = group;
   document.getElementById('grp-mode-name').textContent = group.name;
-  // Siblings inside .file-panel — hide personal view, show group view
+  // Ensure panel is open and at default width
+  if (!filePanelOpen) {
+    filePanelOpen = true;
+    document.getElementById('filePanel').classList.remove('collapsed');
+    document.getElementById('filesToggleBtn').classList.add('active');
+    document.getElementById('panelDragHandle').classList.add('visible');
+  }
+  setPanelWidth(PANEL_DEFAULT);
+  // fp-group-mode and fp-files-view are siblings inside filePanel — just swap them
   document.getElementById('fp-auth-view').style.display = 'none';
   document.getElementById('fp-files-view').style.display = 'none';
   document.getElementById('fp-group-mode').style.display = 'flex';
+  document.getElementById('file-panel-header').style.display = 'none';
   // Admin-only save button
   document.getElementById('grp-save-btn').style.display = grpIsAdmin() ? '' : 'none';
   grpSwitchTab('songs');
@@ -2781,8 +2805,10 @@ function grpExitMode() {
   currentGroup = null;
   currentGroupSongId = null;
   currentGroupSongFilename = null;
+  // Swap back to personal view inside filePanel
   document.getElementById('fp-group-mode').style.display = 'none';
   document.getElementById('fp-files-view').style.display = 'flex';
+  document.getElementById('file-panel-header').style.display = '';
   fpSwitchTab('groups');
 }
 
@@ -3341,6 +3367,7 @@ function toggleFilePanel() {
   filePanelOpen = !filePanelOpen;
   document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
   document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
+  document.getElementById('panelDragHandle').classList.toggle('visible', filePanelOpen);
   // Refresh list when opening panel if logged in
   if (filePanelOpen && currentUser) refreshFileList();
 }
@@ -3872,6 +3899,69 @@ document.addEventListener('mouseup', () => {
   document.body.style.userSelect = '';
 });
 
+// ─── Panel drag to resize ─────────────────────────────────────────────────────
+
+const PANEL_MIN = 180;
+const PANEL_MAX = 380;
+const PANEL_DEFAULT = 220;
+
+const panelHandle = document.getElementById('panelDragHandle');
+const filePanel = document.getElementById('filePanel');
+let panelDragging = false;
+
+function setPanelWidth(w) {
+  if (!filePanel) return;
+  const clamped = Math.min(Math.max(Math.round(w), PANEL_MIN), PANEL_MAX);
+  filePanel.style.transition = 'none';
+  filePanel.style.width = clamped + 'px';
+  filePanel.style.minWidth = clamped + 'px';
+}
+
+panelHandle.addEventListener('mousedown', e => {
+  e.preventDefault();
+  panelDragging = true;
+  panelHandle.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+// Touch / pointer support for iPad
+panelHandle.addEventListener('touchstart', e => {
+  e.preventDefault();
+  panelDragging = true;
+  panelHandle.classList.add('dragging');
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if (!panelDragging) return;
+  const touch = e.touches[0];
+  const rect = filePanel.getBoundingClientRect();
+  setPanelWidth(rect.right - touch.clientX);
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (!panelDragging) return;
+  panelDragging = false;
+  panelHandle.classList.remove('dragging');
+  filePanel.style.transition = '';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!panelDragging) return;
+  const rect = filePanel.getBoundingClientRect();
+  const newWidth = rect.right - e.clientX;
+  setPanelWidth(newWidth);
+});
+
+document.addEventListener('mouseup', () => {
+  if (!panelDragging) return;
+  panelDragging = false;
+  panelHandle.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  filePanel.style.transition = '';
+});
+
 // ─── Load example ─────────────────────────────────────────────────────────────
 
 function loadExample() {
@@ -4141,14 +4231,14 @@ function printSongs(paperEl) {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-faint);
+    color: var(--text-dim);
     background: none;
     border: none;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.15s;
   }
-  .fp-tab:hover { color: var(--text-dim); }
+  .fp-tab:hover { color: var(--text); }
   .fp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
   /* ─── TAGS TREE ───────────────────────────────────────────────────── */
