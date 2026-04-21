@@ -383,6 +383,46 @@
     white-space: pre;
   }
 
+  /* ─── COMMENT / STANDALONE LABEL ─────────────────────────────────── */
+  .section-comment > .section-label {
+    font-style: italic;
+    color: var(--text-dim);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: calc(var(--preview-fs) * 0.9);
+    margin-bottom: 2px;
+  }
+
+  /* ─── CHORD GRID LINE (flat single-line chord/bar/beat rendering) ── */
+  .chord-grid-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    line-height: 2;
+    margin-bottom: 2px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: var(--preview-fs);
+  }
+  .chord-grid-chord {
+    font-weight: 700;
+    color: var(--chord-color);
+    white-space: nowrap;
+  }
+  .chord-grid-bar {
+    color: var(--text-dim);
+    font-weight: 300;
+    padding: 0 3px;
+  }
+  .chord-grid-beat {
+    color: var(--text-faint);
+    padding: 0 1px;
+  }
+  .chord-grid-space {
+    display: inline-block;
+    width: 0.4em;
+  }
+
   /* ─── ABC NOTATION SECTION ───────────────────────────────────────── */
   .section-abc {
     background: #ffffff08;
@@ -3400,7 +3440,9 @@ function parseChordPro(text) {
   let verseN = 0, chorusN = 0;
 
   const flush = () => {
-    if (currentSection.lines.length > 0 || currentSection.rawAbc || currentSection.label === '\x00PAGE_BREAK\x00') {
+    if (currentSection.lines.length > 0 || currentSection.rawAbc ||
+        currentSection.isComment ||
+        currentSection.label === '\x00PAGE_BREAK\x00') {
       song.sections.push(currentSection);
     }
     currentSection = { label: '', lines: [] };
@@ -3524,7 +3566,12 @@ function parseChordLine(raw) {
 
   const rawLyric = tokens.map(t => t.lyric).join('');
   const hasChords = tokens.some(t => t.chord !== null);
-  return { tokens, rawLyric, hasChords };
+
+  // Detect a "chord-grid" line: chords with only spaces, | and / as lyrics
+  // (but not slash chords like C/E which are already in the chord name)
+  const isChordGrid = hasChords && /^[\s|\/]*$/.test(rawLyric);
+
+  return { tokens, rawLyric, hasChords, isChordGrid };
 }
 
 // ─── Renderer ───────────────────────────────────────────────────────────────
@@ -3602,10 +3649,11 @@ function renderSong(song) {
 
     const secEl = document.createElement('div');
     secEl.className = 'section';
-    if (section.isRepeat) secEl.classList.add('section-repeat');
-    if (section.isTab)    secEl.classList.add('section-tab');
-    if (section.isGrid)   secEl.classList.add('section-grid');
-    if (section.isAbc)    secEl.classList.add('section-abc');
+    if (section.isRepeat)  secEl.classList.add('section-repeat');
+    if (section.isTab)     secEl.classList.add('section-tab');
+    if (section.isGrid)    secEl.classList.add('section-grid');
+    if (section.isAbc)     secEl.classList.add('section-abc');
+    if (section.isComment) secEl.classList.add('section-comment');
 
     if (section.label) {
       const lbl = document.createElement('div');
@@ -3613,6 +3661,12 @@ function renderSong(song) {
       lbl.textContent = section.label;
       if (section.isRepeat) lbl.classList.add('section-label-repeat');
       secEl.appendChild(lbl);
+    }
+
+    // Comment sections are label-only — no lines to render
+    if (section.isComment) {
+      div.appendChild(secEl);
+      continue;
     }
 
     // ── ABC notation section ─────────────────────────────────────────
@@ -3699,12 +3753,55 @@ function renderLine(line, isTab) {
   if (isTab || !line.hasChords) {
     const el = document.createElement('span');
     el.className = isTab ? 'tab-line' : 'lyric-only';
-    // Empty tab lines need a non-breaking space to preserve their height
     el.textContent = line.rawLyric || (isTab ? '\u00A0' : '');
     return el;
   }
 
-  // Mixed chord+lyric line
+  // ── Chord-grid line: flat single-line rendering ───────────────────────────
+  // e.g. [C] / / / | [G] | [E] / / /  →  C / / / | G | E / / /
+  if (line.isChordGrid) {
+    const row = document.createElement('div');
+    row.className = 'chord-grid-row';
+    for (const token of line.tokens) {
+      if (token.chord) {
+        const chordEl = document.createElement('span');
+        chordEl.className = 'chord-grid-chord';
+        const { root, sup } = splitChord(token.chord);
+        chordEl.appendChild(document.createTextNode(root));
+        if (sup) {
+          const supEl = document.createElement('sup');
+          supEl.className = 'token-chord-sup';
+          supEl.textContent = sup;
+          chordEl.appendChild(supEl);
+        }
+        row.appendChild(chordEl);
+      }
+      if (token.lyric) {
+        // Render each char: | → bar span, / → beat span, space → space span
+        for (const ch of token.lyric) {
+          if (ch === '|') {
+            const s = document.createElement('span');
+            s.className = 'chord-grid-bar';
+            s.textContent = '|';
+            row.appendChild(s);
+          } else if (ch === '/') {
+            const s = document.createElement('span');
+            s.className = 'chord-grid-beat';
+            s.textContent = '/';
+            row.appendChild(s);
+          } else if (ch === ' ') {
+            const s = document.createElement('span');
+            s.className = 'chord-grid-space';
+            s.textContent = '\u00A0';
+            row.appendChild(s);
+          }
+        }
+      }
+    }
+    return row;
+  }
+
+  // ── Standard chord+lyric line ─────────────────────────────────────────────
   const row = document.createElement('div');
   row.className = 'cl-row';
 
@@ -3728,7 +3825,6 @@ function renderLine(line, isTab) {
 
     const lyricEl = document.createElement('span');
     lyricEl.className = 'token-lyric';
-    // Preserve spaces — replace trailing space with nbsp so flex doesn't collapse it
     lyricEl.textContent = token.lyric || (token.chord ? ' ' : '');
     tok.appendChild(lyricEl);
 
@@ -4144,6 +4240,12 @@ function printSongs(paperEl) {
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
     .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
+    .section-comment > .section-label { font-style: italic; color: #5a5a6a; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .chord-grid-row { display: flex; flex-wrap: wrap; align-items: baseline; line-height: 2; margin-bottom: 2px; font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; }
+    .chord-grid-chord { font-weight: 700; color: #1a3a8a; white-space: nowrap; }
+    .chord-grid-bar { color: #666; font-weight: 300; padding: 0 3px; }
+    .chord-grid-beat { color: #999; padding: 0 1px; }
+    .chord-grid-space { display: inline-block; width: 0.4em; }
 
     .section-abc { overflow: visible; page-break-inside: avoid; break-inside: avoid; margin-bottom: 14px; }
     .section-abc svg { display: block; max-width: 100%; height: auto; }
@@ -4496,13 +4598,15 @@ function hideHelp(e) {
           <tr><td><code>{sob}</code> / <code>{eob}</code></td><td>Shorthands for start / end of bridge</td></tr>
           <tr><td><code>{start_of_tab}</code></td><td>Begin a tab / instrumental section</td></tr>
           <tr><td><code>{end_of_tab}</code></td><td>End a tab section</td></tr>
-          <tr><td><code>{comment: Label}</code></td><td>Standalone labelled section — e.g. <code>{comment: Instrumental}</code></td></tr>
+          <tr><td><code>{comment: Label}</code></td><td>Standalone labelled section — e.g. <code>{comment: Instrumental}</code> — shown in italic, no lines below it</td></tr>
           <tr><td><code>{c: Label}</code></td><td>Shorthand for comment</td></tr>
           <tr><td><code>{chorus}</code></td><td>Repeat the last defined chorus inline — shown dimmed</td></tr>
           <tr><td><code>{chorus: x2}</code></td><td>Repeat chorus with a custom label</td></tr>
           <tr><td><code>{start_of_tab}</code></td><td>Begin a tab section — rendered in monospace font</td></tr>
           <tr><td><code>{end_of_tab}</code></td><td>End a tab section</td></tr>
           <tr><td><code>{sot}</code> / <code>{eot}</code></td><td>Shorthands for start / end of tab</td></tr>
+          <tr><td><code>[G] | [D] | [Em]</code></td><td>Bar line separator between chords — rendered as a thin vertical line</td></tr>
+          <tr><td><code>[G]/// | [D]/ | [Em]//</code></td><td>Beat markers — each <code>/</code> after a chord = one additional beat shown as a dot</td></tr>
           <tr><td><code>{start_of_grid}</code></td><td>Begin a chord grid section</td></tr>
           <tr><td><code>{end_of_grid}</code></td><td>End a chord grid section</td></tr>
           <tr><td><code>{sog}</code> / <code>{eog}</code></td><td>Shorthands for start / end of grid</td></tr>
