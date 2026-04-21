@@ -3996,6 +3996,10 @@ const handle = document.getElementById('dragHandle');
 const editorPane = document.getElementById('editorPane');
 let dragging = false;
 
+// Restore saved editor width
+const savedEditorW = localStorage.getItem('editorPaneWidth');
+if (savedEditorW) editorPane.style.width = savedEditorW;
+
 handle.addEventListener('mousedown', e => {
   dragging = true;
   handle.classList.add('dragging');
@@ -4018,6 +4022,8 @@ document.addEventListener('mouseup', () => {
   handle.classList.remove('dragging');
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
+  // Persist editor width
+  localStorage.setItem('editorPaneWidth', editorPane.style.width);
 });
 
 // ─── Panel drag to resize ─────────────────────────────────────────────────────
@@ -4037,6 +4043,14 @@ function setPanelWidth(w) {
   filePanel.style.width = clamped + 'px';
   filePanel.style.minWidth = clamped + 'px';
 }
+
+function savePanelWidth() {
+  localStorage.setItem('filePanelWidth', filePanel.style.width);
+}
+
+// Restore saved panel width
+const savedPanelW = localStorage.getItem('filePanelWidth');
+if (savedPanelW) setPanelWidth(parseInt(savedPanelW));
 
 panelHandle.addEventListener('mousedown', e => {
   e.preventDefault();
@@ -4065,6 +4079,7 @@ document.addEventListener('touchend', () => {
   panelDragging = false;
   panelHandle.classList.remove('dragging');
   filePanel.style.transition = '';
+  savePanelWidth();
 });
 
 document.addEventListener('mousemove', e => {
@@ -4081,6 +4096,7 @@ document.addEventListener('mouseup', () => {
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
   filePanel.style.transition = '';
+  savePanelWidth();
 });
 
 // ─── Load example ─────────────────────────────────────────────────────────────
