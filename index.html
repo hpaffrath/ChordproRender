@@ -1071,6 +1071,7 @@
         <div class="fp-search-row">
           <input class="fp-search" id="fp-search" placeholder="Search…" oninput="renderFileList()" autocomplete="off">
           <button class="fp-sort-btn active" id="sort-btn-name" onclick="setSort('name')" title="Sort by name">A–Z</button>
+          <button class="fp-sort-btn" id="sort-btn-artist" onclick="setSort('artist')" title="Sort by artist">Artist</button>
           <button class="fp-sort-btn" id="sort-btn-date" onclick="setSort('date')" title="Sort by date">Date</button>
           <button class="fp-sort-btn" id="sort-btn-key" onclick="setSort('key')" title="Sort by key">Key</button>
         </div>
@@ -1789,7 +1790,7 @@ function fpShowFilesView() {
 // ─── File operations ──────────────────────────────────────────────────────────
 
 let allFiles = [];       // cached file list
-let sortMode = 'name';   // 'name' | 'date' | 'key'
+let sortMode = 'name';   // 'name' | 'artist' | 'date' | 'key'
 let hasUnsavedChanges = false;
 let autoSaveTimer = null;
 
@@ -1801,7 +1802,7 @@ function setUnsaved(val) {
 
 function setSort(mode) {
   sortMode = mode;
-  ['name','date','key'].forEach(m => {
+  ['name','artist','date','key'].forEach(m => {
     const btn = document.getElementById(`sort-btn-${m}`);
     if (btn) btn.classList.toggle('active', m === mode);
   });
@@ -1813,7 +1814,7 @@ async function refreshFileList() {
   if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
   const { data, error } = await sb
     .from('songs')
-    .select('id, filename, title, updated_at')
+    .select('id, filename, title, artist, key, updated_at')
     .order('filename');
   if (error) {
     console.error('refreshFileList error:', error);
@@ -1831,12 +1832,16 @@ function renderFileList() {
 
   // Filter
   let files = allFiles.filter(f =>
-    !query || f.filename.toLowerCase().includes(query) || (f.title || '').toLowerCase().includes(query)
+    !query || f.filename.toLowerCase().includes(query) ||
+    (f.title || '').toLowerCase().includes(query) ||
+    (f.artist || '').toLowerCase().includes(query)
   );
 
   // Sort
   if (sortMode === 'name') {
     files.sort((a, b) => a.filename.localeCompare(b.filename));
+  } else if (sortMode === 'artist') {
+    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || a.filename.localeCompare(b.filename));
   } else if (sortMode === 'date') {
     files.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   } else if (sortMode === 'key') {
@@ -1859,9 +1864,20 @@ function renderFileList() {
     icon.className = 'fp-item-icon';
     icon.textContent = '♩';
 
+    const nameWrap = document.createElement('span');
+    nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
+
     const name = document.createElement('span');
     name.className = 'fp-item-name';
     name.textContent = row.filename;
+    nameWrap.appendChild(name);
+
+    if (row.artist) {
+      const artist = document.createElement('span');
+      artist.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      artist.textContent = row.artist;
+      nameWrap.appendChild(artist);
+    }
 
     const shareBtn = document.createElement('button');
     shareBtn.className = 'fp-item-share';
@@ -1882,10 +1898,12 @@ function renderFileList() {
     delBtn.addEventListener('click', e => { e.stopPropagation(); fpDelete(row.filename, e); });
 
     item.appendChild(icon);
-    item.appendChild(name);
+    item.appendChild(nameWrap);
 
     // Badge for sort context
-    if (sortMode === 'key' && row.key) {
+    if (sortMode === 'artist' && row.artist) {
+      // artist already shown under filename — no extra badge needed
+    } else if (sortMode === 'key' && row.key) {
       const badge = document.createElement('span');
       badge.style.cssText = 'font-size:9px;color:var(--text-faint);flex-shrink:0;';
       badge.textContent = row.key;
@@ -2016,6 +2034,11 @@ document.getElementById('renameOverlay')?.addEventListener('click', e => {
 
 function extractTitle(content) {
   const m = content.match(/^\{title:\s*(.+)\}/m);
+  return m ? m[1].trim() : '';
+}
+
+function extractArtist(content) {
+  const m = content.match(/^\{artist:\s*(.+)\}/m);
   return m ? m[1].trim() : '';
 }
 
@@ -3376,12 +3399,14 @@ async function grpSlDelete(id, e) {
 async function doSave(filename, tags) {
   const content = document.getElementById('editor').value;
   const title = extractTitle(content);
+  const artist = extractArtist(content);
   const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
   const key = keyMatch ? keyMatch[1] : null;
   const record = {
     user_id: currentUser.id,
     filename,
     title: title || filename,
+    artist: artist || null,
     content,
   };
   if (tags !== undefined) record.tags = tags;
@@ -3393,7 +3418,7 @@ async function doSave(filename, tags) {
     updateCurrentFile();
     // Update local cache entry
     const idx = allFiles.findIndex(f => f.filename === filename);
-    const entry = { filename, title: title || filename, key, updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
+    const entry = { filename, title: title || filename, artist: artist || null, key, updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
     if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
     renderFileList();
     if (currentTab === 'tags') refreshTagTree();
