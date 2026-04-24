@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/abcjs@6.6.2/dist/abcjs-basic-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vextab@4.0.5/dist/div.prod.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -425,39 +426,17 @@
 
   /* ─── ABC NOTATION SECTION ───────────────────────────────────────── */
   .section-abc {
-    background: #ffffff08;
+    background: #ffffff;
     border-radius: 4px;
     padding: 10px;
     overflow-x: auto;
+    margin-bottom: 4px;
   }
   .section-abc svg {
     display: block;
     max-width: 100%;
   }
-  /* abcjs renders with black on white — invert colours for dark theme */
-  .section-abc .abcjs-note,
-  .section-abc .abcjs-beam-elem,
-  .section-abc .abcjs-bar,
-  .section-abc .abcjs-clef,
-  .section-abc .abcjs-key-signature,
-  .section-abc .abcjs-time-signature,
-  .section-abc .abcjs-staff,
-  .section-abc .abcjs-staff-extra,
-  .section-abc .abcjs-stem,
-  .section-abc .abcjs-slur,
-  .section-abc .abcjs-tie,
-  .section-abc .abcjs-flag,
-  .section-abc .abcjs-dot,
-  .section-abc .abcjs-rest {
-    fill: var(--ink);
-    stroke: var(--ink);
-  }
-  .section-abc .abcjs-tempo,
-  .section-abc .abcjs-annotation,
-  .section-abc .abcjs-chord,
-  .section-abc text {
-    fill: var(--ink) !important;
-  }
+
 
 
   .chord-line {
@@ -465,6 +444,26 @@
     line-height: 1;
     margin-bottom: 2px;
     position: relative;
+  }
+
+  /* ─── VEXTAB NOTATION SECTION ────────────────────────────────────── */
+  .section-vextab {
+    background: #ffffff;
+    border-radius: 4px;
+    padding: 10px;
+    overflow-x: auto;
+    margin-bottom: 4px;
+  }
+  .section-vextab canvas {
+    display: block;
+    max-width: 100%;
+  }
+  .vextab-error {
+    color: #e05a5a;
+    font-size: 12px;
+    padding: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
   }
 
   /* Each "token" is a chord+syllable pair */
@@ -633,7 +632,7 @@
   }
 
   /* ─── FILE PANEL ──────────────────────────────────────────────────── */
-  .file-panel { width: 220px; min-width: 220px; background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: width 0.2s, min-width 0.2s; }
+  .file-panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: width 0.2s, min-width 0.2s; width: 220px; min-width: 220px; }
   .file-panel.collapsed { width: 0; min-width: 0; border-left: none; }
   .file-panel-header { height: 36px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--border); gap: 6px; flex-shrink: 0; }
   .file-panel-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); flex: 1; }
@@ -2755,8 +2754,9 @@ function openShareView(data) {
   // Use the existing parser/renderer
   const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
   pendingAbcRenders = [];
+  pendingVextabRenders = [];
   songs.forEach(song => paper.appendChild(renderSong(song)));
-  flushAbcRenders();
+  flushAllNotationRenders();
 
   // Notice: save button if logged in
   const notice = document.getElementById('sv-notice');
@@ -2846,14 +2846,14 @@ function grpIsAdmin() {
 function grpEnterMode(group) {
   currentGroup = group;
   document.getElementById('grp-mode-name').textContent = group.name;
-  // Ensure panel is open and at default width
+  // Ensure panel is open — only set default width if it was closed
   if (!filePanelOpen) {
     filePanelOpen = true;
     document.getElementById('filePanel').classList.remove('collapsed');
     document.getElementById('filesToggleBtn').classList.add('active');
     document.getElementById('panelDragHandle').classList.add('visible');
+    setPanelWidth(PANEL_DEFAULT);
   }
-  setPanelWidth(PANEL_DEFAULT);
   // fp-group-mode and fp-files-view are siblings inside filePanel — just swap them
   document.getElementById('fp-auth-view').style.display = 'none';
   document.getElementById('fp-files-view').style.display = 'none';
@@ -3439,8 +3439,12 @@ function toggleFilePanel() {
   document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
   document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
   document.getElementById('panelDragHandle').classList.toggle('visible', filePanelOpen);
-  // Refresh list when opening panel if logged in
-  if (filePanelOpen && currentUser) refreshFileList();
+  // Re-apply saved width when opening so CSS transition goes to correct size
+  if (filePanelOpen) {
+    const savedW = localStorage.getItem('filePanelWidth');
+    if (savedW) setPanelWidth(parseInt(savedW));
+    if (currentUser) refreshFileList();
+  }
 }
 
 // Keyboard shortcut: Ctrl/Cmd+S to save
@@ -3472,6 +3476,7 @@ function parseChordPro(text) {
 
   const flush = () => {
     if (currentSection.lines.length > 0 || currentSection.rawAbc ||
+        currentSection.rawVextab ||
         currentSection.isComment ||
         currentSection.label === '\x00PAGE_BREAK\x00') {
       song.sections.push(currentSection);
@@ -3514,7 +3519,8 @@ function parseChordPro(text) {
       else if (/^(start_of_tab|sot)$/.test(k))             { flush(); currentSection.label = v ? v.toUpperCase() : 'TAB'; currentSection.isTab = true; }
       else if (/^(start_of_grid|sog)$/.test(k))            { flush(); currentSection.label = v ? v.toUpperCase() : 'GRID'; currentSection.isGrid = true; }
       else if (/^(start_of_abc|soabc)$/.test(k))           { flush(); currentSection.label = v ? v.toUpperCase() : ''; currentSection.isAbc = true; }
-      else if (/^(end_of_verse|eov|end_of_chorus|eoc|end_of_bridge|eob|end_of_tab|eot|end_of_grid|eog|end_of_abc|eoabc)$/.test(k)) {
+      else if (/^(start_of_vextab|sovt)$/.test(k))          { flush(); currentSection.label = v ? v.toUpperCase() : ''; currentSection.isVextab = true; }
+      else if (/^(end_of_verse|eov|end_of_chorus|eoc|end_of_bridge|eob|end_of_tab|eot|end_of_grid|eog|end_of_abc|eoabc|end_of_vextab|eovt)$/.test(k)) {
         // Save chorus content for later {chorus} repeats
         if (/chorus/.test(k) && currentSection.lines.length) song.savedChorus = { ...currentSection };
         flush();
@@ -3541,21 +3547,27 @@ function parseChordPro(text) {
       continue;
     }
 
-    // Blank line — inside a tab/grid/abc section keep it as an empty line, otherwise flush
+    // Blank line — inside a tab/grid/abc/vextab section keep it, otherwise flush
     if (!line.trim()) {
       if (currentSection.isTab || currentSection.isGrid) {
         currentSection.lines.push(parseChordLine(''));
       } else if (currentSection.isAbc) {
         currentSection.rawAbc = (currentSection.rawAbc || '') + '\n';
+      } else if (currentSection.isVextab) {
+        currentSection.rawVextab = (currentSection.rawVextab || '') + '\n';
       } else {
         flush();
       }
       continue;
     }
 
-    // ABC sections store raw text, not parsed chord lines
+    // ABC and VexTab sections store raw text, not parsed chord lines
     if (currentSection.isAbc) {
       currentSection.rawAbc = (currentSection.rawAbc || '') + line + '\n';
+      continue;
+    }
+    if (currentSection.isVextab) {
+      currentSection.rawVextab = (currentSection.rawVextab || '') + line + '\n';
       continue;
     }
 
@@ -3684,6 +3696,7 @@ function renderSong(song) {
     if (section.isTab)     secEl.classList.add('section-tab');
     if (section.isGrid)    secEl.classList.add('section-grid');
     if (section.isAbc)     secEl.classList.add('section-abc');
+    if (section.isVextab)  secEl.classList.add('section-vextab');
     if (section.isComment) secEl.classList.add('section-comment');
 
     if (section.label) {
@@ -3703,6 +3716,13 @@ function renderSong(song) {
     // ── ABC notation section ─────────────────────────────────────────
     if (section.isAbc && section.rawAbc) {
       renderAbcSection(secEl, section.rawAbc);
+      div.appendChild(secEl);
+      continue;
+    }
+
+    // ── VexTab notation section ──────────────────────────────────────
+    if (section.isVextab && section.rawVextab) {
+      renderVextabSection(secEl, section.rawVextab);
       div.appendChild(secEl);
       continue;
     }
@@ -3748,7 +3768,9 @@ function renderSong(song) {
 // ─── ABC Notation Renderer ────────────────────────────────────────────────────
 
 let abcRenderCount = 0;
-let pendingAbcRenders = []; // collect { id, rawAbc } to render after DOM insertion
+let vextabRenderCount = 0;
+let pendingAbcRenders = [];
+let pendingVextabRenders = [];
 
 function renderAbcSection(container, rawAbc) {
   const id = 'abc-render-' + (++abcRenderCount);
@@ -3756,8 +3778,16 @@ function renderAbcSection(container, rawAbc) {
   holder.id = id;
   holder.dataset.abcRaw = rawAbc.trim();
   container.appendChild(holder);
-  // Actual rendering deferred until element is in the DOM
   pendingAbcRenders.push(id);
+}
+
+function renderVextabSection(container, rawVextab) {
+  const id = 'vt-render-' + (++vextabRenderCount);
+  const holder = document.createElement('div');
+  holder.id = id;
+  holder.dataset.vtRaw = rawVextab.trim();
+  container.appendChild(holder);
+  pendingVextabRenders.push(id);
 }
 
 function flushAbcRenders() {
@@ -3774,10 +3804,61 @@ function flushAbcRenders() {
         add_classes: true,
       });
     } catch (e) {
-      holder.innerHTML = `<div style="color:#e05a5a;font-size:13px;padding:8px;">ABC error: ${e.message}</div>`;
+      holder.innerHTML = `<div class="vextab-error">ABC error: ${e.message}</div>`;
     }
   }
   pendingAbcRenders = [];
+}
+
+function flushVextabRenders() {
+  if (typeof vextab === 'undefined') return;
+  const VexTab   = vextab.VexTab;
+  const Artist   = vextab.Artist;
+  const Renderer = vextab.Vex.Flow.Renderer;
+
+  for (const id of pendingVextabRenders) {
+    const holder = document.getElementById(id);
+    if (!holder) continue;
+    const rawVt = holder.dataset.vtRaw;
+    if (!rawVt) continue;
+    try {
+      const width = (holder.parentElement && holder.parentElement.offsetWidth > 50)
+        ? holder.parentElement.offsetWidth - 20
+        : 580;
+
+      // Estimate height from number of tabstave lines — each needs ~160px
+      const staveCount = (rawVt.match(/^tabstave/gmi) || []).length || 1;
+      const height = staveCount * 160 + 40;
+
+      // Use Canvas backend — avoids VexFlowFont/SVG timing issues
+      const canvas = document.createElement('canvas');
+      canvas.width  = width * window.devicePixelRatio;
+      canvas.height = height * window.devicePixelRatio;
+      canvas.style.width  = width + 'px';
+      canvas.style.height = height + 'px';
+      canvas.style.maxWidth = '100%';
+      canvas.getContext('2d').scale(window.devicePixelRatio, window.devicePixelRatio);
+      holder.appendChild(canvas);
+
+      const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
+      renderer.resize(width, height);
+      const artist = new Artist(10, 10, width - 20, { scale: 1.0 });
+      const tab = new VexTab(artist);
+      tab.parse(rawVt.trim());
+      artist.render(renderer);
+
+      // Resize canvas height to match actual content drawn
+      // (VexTab may draw less than our initial height estimate)
+    } catch (e) {
+      holder.innerHTML = `<div class="vextab-error">VexTab error: ${e.message}</div>`;
+    }
+  }
+  pendingVextabRenders = [];
+}
+
+function flushAllNotationRenders() {
+  flushAbcRenders();
+  flushVextabRenders();
 }
 
 function renderLine(line, isTab) {
@@ -3913,10 +3994,11 @@ function updatePreview() {
 
   paper.innerHTML = '';
   pendingAbcRenders = [];
+  pendingVextabRenders = [];
   for (const song of songs) {
     paper.appendChild(renderSong(song));
   }
-  flushAbcRenders();
+  flushAllNotationRenders();
 
   // Update key badge (first song's key)
   document.getElementById('key-display').textContent = songs[0].key || '—';
@@ -4054,9 +4136,9 @@ function savePanelWidth() {
   localStorage.setItem('filePanelWidth', filePanel.style.width);
 }
 
-// Restore saved panel width
+// Restore saved panel width (or set default so inline style is always authoritative)
 const savedPanelW = localStorage.getItem('filePanelWidth');
-if (savedPanelW) setPanelWidth(parseInt(savedPanelW));
+setPanelWidth(savedPanelW ? parseInt(savedPanelW) : PANEL_DEFAULT);
 
 panelHandle.addEventListener('mousedown', e => {
   e.preventDefault();
@@ -4218,7 +4300,26 @@ K:G
 %%staffwidth 550
 |"G"G4 G2AB|"C"c4 c2BA|"G"G4 GABG|"D"D6 DE|
 |"G"G4 G2AB|"C"c4 e2dc|"G"BdgB "D"FADF|"G"G8|]
-{end_of_abc}`;
+{end_of_abc}
+
+---
+
+{title: VexTab Example}
+{artist: Example}
+{key: G}
+
+{start_of_verse: Intro — Standard Notation + Tab}
+This section uses VexTab to render notation with exact fret positions.
+Use fret/string notation: 5/3 = fret 5, string 3 (G string).
+{end_of_verse}
+
+{start_of_vextab}
+options space=20
+tabstave notation=true key=G time=4/4
+notes :q 5/3 7/3 5/2 3/2 | :h 5/3 :q 4/3 5/3
+tabstave notation=true
+notes :8 7/4 5/4 7/3 5/3 7/2 5/2 7/1 5/1 | :q 7/3 5/2 3/1 :h 5/3
+{end_of_vextab}`;
 
   editor.value = example;
   editor.dispatchEvent(new Event('input'));
@@ -4248,6 +4349,16 @@ function printSongs(paperEl) {
     clone.querySelectorAll('.page-break-marker').forEach(el => {
       el.style.cssText = 'page-break-before:always;break-before:page;margin:0;height:0;border:none;';
       el.removeAttribute('class');
+    });
+    // Convert canvas elements (VexTab) to <img> so they print correctly
+    // (cloned canvas elements lose their pixel data)
+    const origCanvases = song.querySelectorAll('canvas');
+    const cloneCanvases = clone.querySelectorAll('canvas');
+    origCanvases.forEach((origCanvas, i) => {
+      const img = document.createElement('img');
+      img.src = origCanvas.toDataURL('image/png');
+      img.style.cssText = `width:${origCanvas.style.width};max-width:100%;display:block;`;
+      if (cloneCanvases[i]) cloneCanvases[i].replaceWith(img);
     });
     return `<div class="song-page">${clone.innerHTML}</div>`;
   }).join('\n');
@@ -4298,6 +4409,8 @@ function printSongs(paperEl) {
     .section-abc svg { display: block; max-width: 100%; height: auto; }
     .section-abc text { fill: #1a1a22 !important; }
     .section-abc path, .section-abc rect, .section-abc polygon { fill: #1a1a22; stroke: #1a1a22; }
+    .section-vextab { background: #ffffff; overflow: visible; page-break-inside: avoid; break-inside: avoid; margin-bottom: 14px; padding: 10px; border-radius: 4px; }
+    .section-vextab canvas { display: block; max-width: 100%; height: auto; }
 
     .cl-row { display: flex; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1px; break-inside: avoid; page-break-inside: avoid; }
     .token { display: inline-flex; flex-direction: column; align-items: flex-start; break-inside: avoid; page-break-inside: avoid; }
@@ -4679,6 +4792,27 @@ K:G
 {end_of_abc}</pre>
         <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
           ABC notation is a text-based music standard. Each block must begin with <code>X:1</code> (tune number), <code>M:</code> (time signature), <code>L:</code> (note length), and <code>K:</code> (key). Learn more at <a href="https://abcnotation.com" target="_blank" style="color:var(--accent);">abcnotation.com</a>.
+        </div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">VexTab Notation (Exact Fret Positions)</div>
+        <table class="help-table">
+          <tr><td><code>{start_of_vextab}</code></td><td>Begin a VexTab block — renders standard notation + tab with exact fret/string positions</td></tr>
+          <tr><td><code>{end_of_vextab}</code></td><td>End the VexTab block</td></tr>
+          <tr><td><code>{sovt}</code> / <code>{eovt}</code></td><td>Shorthands for start / end of VexTab</td></tr>
+        </table>
+        <pre class="help-example">{start_of_vextab}
+options space=20
+tabstave notation=true key=G time=4/4
+notes :q 5/3 7/3 5/2 3/2 | :h 5/3 :q 4/3 5/3
+{end_of_vextab}</pre>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
+          <b>Fret notation:</b> <code>fret/string</code> — e.g. <code>5/3</code> = fret 5, string 3 (G). Strings: 1=high e, 2=B, 3=G, 4=D, 5=A, 6=low E.<br>
+          <b>Note lengths:</b> <code>:w</code> whole, <code>:h</code> half, <code>:q</code> quarter, <code>:8</code> eighth, <code>:16</code> sixteenth.<br>
+          <b>Techniques:</b> <code>5h7/3</code> hammer-on, <code>7p5/3</code> pull-off, <code>5s7/3</code> slide, <code>5b7/3</code> bend, <code>t12/3</code> tap.<br>
+          <b>Chords:</b> <code>(5/3.5/2.5/1)</code> — notes in parentheses play together.<br>
+          Use <code>tabstave notation=true</code> for both notation + tab, or <code>notation=false</code> for tab only.
         </div>
       </div>
 
