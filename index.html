@@ -201,7 +201,9 @@
 
   #editor {
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
     left: 40px;
     padding: 16px 16px 16px 8px;
     background: transparent;
@@ -216,6 +218,9 @@
     overflow: auto;
     tab-size: 2;
     caret-color: var(--accent);
+    box-sizing: border-box;
+    width: calc(100% - 40px);
+    height: 100%;
   }
   #editor::selection { background: rgba(232, 184, 75, 0.2); }
 
@@ -680,7 +685,7 @@
   .btn-files:hover { background: var(--surface2); color: var(--text); }
   .btn-files.active { border-color: var(--accent); color: var(--accent); }
 
-  .saveas-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 2000; align-items: center; justify-content: center; }
+  .saveas-overlay { display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,0.55); z-index: 2000; align-items: center; justify-content: center; }
   .saveas-overlay.open { display: flex; }
   .saveas-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; width: 360px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 12px; }
   .saveas-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
@@ -894,7 +899,7 @@
 
   /* ─── SHARED SONG VIEW (full-screen read-only) ────────────────────── */
   .share-view-overlay {
-    display: none; position: fixed; inset: 0;
+    display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0;
     background: #f5f3ef; z-index: 3000;
     flex-direction: column; overflow-y: auto;
   }
