@@ -388,6 +388,12 @@
     display: block;
     white-space: pre;
   }
+  /* Wraps one set of 6 strings — never splits across a page */
+  .tab-stave {
+    display: block;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 
   /* ─── COMMENT / STANDALONE LABEL ─────────────────────────────────── */
   .section-comment > .section-label {
@@ -3992,8 +3998,44 @@ function renderSong(song) {
       continue;
     }
 
-    for (const line of section.lines) {
-      secEl.appendChild(renderLine(line, section.isTab));
+    // ── Tab section: group lines into staves to prevent page-break mid-stave ──
+    if (section.isTab) {
+      // Split lines into stave groups separated by blank lines
+      // A stave is a run of non-blank tab lines (typically 6 strings)
+      const groups = [];
+      let current = [];
+      for (const line of section.lines) {
+        const isBlank = !line.rawLyric || line.rawLyric === '\u00A0';
+        if (isBlank) {
+          if (current.length) { groups.push(current); current = []; }
+          groups.push(null); // blank separator
+        } else {
+          current.push(line);
+        }
+      }
+      if (current.length) groups.push(current);
+
+      for (const group of groups) {
+        if (group === null) {
+          // Blank line between staves
+          const blank = document.createElement('span');
+          blank.className = 'tab-line';
+          blank.textContent = '\u00A0';
+          secEl.appendChild(blank);
+        } else {
+          // Wrap stave in a div that won't split across pages
+          const staveDiv = document.createElement('div');
+          staveDiv.className = 'tab-stave';
+          for (const line of group) {
+            staveDiv.appendChild(renderLine(line, true));
+          }
+          secEl.appendChild(staveDiv);
+        }
+      }
+    } else {
+      for (const line of section.lines) {
+        secEl.appendChild(renderLine(line, section.isTab));
+      }
     }
 
     div.appendChild(secEl);
@@ -4679,6 +4721,7 @@ function printSongs(paperEl) {
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
     .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
+    .tab-stave { display: block; break-inside: avoid; page-break-inside: avoid; }
     .section-comment > .section-label { font-style: italic; color: #5a5a6a; font-weight: 400; text-transform: none; letter-spacing: 0; }
     .chord-grid-row { display: flex; flex-wrap: wrap; align-items: baseline; line-height: 2; margin-bottom: 2px; font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; }
     .chord-grid-chord { font-weight: 700; color: #1a3a8a; white-space: nowrap; }
