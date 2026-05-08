@@ -931,6 +931,170 @@
     box-shadow: 0 2px 12px rgba(0,0,0,0.08);
   }
 
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     MOBILE / TABLET LAYOUT  (≤1024px)
+     Three tabs: Edit | Preview | Files
+     Covers phones and iPads in all orientations
+     Each fills the full screen below the header.
+  ═══════════════════════════════════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+
+    /* ── Use dynamic viewport height to avoid iOS Safari URL bar issues ── */
+    :root { --header-h: 80px; }
+    html, body { overflow: auto; }
+
+    /* ── Compact two-row header ── */
+    header {
+      height: var(--header-h);
+      flex-wrap: wrap;
+      padding: 6px 12px;
+      gap: 6px;
+      align-content: center;
+    }
+    .logo { order: 1; flex: 1; }
+    .logo-chord { font-size: 18px; }
+    .logo-pro { font-size: 11px; }
+    .key-control { order: 3; gap: 4px; }
+    .fontsize-group { order: 4; gap: 4px; }
+    .header-actions { order: 2; gap: 6px; }
+    /* Hide less important header buttons on mobile */
+    .header-actions #filesToggleBtn { display: none; }
+    .header-actions #loadExampleBtn { display: none; }
+    .header-actions .btn-ghost:not([onclick="showHelp()"]) { display: none; }
+    .ctrl-offset { display: none; }
+
+    /* ── Workspace: stack panels as fixed full-screen layers ── */
+    .workspace {
+      height: calc(100 * var(--vh, 1vh) - var(--header-h));
+      overflow: hidden;
+      position: relative;
+    }
+    .drag-handle,
+    .panel-drag-handle { display: none !important; }
+
+    /* All three panels become full-screen fixed layers */
+    .editor-pane,
+    .preview-pane,
+    .file-panel {
+      position: absolute !important;
+      top: 0; left: 0; right: 0;
+      bottom: 56px; /* tab bar height */
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      width: 100% !important;
+      min-width: 0 !important;
+      border: none !important;
+      transition: none !important;
+      display: none;
+    }
+
+    /* Active mobile tab shows the panel */
+    .editor-pane.mobile-active,
+    .preview-pane.mobile-active,
+    .file-panel.mobile-active { display: flex; }
+
+    /* File panel: always full-width, never collapsed on mobile */
+    .file-panel.collapsed {
+      display: none !important;
+    }
+    .file-panel.mobile-active {
+      display: flex !important;
+      width: 100% !important;
+      border-left: none !important;
+    }
+
+    /* Editor textarea fills properly */
+    #editor {
+      width: calc(100% - 40px) !important;
+      height: 100% !important;
+    }
+
+    /* Preview scrolls */
+    .preview-pane { overflow-y: auto; }
+    #paper { padding: 12px; }
+
+    /* ── Mobile tab bar ── */
+    .mobile-tab-bar {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 56px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 500;
+    }
+    .mobile-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-tab.active { color: var(--accent); }
+    .mobile-tab-icon { font-size: 20px; line-height: 1; }
+
+    /* Unsaved indicator in Edit tab */
+    .mobile-tab .mobile-unsaved {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: absolute;
+      top: 8px; right: calc(33% - 14px);
+      display: none;
+    }
+    .mobile-tab .mobile-unsaved.visible { display: block; }
+
+    /* Status bar hidden — wastes space */
+    .editor-status { display: none; }
+
+    /* File panel: show scrollable */
+    #fp-files-view, #fp-group-mode {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+
+  /* ── Tablet-specific refinements (768–1024px) ── */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    :root { --header-h: 60px; }
+    header {
+      height: var(--header-h);
+      flex-wrap: nowrap;
+      padding: 0 20px;
+    }
+    .logo-chord { font-size: 22px; }
+    .logo-pro   { font-size: 13px; }
+    .mobile-tab-bar { height: 64px; }
+    .mobile-tab-icon { font-size: 26px; }
+    .mobile-tab { font-size: 13px; gap: 4px; }
+    .ctrl-offset { display: inline; }
+    .editor-pane,
+    .preview-pane,
+    .file-panel {
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* Desktop: hide mobile tab bar */
+  @media (min-width: 1025px) {
+    .mobile-tab-bar { display: none; }
+  }
+
 </style>
 </head>
 <body>
@@ -3460,10 +3624,106 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ─── Mobile layout ────────────────────────────────────────────────────────────
+
+function isMobile() {
+  return window.innerWidth <= 1024;
+}
+
+// Fix iOS Safari 100vh issue — set --vh CSS variable to real viewport height
+function setMobileVH() {
+  document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+}
+
+let mobileCurrentTab = 'edit';
+
+function mobileSwitchTab(tab) {
+  if (!isMobile()) return;
+  mobileCurrentTab = tab;
+
+  // Update tab bar buttons
+  ['edit', 'preview', 'files'].forEach(t => {
+    document.getElementById(`mob-tab-${t}`)?.classList.toggle('active', t === tab);
+  });
+
+  const editorPane  = document.getElementById('editorPane');
+  const previewPane = document.querySelector('.preview-pane');
+  const filePanel   = document.getElementById('filePanel');
+
+  editorPane?.classList.remove('mobile-active');
+  previewPane?.classList.remove('mobile-active');
+  filePanel?.classList.remove('mobile-active');
+
+  if (tab === 'edit') {
+    editorPane?.classList.add('mobile-active');
+    // Focus editor after a brief delay so keyboard doesn't jump layout
+    setTimeout(() => document.getElementById('editor')?.focus(), 100);
+  } else if (tab === 'preview') {
+    previewPane?.classList.add('mobile-active');
+  } else if (tab === 'files') {
+    // Ensure file panel is not collapsed
+    filePanel?.classList.remove('collapsed');
+    filePanel?.classList.add('mobile-active');
+    filePanelOpen = true;
+    if (currentUser) refreshFileList();
+  }
+}
+
+function mobileInit() {
+  if (!isMobile()) return;
+  // Start on edit tab
+  mobileSwitchTab('edit');
+}
+
+// Re-initialise on resize (e.g. rotation)
+let mobileResizeTimer = null;
+window.addEventListener('resize', () => {
+  setMobileVH();
+  clearTimeout(mobileResizeTimer);
+  mobileResizeTimer = setTimeout(() => {
+    if (isMobile()) {
+      mobileSwitchTab(mobileCurrentTab);
+    } else {
+      // Restore desktop layout — remove mobile-active classes
+      document.getElementById('editorPane')?.classList.remove('mobile-active');
+      document.querySelector('.preview-pane')?.classList.remove('mobile-active');
+      document.getElementById('filePanel')?.classList.remove('mobile-active');
+    }
+  }, 150);
+});
+
+// Auto-switch to preview when content is typed (after a pause) — optional UX nicety
+// Not enabled by default — user can switch manually
+
+// ─── Override toggleFilePanel on mobile ─────────────────────────────────────
+const _originalToggleFilePanel = toggleFilePanel;
+function toggleFilePanel() {
+  if (isMobile()) {
+    mobileSwitchTab('files');
+    return;
+  }
+  _originalToggleFilePanel();
+}
+
+// ─── Override grpEnterMode to stay on files tab on mobile ────────────────────
+const _originalGrpEnterMode = grpEnterMode;
+function grpEnterMode(group) {
+  _originalGrpEnterMode(group);
+  if (isMobile()) mobileSwitchTab('files');
+}
+
+const _originalGrpExitMode = grpExitMode;
+function grpExitMode() {
+  _originalGrpExitMode();
+  if (isMobile()) mobileSwitchTab('files');
+}
+
 // Init on load
 fpInit();
 checkForShareToken();
 applyInterfacePrefs();
+setMobileVH();
+mobileInit();
 
 // ─── ChordPro Parser ────────────────────────────────────────────────────────
 
@@ -3817,48 +4077,64 @@ function flushAbcRenders() {
 
 function flushVextabRenders() {
   if (typeof vextab === 'undefined') return;
-  const VexTab   = vextab.VexTab;
-  const Artist   = vextab.Artist;
-  const Renderer = vextab.Vex.Flow.Renderer;
+  if (!pendingVextabRenders.length) return;
 
-  for (const id of pendingVextabRenders) {
-    const holder = document.getElementById(id);
-    if (!holder) continue;
-    const rawVt = holder.dataset.vtRaw;
-    if (!rawVt) continue;
-    try {
-      const width = (holder.parentElement && holder.parentElement.offsetWidth > 50)
-        ? holder.parentElement.offsetWidth - 20
-        : 580;
-
-      // Estimate height from number of tabstave lines — each needs ~160px
-      const staveCount = (rawVt.match(/^tabstave/gmi) || []).length || 1;
-      const height = staveCount * 160 + 40;
-
-      // Use Canvas backend — avoids VexFlowFont/SVG timing issues
-      const canvas = document.createElement('canvas');
-      canvas.width  = width * window.devicePixelRatio;
-      canvas.height = height * window.devicePixelRatio;
-      canvas.style.width  = width + 'px';
-      canvas.style.height = height + 'px';
-      canvas.style.maxWidth = '100%';
-      canvas.getContext('2d').scale(window.devicePixelRatio, window.devicePixelRatio);
-      holder.appendChild(canvas);
-
-      const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
-      renderer.resize(width, height);
-      const artist = new Artist(10, 10, width - 20, { scale: 1.0 });
-      const tab = new VexTab(artist);
-      tab.parse(rawVt.trim());
-      artist.render(renderer);
-
-      // Resize canvas height to match actual content drawn
-      // (VexTab may draw less than our initial height estimate)
-    } catch (e) {
-      holder.innerHTML = `<div class="vextab-error">VexTab error: ${e.message}</div>`;
-    }
-  }
+  const ids = pendingVextabRenders.slice();
   pendingVextabRenders = [];
+
+  setTimeout(() => {
+    const VexTab   = vextab.VexTab;
+    const Artist   = vextab.Artist;
+    const Renderer = vextab.Vex.Flow.Renderer;
+
+    for (const id of ids) {
+      const holder = document.getElementById(id);
+      if (!holder) continue;
+      const rawVt = holder.dataset.vtRaw;
+      if (!rawVt) continue;
+      try {
+        // Find the best available width — use the paper/preview pane width
+        // which is stable by the time setTimeout fires
+        const paper = document.getElementById('paper');
+        const previewPane = document.querySelector('.preview-pane');
+        let width = 0;
+
+        if (paper && paper.offsetWidth > 100) {
+          width = paper.offsetWidth - 24; // account for paper padding
+        } else if (previewPane && previewPane.offsetWidth > 100) {
+          width = previewPane.offsetWidth - 40;
+        } else {
+          width = window.innerWidth - 40;
+        }
+
+        width = Math.max(300, Math.floor(width));
+
+        const staveCount = (rawVt.match(/^tabstave/gmi) || []).length || 1;
+        const height = staveCount * 160 + 40;
+
+        const dpr = window.devicePixelRatio || 1;
+        const canvas = document.createElement('canvas');
+        canvas.width  = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width  = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.style.maxWidth = '100%';
+        canvas.getContext('2d').scale(dpr, dpr);
+        holder.appendChild(canvas);
+
+        const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
+        renderer.resize(width, height);
+        // Artist width must match canvas width exactly — leave 10px margin each side
+        const artist = new Artist(10, 10, width - 10, { scale: 1.0 });
+        const tab = new VexTab(artist);
+        tab.parse(rawVt.trim());
+        artist.render(renderer);
+
+      } catch (e) {
+        holder.innerHTML = `<div class="vextab-error">VexTab error: ${e.message}</div>`;
+      }
+    }
+  }, 80);
 }
 
 function flushAllNotationRenders() {
@@ -4642,6 +4918,149 @@ function printSongs(paperEl) {
   .share-copy-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     MOBILE / TABLET LAYOUT  (≤1024px)
+     Three tabs: Edit | Preview | Files
+     Covers phones and iPads in all orientations
+     Each fills the full screen below the header.
+  ═══════════════════════════════════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+
+    /* ── Use dynamic viewport height to avoid iOS Safari URL bar issues ── */
+    :root { --header-h: 80px; }
+    html, body { overflow: auto; }
+
+    /* ── Compact two-row header ── */
+    header {
+      height: var(--header-h);
+      flex-wrap: wrap;
+      padding: 6px 12px;
+      gap: 6px;
+      align-content: center;
+    }
+    .logo { order: 1; flex: 1; }
+    .logo-chord { font-size: 18px; }
+    .logo-pro { font-size: 11px; }
+    .key-control { order: 3; gap: 4px; }
+    .fontsize-group { order: 4; gap: 4px; }
+    .header-actions { order: 2; gap: 6px; }
+    /* Hide less important header buttons on mobile */
+    .header-actions #filesToggleBtn { display: none; }
+    .header-actions #loadExampleBtn { display: none; }
+    .header-actions .btn-ghost:not([onclick="showHelp()"]) { display: none; }
+    .ctrl-offset { display: none; }
+
+    /* ── Workspace: stack panels as fixed full-screen layers ── */
+    .workspace {
+      height: calc(100 * var(--vh, 1vh) - var(--header-h));
+      overflow: hidden;
+      position: relative;
+    }
+    .drag-handle,
+    .panel-drag-handle { display: none !important; }
+
+    /* All three panels become full-screen fixed layers */
+    .editor-pane,
+    .preview-pane,
+    .file-panel {
+      position: absolute !important;
+      top: 0; left: 0; right: 0;
+      bottom: 56px; /* tab bar height */
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      width: 100% !important;
+      min-width: 0 !important;
+      border: none !important;
+      transition: none !important;
+      display: none;
+    }
+
+    /* Active mobile tab shows the panel */
+    .editor-pane.mobile-active,
+    .preview-pane.mobile-active,
+    .file-panel.mobile-active { display: flex; }
+
+    /* File panel: always full-width, never collapsed on mobile */
+    .file-panel.collapsed {
+      display: none !important;
+    }
+    .file-panel.mobile-active {
+      display: flex !important;
+      width: 100% !important;
+      border-left: none !important;
+    }
+
+    /* Editor textarea fills properly */
+    #editor {
+      width: calc(100% - 40px) !important;
+      height: 100% !important;
+    }
+
+    /* Preview scrolls */
+    .preview-pane { overflow-y: auto; }
+    #paper { padding: 12px; }
+
+    /* ── Mobile tab bar ── */
+    .mobile-tab-bar {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 56px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 500;
+    }
+    .mobile-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mobile-tab.active { color: var(--accent); }
+    .mobile-tab-icon { font-size: 20px; line-height: 1; }
+
+    /* Unsaved indicator in Edit tab */
+    .mobile-tab .mobile-unsaved {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: absolute;
+      top: 8px; right: calc(33% - 14px);
+      display: none;
+    }
+    .mobile-tab .mobile-unsaved.visible { display: block; }
+
+    /* Status bar hidden on mobile (wastes space) */
+    .editor-status { display: none; }
+
+    /* File panel: show scrollable on mobile */
+    #fp-files-view, #fp-group-mode {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  }
+
+  /* Desktop: hide mobile tab bar */
+  @media (min-width: 1025px) {
+    .mobile-tab-bar { display: none; }
+  }
+
 </style>
 </head>
 <body>${songPages}</body>
@@ -5005,6 +5424,22 @@ That [G]saved a [Em]wretch like [D]me
     white-space: pre;
   }
 </style>
+
+<!-- Mobile tab bar -->
+<div class="mobile-tab-bar" id="mobileTabBar">
+  <button class="mobile-tab active" id="mob-tab-edit" onclick="mobileSwitchTab('edit')">
+    <span class="mobile-tab-icon">✎</span>
+    <span>Edit</span>
+  </button>
+  <button class="mobile-tab" id="mob-tab-preview" onclick="mobileSwitchTab('preview')">
+    <span class="mobile-tab-icon">♩</span>
+    <span>Preview</span>
+  </button>
+  <button class="mobile-tab" id="mob-tab-files" onclick="mobileSwitchTab('files')">
+    <span class="mobile-tab-icon">⊞</span>
+    <span>Files</span>
+  </button>
+</div>
 
 </body>
 </html>
