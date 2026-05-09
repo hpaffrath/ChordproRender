@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/abcjs@6.6.2/dist/abcjs-basic-min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vextab@4.0.5/dist/div.prod.js"></script>
 <style>
@@ -382,7 +383,7 @@
   /* Tab section — monospace font */
   .tab-line {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
+    font-size: var(--tab-fs, 10.5px);
     color: var(--ink);
     line-height: 1.7;
     display: block;
@@ -1410,6 +1411,24 @@
           style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
         <span style="font-size:12px;color:var(--text-dim);">Show "Load Example" button</span>
       </label>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:var(--text-dim);flex:1;">Tab notation font size</span>
+        <button class="ctrl-btn" onclick="changeTabFontSize(-0.5)" title="Decrease tab font size" style="padding:2px 8px;">−</button>
+        <span id="tab-fontsize-display" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);min-width:36px;text-align:center;"></span>
+        <button class="ctrl-btn" onclick="changeTabFontSize(+0.5)" title="Increase tab font size" style="padding:2px 8px;">+</button>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:16px 0;"></div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);">Backup</div>
+      <div style="font-size:12px;color:var(--text-dim);">Export all your songs, setlists and group songs (where you are admin) as a ZIP of ChordPro files.</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="exportBackup()">⬇ Export ZIP</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="document.getElementById('import-zip-input').click()">⬆ Import ZIP</button>
+      </div>
+      <input type="file" id="import-zip-input" accept=".zip" style="display:none;" onchange="importBackup(this)">
     </div>
 
     <div style="height:1px;background:var(--border);margin:16px 0;"></div>
@@ -1560,6 +1579,45 @@
 
     <div class="saveas-actions">
       <button class="btn btn-primary" onclick="closeModal('grpManageOverlay')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export/Import progress modal -->
+<div class="saveas-overlay" id="backupProgressOverlay">
+  <div class="saveas-box" style="max-width:380px;">
+    <div class="saveas-title" id="backup-progress-title">Exporting…</div>
+    <div style="font-size:13px;color:var(--text-dim);" id="backup-progress-msg">Gathering songs…</div>
+    <div style="background:var(--bg);border-radius:4px;height:6px;margin-top:12px;overflow:hidden;">
+      <div id="backup-progress-bar" style="height:100%;background:var(--accent);width:0%;transition:width 0.2s;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Import conflict modal -->
+<div class="saveas-overlay" id="importConflictOverlay">
+  <div class="saveas-box" style="max-width:420px;">
+    <div class="saveas-title">Song Already Exists</div>
+    <div style="font-size:13px;color:var(--text-dim);margin-bottom:4px;" id="import-conflict-filename"></div>
+    <div style="font-size:12px;color:var(--text-dim);">This song already exists in your library. What would you like to do?</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer;">
+      <input type="checkbox" id="import-apply-all" style="width:14px;height:14px;accent-color:var(--accent);">
+      <span style="font-size:12px;color:var(--text-dim);">Apply this choice to all remaining conflicts</span>
+    </label>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="resolveImportConflict('skip')">Skip</button>
+      <button class="btn btn-primary" onclick="resolveImportConflict('overwrite')">Overwrite</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import summary modal -->
+<div class="saveas-overlay" id="importSummaryOverlay">
+  <div class="saveas-box" style="max-width:380px;">
+    <div class="saveas-title">Import Complete</div>
+    <div style="font-size:13px;color:var(--text-dim);line-height:1.7;" id="import-summary-text"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-primary" onclick="closeModal('importSummaryOverlay');refreshFileList();">Done</button>
     </div>
   </div>
 </div>
@@ -1778,6 +1836,8 @@ function showSettings() {
   // Populate checkbox from current local state
   const showExample = localStorage.getItem('showExampleBtn') !== 'false';
   document.getElementById('s-show-example').checked = showExample;
+  // Populate tab font size display
+  document.getElementById('tab-fontsize-display').textContent = tabFontSize + 'px';
   document.getElementById('settingsOverlay').classList.add('open');
 }
 
@@ -2373,9 +2433,27 @@ function changeFontSize(delta) {
   applyFontSize();
 }
 
+// ─── Tab font size ─────────────────────────────────────────────────────────────
+
+let tabFontSize = parseFloat(localStorage.getItem('tabFontSize') || '10.5');
+
+function applyTabFontSize(size) {
+  size = size || tabFontSize;
+  document.documentElement.style.setProperty('--tab-fs', size + 'px');
+  const el = document.getElementById('tab-fontsize-display');
+  if (el) el.textContent = size + 'px';
+}
+
+function changeTabFontSize(delta) {
+  tabFontSize = Math.round(Math.min(18, Math.max(7, tabFontSize + delta)) * 2) / 2;
+  applyTabFontSize();
+  localStorage.setItem('tabFontSize', tabFontSize);
+}
+
 // Apply font size after DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   applyFontSize();
+  applyTabFontSize();
   const el = document.getElementById('fontsize-display');
   if (el) el.textContent = previewFontSize;
 });
@@ -2789,6 +2867,279 @@ function closeSlBuilder() {
 document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('slBuilderOverlay')) closeSlBuilder();
 });
+
+// ─── Export / Import ──────────────────────────────────────────────────────────
+
+function setBackupProgress(pct, msg) {
+  document.getElementById('backup-progress-bar').style.width = pct + '%';
+  if (msg) document.getElementById('backup-progress-msg').textContent = msg;
+}
+
+function safeFolder(name) {
+  return name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() || 'unnamed';
+}
+
+async function exportBackup() {
+  if (!currentUser) { alert('Please sign in to export.'); return; }
+  if (typeof JSZip === 'undefined') { alert('JSZip library not loaded. Please try again.'); return; }
+
+  const overlay = document.getElementById('backupProgressOverlay');
+  document.getElementById('backup-progress-title').textContent = 'Exporting…';
+  overlay.classList.add('open');
+  setBackupProgress(0, 'Starting export…');
+
+  try {
+    const zip = new JSZip();
+    const date = new Date().toISOString().slice(0, 10);
+    const root = zip.folder(`chordpro-backup-${date}`);
+    let total = 0, done = 0;
+
+    // ── Personal songs ────────────────────────────────────────────────────
+    setBackupProgress(5, 'Fetching personal songs…');
+    const { data: songs } = await sb.from('songs')
+      .select('filename, content').eq('user_id', currentUser.id);
+    const songsFolder = root.folder('songs');
+    total += (songs || []).length;
+    for (const s of (songs || [])) {
+      songsFolder.file(s.filename, s.content || '');
+      done++;
+      setBackupProgress(5 + Math.round((done / Math.max(total, 1)) * 40), `Songs: ${done}/${total}`);
+    }
+
+    // ── Personal setlists ─────────────────────────────────────────────────
+    setBackupProgress(45, 'Fetching setlists…');
+    const { data: setlists } = await sb.from('setlists')
+      .select('name, song_filenames').eq('user_id', currentUser.id);
+    if (setlists && setlists.length) {
+      const slFolder = root.folder('setlists');
+      for (const sl of setlists) {
+        const content = (sl.song_filenames || []).join('\n');
+        slFolder.file(safeFolder(sl.name) + '.txt', content);
+      }
+    }
+
+    // ── Groups (admin only) ───────────────────────────────────────────────
+    setBackupProgress(55, 'Fetching groups…');
+    const { data: memberships } = await sb.from('group_members')
+      .select('role, groups(id, name)')
+      .eq('user_id', currentUser.id)
+      .eq('role', 'admin');
+
+    if (memberships && memberships.length) {
+      const grpsFolder = root.folder('groups');
+      let grpDone = 0;
+      for (const m of memberships) {
+        const g = m.groups;
+        const grpFolder = grpsFolder.folder(safeFolder(g.name));
+        setBackupProgress(55 + Math.round((grpDone / memberships.length) * 35),
+          `Group: ${g.name}…`);
+
+        // Group songs
+        const { data: gsongs } = await sb.from('group_songs')
+          .select('filename, content').eq('group_id', g.id);
+        if (gsongs && gsongs.length) {
+          const gSongsFolder = grpFolder.folder('songs');
+          for (const s of gsongs) gSongsFolder.file(s.filename, s.content || '');
+        }
+
+        // Group setlists
+        const { data: gsl } = await sb.from('group_setlists')
+          .select('name, song_filenames').eq('group_id', g.id);
+        if (gsl && gsl.length) {
+          const gSlFolder = grpFolder.folder('setlists');
+          for (const sl of gsl) {
+            gSlFolder.file(safeFolder(sl.name) + '.txt', (sl.song_filenames || []).join('\n'));
+          }
+        }
+        grpDone++;
+      }
+    }
+
+    // ── Generate ZIP ──────────────────────────────────────────────────────
+    setBackupProgress(92, 'Generating ZIP…');
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chordpro-backup-${date}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    setBackupProgress(100, 'Done!');
+    setTimeout(() => overlay.classList.remove('open'), 800);
+
+  } catch (err) {
+    overlay.classList.remove('open');
+    alert('Export failed: ' + err.message);
+  }
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+let importConflictResolve = null;
+let importApplyToAll = null; // 'skip' | 'overwrite' | null
+
+function resolveImportConflict(choice) {
+  const applyAll = document.getElementById('import-apply-all').checked;
+  if (applyAll) importApplyToAll = choice;
+  document.getElementById('importConflictOverlay').classList.remove('open');
+  if (importConflictResolve) importConflictResolve(choice);
+}
+
+async function askConflict(filename) {
+  if (importApplyToAll) return importApplyToAll;
+  return new Promise(resolve => {
+    importConflictResolve = resolve;
+    document.getElementById('import-conflict-filename').textContent = filename;
+    document.getElementById('import-apply-all').checked = false;
+    document.getElementById('importConflictOverlay').classList.add('open');
+  });
+}
+
+async function importBackup(input) {
+  if (!input.files || !input.files[0]) return;
+  if (!currentUser) { alert('Please sign in to import.'); return; }
+  if (typeof JSZip === 'undefined') { alert('JSZip not loaded.'); return; }
+
+  const overlay = document.getElementById('backupProgressOverlay');
+  document.getElementById('backup-progress-title').textContent = 'Importing…';
+  overlay.classList.add('open');
+  setBackupProgress(0, 'Reading ZIP…');
+  importApplyToAll = null;
+
+  // Read file as ArrayBuffer first — JSZip requires this on iOS Safari
+  const arrayBuffer = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsArrayBuffer(input.files[0]);
+  });
+
+  // Reset file input so same file can be re-imported
+  input.value = '';
+
+  const stats = { imported: 0, skipped: 0, overwritten: 0,
+                  setlists: 0, errors: [] };
+
+  try {
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const files = [];
+    zip.forEach((path, file) => { if (!file.dir) files.push({ path, file }); });
+
+    // Separate .cho files and .txt setlist files
+    const choFiles = files.filter(f => f.path.endsWith('.cho'));
+    const slFiles  = files.filter(f => f.path.endsWith('.txt'));
+    const total = choFiles.length;
+
+    // ── Fetch existing filenames to detect conflicts ───────────────────────
+    const { data: existing } = await sb.from('songs')
+      .select('filename').eq('user_id', currentUser.id);
+    const existingSet = new Set((existing || []).map(s => s.filename));
+
+    // ── Import .cho files ──────────────────────────────────────────────────
+    overlay.classList.add('open');
+    for (let i = 0; i < choFiles.length; i++) {
+      const { path, file } = choFiles[i];
+      const filename = path.split('/').pop();
+      setBackupProgress(5 + Math.round((i / Math.max(total, 1)) * 80),
+        `Importing ${i + 1}/${total}: ${filename}`);
+
+      const content = await file.async('string');
+      const title = extractTitle(content);
+      const artist = extractArtist(content);
+      const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
+      const key = keyMatch ? keyMatch[1] : null;
+
+      // Determine folder context
+      const parts = path.split('/');
+      // Structure: [backup-root]/[songs|groups/GROUP/songs]/filename.cho
+      const isGroupSong = parts.some(p => p === 'groups');
+
+      if (isGroupSong) {
+        // Group songs — import to personal library with a note
+        // (we can't know which group to add them to, so personal library is safest)
+        const personalFilename = filename;
+        if (existingSet.has(personalFilename)) {
+          const choice = await askConflict(`${personalFilename} (from group)`);
+          if (choice === 'skip') { stats.skipped++; continue; }
+          // Overwrite
+          await sb.from('songs').update({ content, title: title || personalFilename, artist, key })
+            .eq('user_id', currentUser.id).eq('filename', personalFilename);
+          stats.overwritten++;
+        } else {
+          await sb.from('songs').insert({
+            user_id: currentUser.id, filename: personalFilename,
+            title: title || personalFilename, artist, key, content, tags: [],
+          });
+          existingSet.add(personalFilename);
+          stats.imported++;
+        }
+      } else {
+        // Personal song
+        if (existingSet.has(filename)) {
+          const choice = await askConflict(filename);
+          if (choice === 'skip') { stats.skipped++; continue; }
+          await sb.from('songs').update({ content, title: title || filename, artist, key })
+            .eq('user_id', currentUser.id).eq('filename', filename);
+          stats.overwritten++;
+        } else {
+          await sb.from('songs').insert({
+            user_id: currentUser.id, filename,
+            title: title || filename, artist, key, content, tags: [],
+          });
+          existingSet.add(filename);
+          stats.imported++;
+        }
+      }
+    }
+
+    // ── Import setlists (.txt files in setlists/ folders) ─────────────────
+    setBackupProgress(88, 'Importing setlists…');
+    const { data: existingSl } = await sb.from('setlists')
+      .select('name').eq('user_id', currentUser.id);
+    const existingSlSet = new Set((existingSl || []).map(s => s.name));
+
+    for (const { path, file } of slFiles) {
+      const parts = path.split('/');
+      const isGroupSl = parts.some(p => p === 'groups');
+      if (isGroupSl) continue; // skip group setlists — can't assign to group on import
+
+      const rawName = parts.pop().replace(/\.txt$/, '');
+      if (!rawName) continue;
+      const content = await file.async('string');
+      const song_filenames = content.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!song_filenames.length) continue;
+
+      if (!existingSlSet.has(rawName)) {
+        await sb.from('setlists').insert({
+          user_id: currentUser.id, name: rawName, song_filenames,
+        });
+        existingSlSet.add(rawName);
+        stats.setlists++;
+      }
+      // Skip duplicate setlists silently — setlist files aren't as critical
+    }
+
+    setBackupProgress(100, 'Done!');
+    overlay.classList.remove('open');
+
+    // Show summary
+    const lines = [
+      `✓ ${stats.imported} song${stats.imported !== 1 ? 's' : ''} imported`,
+      stats.overwritten ? `↺ ${stats.overwritten} overwritten` : '',
+      stats.skipped ? `— ${stats.skipped} skipped` : '',
+      stats.setlists ? `☰ ${stats.setlists} setlist${stats.setlists !== 1 ? 's' : ''} imported` : '',
+      stats.errors.length ? `✗ ${stats.errors.length} errors` : '',
+    ].filter(Boolean).join('\n');
+
+    document.getElementById('import-summary-text').textContent = lines;
+    document.getElementById('importSummaryOverlay').classList.add('open');
+
+  } catch (err) {
+    overlay.classList.remove('open');
+    alert('Import failed: ' + err.message);
+  }
+}
 
 // ─── Sharing ──────────────────────────────────────────────────────────────────
 
@@ -3773,6 +4124,7 @@ function parseChordPro(text) {
       else if (/^key$/.test(k))                            song.key       = v;
       else if (/^capo$/.test(k))                           song.capo      = v;
       else if (/^(tempo|bpm)$/.test(k))                    song.tempo     = v;
+      else if (/^tab_font_size$/.test(k))                  song.tabFontSize = parseFloat(v) || null;
       else if (/^(time|time_sig)$/.test(k))                song.time      = v;
       else if (/^duration$/.test(k))                       song.duration  = v;
       else if (/^album$/.test(k))                          song.album     = v;
@@ -3893,6 +4245,11 @@ function parseChordLine(raw) {
 function renderSong(song) {
   const div = document.createElement('div');
   div.className = 'song';
+
+  // Apply per-song tab font size override if specified
+  if (song.tabFontSize) {
+    div.style.setProperty('--tab-fs', song.tabFontSize + 'px');
+  }
 
   // ── Header ────────────────────────────────────────────────────────────
   if (song.title) {
@@ -4720,7 +5077,7 @@ function printSongs(paperEl) {
     .section-repeat { opacity: 0.8; }
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
-    .tab-line { font-family: monospace; font-size: 10.5px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
+    .tab-line { font-family: monospace; font-size: ${tabFontSize}px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
     .tab-stave { display: block; break-inside: avoid; page-break-inside: avoid; }
     .section-comment > .section-label { font-style: italic; color: #5a5a6a; font-weight: 400; text-transform: none; letter-spacing: 0; }
     .chord-grid-row { display: flex; flex-wrap: wrap; align-items: baseline; line-height: 2; margin-bottom: 2px; font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; }
@@ -5199,6 +5556,7 @@ function hideHelp(e) {
           <tr><td><code>{key: G}</code></td><td>Key signature — shown in header badge and footer chip</td></tr>
           <tr><td><code>{capo: 2}</code></td><td>Capo position — shown in meta line and footer chip</td></tr>
           <tr><td><code>{tempo: 120}</code></td><td>Tempo in BPM — shown in footer chip</td></tr>
+          <tr><td><code>{tab_font_size: 12}</code></td><td>Override the tab notation font size for this song (in px) — overrides the global setting</td></tr>
           <tr><td><code>{bpm: 120}</code></td><td>Shorthand for tempo</td></tr>
           <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip</td></tr>
           <tr><td><code>{duration: 3:45}</code></td><td>Song duration — shown in meta line</td></tr>
