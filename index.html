@@ -860,6 +860,38 @@
   .fp-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
   .fp-sort-btn.active { color: var(--accent); border-color: var(--accent); }
 
+  /* ─── ARTIST TREE VIEW ───────────────────────────────────────────── */
+  .artist-heading {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 4px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+  }
+  .artist-heading:hover { background: var(--surface2); }
+  .artist-heading-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    flex: 1;
+  }
+  .artist-heading-count { font-size: 10px; color: var(--text-dim); }
+  .artist-heading-arrow { font-size: 10px; color: var(--text-dim); transition: transform 0.15s; }
+  .artist-heading.collapsed .artist-heading-arrow { transform: rotate(-90deg); }
+  .artist-songs { display: flex; flex-direction: column; }
+  .artist-songs.hidden { display: none; }
+  .artist-songs .fp-item { padding-left: 20px; }
+  .fp-list.tree-view .fp-item .artist-sub { display: none; }
+
   /* Unsaved dot */
   .unsaved-dot {
     display: inline-block;
@@ -1245,7 +1277,7 @@
         <div class="fp-search-row">
           <input class="fp-search" id="fp-search" placeholder="Search…" oninput="renderFileList()" autocomplete="off">
           <button class="fp-sort-btn active" id="sort-btn-name" onclick="setSort('name')" title="Sort by name">A–Z</button>
-          <button class="fp-sort-btn" id="sort-btn-artist" onclick="setSort('artist')" title="Sort by artist">Artist</button>
+          <button class="fp-sort-btn" id="sort-btn-artist" onclick="setSort('artist')" title="Sort by artist / Switch to tree view">Artist</button>
           <button class="fp-sort-btn" id="sort-btn-date" onclick="setSort('date')" title="Sort by date">Date</button>
           <button class="fp-sort-btn" id="sort-btn-key" onclick="setSort('key')" title="Sort by key">Key</button>
         </div>
@@ -2024,9 +2056,7 @@ function fpShowFilesView() {
 // ─── File operations ──────────────────────────────────────────────────────────
 
 let allFiles = [];       // cached file list
-let sortMode = 'name';   // 'name' | 'artist' | 'date' | 'key'
-let hasUnsavedChanges = false;
-let autoSaveTimer = null;
+let sortMode = 'name';   // 'name' | 'artist' | 'artist-tree' | 'date' | 'key'
 
 function setUnsaved(val) {
   hasUnsavedChanges = val;
@@ -2035,11 +2065,25 @@ function setUnsaved(val) {
 }
 
 function setSort(mode) {
+  // Artist button cycles: artist → artist-tree → (back to artist on next click of same)
+  if (mode === 'artist') {
+    if (sortMode === 'artist') mode = 'artist-tree';
+    else if (sortMode === 'artist-tree') mode = 'artist';
+  }
   sortMode = mode;
-  ['name','artist','date','key'].forEach(m => {
-    const btn = document.getElementById(`sort-btn-${m}`);
-    if (btn) btn.classList.toggle('active', m === mode);
+
+  ['name','date','key'].forEach(m => {
+    document.getElementById(`sort-btn-${m}`)?.classList.toggle('active', m === mode);
   });
+  // Artist button is active for both flat and tree
+  const artistBtn = document.getElementById('sort-btn-artist');
+  if (artistBtn) {
+    artistBtn.classList.toggle('active', mode === 'artist' || mode === 'artist-tree');
+    artistBtn.textContent = mode === 'artist-tree' ? 'Artist ⊕' : 'Artist';
+    artistBtn.title = mode === 'artist-tree'
+      ? 'Tree view — click for flat sort'
+      : 'Sort by artist — click again for tree view';
+  }
   renderFileList();
 }
 
@@ -2059,6 +2103,9 @@ async function refreshFileList() {
   renderFileList();
 }
 
+let hasUnsavedChanges = false;
+let autoSaveTimer = null;
+
 function renderFileList() {
   const list = document.getElementById('fp-list');
   if (!list) return;
@@ -2071,7 +2118,15 @@ function renderFileList() {
     (f.artist || '').toLowerCase().includes(query)
   );
 
-  // Sort
+  // Artist tree view
+  if (sortMode === 'artist-tree') {
+    list.classList.add('tree-view');
+    renderArtistTree(list, files);
+    return;
+  }
+  list.classList.remove('tree-view');
+
+  // Sort (flat modes)
   if (sortMode === 'name') {
     files.sort((a, b) => a.filename.localeCompare(b.filename));
   } else if (sortMode === 'artist') {
@@ -2090,72 +2145,144 @@ function renderFileList() {
   }
 
   list.innerHTML = '';
-  files.forEach(row => {
-    const item = document.createElement('div');
-    item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '');
+  files.forEach(row => buildFileItem(row, list));
+}
 
-    const icon = document.createElement('span');
-    icon.className = 'fp-item-icon';
-    icon.textContent = '♩';
+function buildFileItem(row, container, hideArtist) {
+  const item = document.createElement('div');
+  item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '');
 
-    const nameWrap = document.createElement('span');
-    nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
+  const icon = document.createElement('span');
+  icon.className = 'fp-item-icon';
+  icon.textContent = '♩';
 
-    const name = document.createElement('span');
-    name.className = 'fp-item-name';
-    name.textContent = row.filename;
-    nameWrap.appendChild(name);
+  const nameWrap = document.createElement('span');
+  nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
 
-    if (row.artist) {
-      const artist = document.createElement('span');
-      artist.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      artist.textContent = row.artist;
-      nameWrap.appendChild(artist);
+  const name = document.createElement('span');
+  name.className = 'fp-item-name';
+  name.textContent = row.filename;
+  nameWrap.appendChild(name);
+
+  if (row.artist && !hideArtist) {
+    const artist = document.createElement('span');
+    artist.className = 'artist-sub';
+    artist.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    artist.textContent = row.artist;
+    nameWrap.appendChild(artist);
+  }
+
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'fp-item-share';
+  shareBtn.title = 'Share';
+  shareBtn.textContent = '↗';
+  shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSong(row.filename); });
+
+  const renBtn = document.createElement('button');
+  renBtn.className = 'fp-item-ren';
+  renBtn.title = 'Rename';
+  renBtn.textContent = '✎';
+  renBtn.addEventListener('click', e => { e.stopPropagation(); fpRename(row.filename); });
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'fp-item-del';
+  delBtn.title = 'Delete';
+  delBtn.textContent = '×';
+  delBtn.addEventListener('click', e => { e.stopPropagation(); fpDelete(row.filename, e); });
+
+  item.appendChild(icon);
+  item.appendChild(nameWrap);
+
+  if (row.key) {
+    const keyBadge = document.createElement('span');
+    keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+    keyBadge.textContent = row.key;
+    item.appendChild(keyBadge);
+  }
+
+  if (sortMode === 'date' && row.updated_at) {
+    const badge = document.createElement('span');
+    badge.style.cssText = 'font-size:9px;color:var(--text-dim);flex-shrink:0;';
+    badge.textContent = new Date(row.updated_at).toLocaleDateString();
+    item.appendChild(badge);
+  }
+
+  item.appendChild(renBtn);
+  item.appendChild(delBtn);
+  item.appendChild(shareBtn);
+  item.addEventListener('click', () => fpLoad(row.filename));
+  container.appendChild(item);
+}
+
+function renderArtistTree(list, files) {
+  list.innerHTML = '';
+
+  // Group by artist alphabetically
+  const artistMap = {};
+  const noArtist = [];
+  files.forEach(f => {
+    if (f.artist) {
+      if (!artistMap[f.artist]) artistMap[f.artist] = [];
+      artistMap[f.artist].push(f);
+    } else {
+      noArtist.push(f);
     }
-
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'fp-item-share';
-    shareBtn.title = 'Share';
-    shareBtn.textContent = '↗';
-    shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSong(row.filename); });
-
-    const renBtn = document.createElement('button');
-    renBtn.className = 'fp-item-ren';
-    renBtn.title = 'Rename';
-    renBtn.textContent = '✎';
-    renBtn.addEventListener('click', e => { e.stopPropagation(); fpRename(row.filename); });
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'fp-item-del';
-    delBtn.title = 'Delete';
-    delBtn.textContent = '×';
-    delBtn.addEventListener('click', e => { e.stopPropagation(); fpDelete(row.filename, e); });
-
-    item.appendChild(icon);
-    item.appendChild(nameWrap);
-
-    // Key — always shown as a small pill
-    if (row.key) {
-      const keyBadge = document.createElement('span');
-      keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
-      keyBadge.textContent = row.key;
-      item.appendChild(keyBadge);
-    }
-
-    // Extra badge for sort context (date only — key already shown above)
-    if (sortMode === 'date' && row.updated_at) {
-      const badge = document.createElement('span');
-      badge.style.cssText = 'font-size:9px;color:var(--text-dim);flex-shrink:0;';
-      badge.textContent = new Date(row.updated_at).toLocaleDateString();
-      item.appendChild(badge);
-    }
-
-    item.appendChild(renBtn);
-    item.appendChild(delBtn);
-    item.appendChild(shareBtn);
-    item.addEventListener('click', () => fpLoad(row.filename));
-    list.appendChild(item);
   });
+
+  const sortedArtists = Object.keys(artistMap).sort((a, b) => a.localeCompare(b));
+
+  if (!sortedArtists.length && !noArtist.length) {
+    list.innerHTML = '<div class="fp-empty">No files yet.</div>';
+    return;
+  }
+
+  sortedArtists.forEach(artist => {
+    const songs = artistMap[artist].sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(buildArtistGroup(artist, songs));
+  });
+
+  if (noArtist.length) {
+    noArtist.sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(buildArtistGroup('(no artist)', noArtist, true));
+  }
+}
+
+function buildArtistGroup(artist, songs, faded) {
+  const group = document.createElement('div');
+  group.className = 'artist-group';
+
+  const heading = document.createElement('div');
+  heading.className = 'artist-heading';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'artist-heading-arrow';
+  arrow.textContent = '▾';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'artist-heading-name';
+  if (faded) nameEl.style.opacity = '0.5';
+  nameEl.textContent = artist;
+
+  const count = document.createElement('span');
+  count.className = 'artist-heading-count';
+  count.textContent = songs.length;
+
+  heading.appendChild(arrow);
+  heading.appendChild(nameEl);
+  heading.appendChild(count);
+
+  const songList = document.createElement('div');
+  songList.className = 'artist-songs';
+  songs.forEach(row => buildFileItem(row, songList, true)); // hideArtist=true
+
+  heading.addEventListener('click', () => {
+    const collapsed = songList.classList.toggle('hidden');
+    heading.classList.toggle('collapsed', collapsed);
+  });
+
+  group.appendChild(heading);
+  group.appendChild(songList);
+  return group;
 }
 
 async function fpLoad(filename) {
@@ -2472,7 +2599,7 @@ let pendingSaveFilename = null;
 async function refreshTagTree() {
   const tree = document.getElementById('fp-tag-tree');
   tree.innerHTML = '<div class="fp-loading">Loading…</div>';
-  const { data, error } = await sb.from('songs').select('filename, title, tags').order('filename');
+  const { data, error } = await sb.from('songs').select('filename, title, artist, key, tags').order('filename');
   if (error) { tree.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
 
   // Build tag → songs map
@@ -2511,6 +2638,9 @@ function buildTagGroup(tag, songs, faded) {
   const group = document.createElement('div');
   group.className = 'tag-group';
 
+  // Sort songs alphabetically within each tag
+  songs.sort((a, b) => a.filename.localeCompare(b.filename));
+
   const header = document.createElement('div');
   header.className = 'tag-header';
   header.innerHTML = `<span class="tag-arrow">▶</span><span class="tag-name"${faded ? ' style="opacity:.5"' : ''}>${tag}</span><span class="tag-count">${songs.length}</span>`;
@@ -2526,7 +2656,34 @@ function buildTagGroup(tag, songs, faded) {
   songs.forEach(song => {
     const item = document.createElement('div');
     item.className = 'fp-item' + (song.filename === currentFilename ? ' active' : '');
-    item.innerHTML = `<span class="fp-item-icon">♩</span><span class="fp-item-name">${song.filename}</span>`;
+
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+
+    const nameWrap = document.createElement('span');
+    nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'fp-item-name'; nameEl.textContent = song.filename;
+    nameWrap.appendChild(nameEl);
+
+    if (song.artist) {
+      const artistEl = document.createElement('span');
+      artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      artistEl.textContent = song.artist;
+      nameWrap.appendChild(artistEl);
+    }
+
+    item.appendChild(icon);
+    item.appendChild(nameWrap);
+
+    if (song.key) {
+      const keyBadge = document.createElement('span');
+      keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+      keyBadge.textContent = song.key;
+      item.appendChild(keyBadge);
+    }
+
     item.addEventListener('click', () => { fpLoad(song.filename); fpSwitchTab('songs'); });
     children.appendChild(item);
   });
