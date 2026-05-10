@@ -1282,6 +1282,12 @@
           <button class="fp-sort-btn" id="sort-btn-key" onclick="setSort('key')" title="Sort by key">Key</button>
         </div>
         <div class="fp-current" id="fp-current">No file open</div>
+        <!-- Active tag filter badge -->
+        <div id="tag-filter-bar" style="display:none;padding:4px 10px;background:rgba(232,184,75,0.1);border-bottom:1px solid var(--border);display:none;align-items:center;gap:6px;flex-shrink:0;">
+          <span style="font-size:11px;color:var(--text-dim);">Tag:</span>
+          <span id="tag-filter-label" style="font-size:11px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+          <button onclick="clearTagFilter()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;" title="Clear filter">×</button>
+        </div>
         <div class="fp-list" id="fp-list">
           <div class="fp-loading">Loading…</div>
         </div>
@@ -1289,6 +1295,9 @@
 
       <!-- Tags tab -->
       <div id="fp-tab-tags" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="fp-search-row" style="flex-shrink:0;">
+          <input class="fp-search" id="tag-search" placeholder="Search tags…" oninput="refreshTagTree()" autocomplete="off">
+        </div>
         <div class="fp-list" id="fp-tag-tree">
           <div class="fp-loading">Loading…</div>
         </div>
@@ -1925,26 +1934,22 @@ async function settingsDeleteAccount() {
 let editTagsFilename = null;
 let editTagsCurrent = [];
 
-async function fpEditTags() {
-  if (!currentFilename) { alert('Please open a file first.'); return; }
-  // Load current tags from DB
-  const { data, error } = await sb.from('songs').select('tags').eq('filename', currentFilename).eq('user_id', currentUser.id).single();
+async function fpEditTagsForFile(filename) {
+  if (!currentUser) return;
+  const { data, error } = await sb.from('songs').select('tags').eq('filename', filename).eq('user_id', currentUser.id).single();
   if (error) { alert('Error: ' + error.message); return; }
-  editTagsFilename = currentFilename;
+  editTagsFilename = filename;
   editTagsCurrent = data.tags || [];
-  // Populate modal
-  document.getElementById('edit-tags-filename').textContent = currentFilename;
+  document.getElementById('edit-tags-filename').textContent = filename;
   document.getElementById('edit-tags-err').textContent = '';
   document.getElementById('edit-tag-text').value = '';
   document.getElementById('edit-tag-suggestions-wrap').style.display = 'none';
   document.getElementById('edit-tag-suggestions').innerHTML = '';
-  // Clear and re-render pills (pass skipArrayPush=true since tags already in editTagsCurrent)
   const wrap = document.getElementById('edit-tag-wrap');
   wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
   editTagsCurrent.forEach(tag => addEditTagPill(tag, true));
   document.getElementById('editTagsOverlay').classList.add('open');
   setTimeout(() => document.getElementById('edit-tag-text').focus(), 50);
-  // Fetch all existing tags for suggestions
   const { data: allData } = await sb.from('songs').select('tags');
   if (allData) {
     const allTags = [...new Set(allData.flatMap(r => r.tags || []))].sort();
@@ -1953,6 +1958,11 @@ async function fpEditTags() {
       document.getElementById('edit-tag-suggestions-wrap').style.display = 'flex';
     }
   }
+}
+
+async function fpEditTags() {
+  if (!currentFilename) { alert('Please open a file first, or hover a song in the list and click the 🏷 tag button.'); return; }
+  fpEditTagsForFile(currentFilename);
 }
 
 function renderEditTagSuggestions(allTags) {
@@ -2057,6 +2067,22 @@ function fpShowFilesView() {
 
 let allFiles = [];       // cached file list
 let sortMode = 'name';   // 'name' | 'artist' | 'artist-tree' | 'date' | 'key'
+let activeTagFilter = null; // currently active tag filter
+
+function setTagFilter(tag) {
+  activeTagFilter = tag;
+  const bar = document.getElementById('tag-filter-bar');
+  const label = document.getElementById('tag-filter-label');
+  if (bar) bar.style.display = tag ? 'flex' : 'none';
+  if (label) label.textContent = tag || '';
+  // Switch to songs tab and re-render
+  fpSwitchTab('songs');
+  renderFileList();
+}
+
+function clearTagFilter() {
+  setTagFilter(null);
+}
 
 function setUnsaved(val) {
   hasUnsavedChanges = val;
@@ -2092,7 +2118,7 @@ async function refreshFileList() {
   if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
   const { data, error } = await sb
     .from('songs')
-    .select('id, filename, title, artist, key, updated_at')
+    .select('id, filename, title, artist, key, tags, updated_at')
     .order('filename');
   if (error) {
     console.error('refreshFileList error:', error);
@@ -2111,12 +2137,17 @@ function renderFileList() {
   if (!list) return;
   const query = (document.getElementById('fp-search')?.value || '').toLowerCase();
 
-  // Filter
+  // Filter by search query
   let files = allFiles.filter(f =>
     !query || f.filename.toLowerCase().includes(query) ||
     (f.title || '').toLowerCase().includes(query) ||
     (f.artist || '').toLowerCase().includes(query)
   );
+
+  // Apply active tag filter
+  if (activeTagFilter) {
+    files = files.filter(f => (f.tags || []).includes(activeTagFilter));
+  }
 
   // Artist tree view
   if (sortMode === 'artist-tree') {
@@ -2178,6 +2209,13 @@ function buildFileItem(row, container, hideArtist) {
   shareBtn.textContent = '↗';
   shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSong(row.filename); });
 
+  const tagBtn = document.createElement('button');
+  tagBtn.className = 'fp-item-ren';
+  tagBtn.title = 'Edit tags';
+  tagBtn.textContent = '🏷';
+  tagBtn.style.fontSize = '11px';
+  tagBtn.addEventListener('click', e => { e.stopPropagation(); fpEditTagsForFile(row.filename); });
+
   const renBtn = document.createElement('button');
   renBtn.className = 'fp-item-ren';
   renBtn.title = 'Rename';
@@ -2207,6 +2245,7 @@ function buildFileItem(row, container, hideArtist) {
     item.appendChild(badge);
   }
 
+  item.appendChild(tagBtn);
   item.appendChild(renBtn);
   item.appendChild(delBtn);
   item.appendChild(shareBtn);
@@ -2598,14 +2637,24 @@ let pendingSaveFilename = null;
 
 async function refreshTagTree() {
   const tree = document.getElementById('fp-tag-tree');
-  tree.innerHTML = '<div class="fp-loading">Loading…</div>';
-  const { data, error } = await sb.from('songs').select('filename, title, artist, key, tags').order('filename');
-  if (error) { tree.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  const query = (document.getElementById('tag-search')?.value || '').toLowerCase().trim();
+
+  // Only fetch from DB if we don't have a query (first load or forced refresh)
+  // For search filtering we reuse allFiles which already has tags
+  let songs;
+  if (allFiles.length) {
+    songs = allFiles;
+  } else {
+    tree.innerHTML = '<div class="fp-loading">Loading…</div>';
+    const { data, error } = await sb.from('songs').select('filename, title, artist, key, tags').order('filename');
+    if (error) { tree.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+    songs = data;
+  }
 
   // Build tag → songs map
   const tagMap = {};
   const untagged = [];
-  data.forEach(song => {
+  songs.forEach(song => {
     const tags = song.tags || [];
     if (!tags.length) { untagged.push(song); return; }
     tags.forEach(tag => {
@@ -2616,21 +2665,22 @@ async function refreshTagTree() {
 
   tree.innerHTML = '';
 
-  // Render each tag group
-  const sortedTags = Object.keys(tagMap).sort();
-  sortedTags.forEach(tag => {
-    const group = buildTagGroup(tag, tagMap[tag]);
-    tree.appendChild(group);
-  });
-
-  // Untagged group
-  if (untagged.length) {
-    const group = buildTagGroup('Untagged', untagged, true);
-    tree.appendChild(group);
-  }
+  // Filter tags by search query, sort alphabetically
+  let sortedTags = Object.keys(tagMap).sort();
+  if (query) sortedTags = sortedTags.filter(t => t.toLowerCase().includes(query));
 
   if (!sortedTags.length && !untagged.length) {
-    tree.innerHTML = '<div class="fp-empty">No songs yet.</div>';
+    tree.innerHTML = query
+      ? `<div class="fp-empty">No tags matching "${query}"</div>`
+      : '<div class="fp-empty">No songs yet.</div>';
+    return;
+  }
+
+  sortedTags.forEach(tag => tree.appendChild(buildTagGroup(tag, tagMap[tag])));
+
+  // Untagged — always show unless search is active and doesn't match
+  if (untagged.length && (!query || 'untagged'.includes(query))) {
+    tree.appendChild(buildTagGroup('Untagged', untagged, true));
   }
 }
 
@@ -2643,13 +2693,42 @@ function buildTagGroup(tag, songs, faded) {
 
   const header = document.createElement('div');
   header.className = 'tag-header';
-  header.innerHTML = `<span class="tag-arrow">▶</span><span class="tag-name"${faded ? ' style="opacity:.5"' : ''}>${tag}</span><span class="tag-count">${songs.length}</span>`;
-  header.addEventListener('click', () => {
+
+  const isActive = activeTagFilter === tag;
+  header.innerHTML = `
+    <span class="tag-arrow">▶</span>
+    <span class="tag-name"${faded ? ' style="opacity:.5"' : ''}>${tag}</span>
+    <span class="tag-count">${songs.length}</span>
+    <button class="tag-filter-btn${isActive ? ' active' : ''}" title="${isActive ? 'Clear filter' : 'Filter songs by this tag'}" style="margin-left:4px;background:none;border:1px solid ${isActive ? 'var(--accent)' : 'var(--border)'};color:${isActive ? 'var(--accent)' : 'var(--text-dim)'};border-radius:3px;cursor:pointer;font-size:10px;padding:1px 5px;flex-shrink:0;">
+      ${isActive ? '✓ Active' : '⊞ Filter'}
+    </button>`;
+
+  // Toggle expand/collapse on arrow/name click
+  const nameArea = header.querySelector('.tag-name');
+  const arrowArea = header.querySelector('.tag-arrow');
+  const filterBtn = header.querySelector('.tag-filter-btn');
+
+  const toggleExpand = () => {
     const children = group.querySelector('.tag-children');
     const arrow = header.querySelector('.tag-arrow');
     const open = children.classList.toggle('open');
     arrow.classList.toggle('open', open);
+  };
+
+  arrowArea.addEventListener('click', e => { e.stopPropagation(); toggleExpand(); });
+  nameArea.addEventListener('click', e => { e.stopPropagation(); toggleExpand(); });
+
+  // Filter button activates/clears the tag filter
+  filterBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (activeTagFilter === tag) {
+      clearTagFilter();
+    } else {
+      setTagFilter(tag);
+    }
   });
+
+  header.addEventListener('click', toggleExpand);
 
   const children = document.createElement('div');
   children.className = 'tag-children';
@@ -4107,7 +4186,7 @@ async function doSave(filename, tags) {
     updateCurrentFile();
     // Update local cache entry
     const idx = allFiles.findIndex(f => f.filename === filename);
-    const entry = { filename, title: title || filename, artist: artist || null, key, updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
+    const entry = { filename, title: title || filename, artist: artist || null, key, tags: tags || [], updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
     if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
     renderFileList();
     if (currentTab === 'tags') refreshTagTree();
