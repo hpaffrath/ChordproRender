@@ -1277,17 +1277,36 @@
         <div class="fp-search-row">
           <input class="fp-search" id="fp-search" placeholder="Search…" oninput="renderFileList()" autocomplete="off">
           <button class="fp-sort-btn active" id="sort-btn-name" onclick="setSort('name')" title="Sort by name">A–Z</button>
-          <button class="fp-sort-btn" id="sort-btn-artist" onclick="setSort('artist')" title="Sort by artist / Switch to tree view">Artist</button>
+          <button class="fp-sort-btn" id="sort-btn-artist" onclick="setSort('artist')" title="Sort by artist / tree view">Artist</button>
           <button class="fp-sort-btn" id="sort-btn-date" onclick="setSort('date')" title="Sort by date">Date</button>
           <button class="fp-sort-btn" id="sort-btn-key" onclick="setSort('key')" title="Sort by key">Key</button>
+          <button class="fp-sort-btn" id="sort-btn-filter" onclick="toggleSmartFilter()" title="Filter by tag, key or artist">⊟</button>
+          <button class="fp-sort-btn" id="sort-btn-favs" onclick="toggleFavFilter()" title="Show favourites only">☆</button>
         </div>
+
+        <!-- Smart filter panel -->
+        <div id="smart-filter-panel" style="display:none;flex-direction:column;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;">
+          <div style="display:flex;gap:6px;">
+            <select id="filter-tag" onchange="applySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+              <option value="">All Tags</option>
+            </select>
+            <select id="filter-key" onchange="applySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+              <option value="">All Keys</option>
+            </select>
+            <select id="filter-artist" onchange="applySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+              <option value="">All Artists</option>
+            </select>
+          </div>
+          <!-- Active filter chips row -->
+          <div id="filter-chips" style="display:none;flex-wrap:wrap;gap:4px;align-items:center;">
+            <span style="font-size:11px;color:var(--text-dim);">Filters:</span>
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button onclick="clearSmartFilter()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:0;">Clear all ×</button>
+          </div>
+        </div>
+
         <div class="fp-current" id="fp-current">No file open</div>
-        <!-- Active tag filter badge -->
-        <div id="tag-filter-bar" style="display:none;padding:4px 10px;background:rgba(232,184,75,0.1);border-bottom:1px solid var(--border);display:none;align-items:center;gap:6px;flex-shrink:0;">
-          <span style="font-size:11px;color:var(--text-dim);">Tag:</span>
-          <span id="tag-filter-label" style="font-size:11px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-          <button onclick="clearTagFilter()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;" title="Clear filter">×</button>
-        </div>
         <div class="fp-list" id="fp-list">
           <div class="fp-loading">Loading…</div>
         </div>
@@ -1961,7 +1980,7 @@ async function fpEditTagsForFile(filename) {
 }
 
 async function fpEditTags() {
-  if (!currentFilename) { alert('Please open a file first, or hover a song in the list and click the 🏷 tag button.'); return; }
+  if (!currentFilename) { alert('Please open a file first, then click the Tags button.'); return; }
   fpEditTagsForFile(currentFilename);
 }
 
@@ -2067,21 +2086,174 @@ function fpShowFilesView() {
 
 let allFiles = [];       // cached file list
 let sortMode = 'name';   // 'name' | 'artist' | 'artist-tree' | 'date' | 'key'
-let activeTagFilter = null; // currently active tag filter
 
+// Smart filter state
+let smartFilter = { tag: '', key: '', artist: '' };
+let smartFilterOpen = false;
+
+// Called from Tags tab — sets tag filter and opens Songs
 function setTagFilter(tag) {
-  activeTagFilter = tag;
-  const bar = document.getElementById('tag-filter-bar');
-  const label = document.getElementById('tag-filter-label');
-  if (bar) bar.style.display = tag ? 'flex' : 'none';
-  if (label) label.textContent = tag || '';
-  // Switch to songs tab and re-render
+  smartFilter.tag = tag;
+  document.getElementById('filter-tag') && populateSmartFilterDropdowns();
+  applySmartFilter();
   fpSwitchTab('songs');
+  // Open the filter panel so user can see what's active
+  if (!smartFilterOpen) toggleSmartFilter();
+}
+
+function clearTagFilter() { clearSmartFilter(); }
+
+function toggleSmartFilter() {
+  smartFilterOpen = !smartFilterOpen;
+  const panel = document.getElementById('smart-filter-panel');
+  const btn = document.getElementById('sort-btn-filter');
+  if (panel) panel.style.display = smartFilterOpen ? 'flex' : 'none';
+  if (btn) btn.classList.toggle('active', smartFilterOpen);
+  if (smartFilterOpen) populateSmartFilterDropdowns();
+}
+
+function populateSmartFilterDropdowns() {
+  const tags    = [...new Set(allFiles.flatMap(f => f.tags || []))].sort();
+  const keys    = [...new Set(allFiles.map(f => f.key).filter(Boolean))].sort();
+  const artists = [...new Set(allFiles.map(f => f.artist).filter(Boolean))].sort();
+
+  const tagSel    = document.getElementById('filter-tag');
+  const keySel    = document.getElementById('filter-key');
+  const artistSel = document.getElementById('filter-artist');
+  if (!tagSel) return;
+
+  const rebuild = (sel, items, current) => {
+    const cur = current || sel.value;
+    sel.innerHTML = `<option value="">All ${sel.id.replace('filter-','').replace(/^\w/, c=>c.toUpperCase()+'s')}</option>`;
+    items.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      if (v === cur) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  };
+
+  rebuild(tagSel, tags, smartFilter.tag);
+  rebuild(keySel, keys, smartFilter.key);
+  rebuild(artistSel, artists, smartFilter.artist);
+
+  tagSel.value    = smartFilter.tag    || '';
+  keySel.value    = smartFilter.key    || '';
+  artistSel.value = smartFilter.artist || '';
+}
+
+function applySmartFilter() {
+  smartFilter.tag    = document.getElementById('filter-tag')?.value    || '';
+  smartFilter.key    = document.getElementById('filter-key')?.value    || '';
+  smartFilter.artist = document.getElementById('filter-artist')?.value || '';
+  // Sync favs button
+  const favsBtn = document.getElementById('sort-btn-favs');
+  if (favsBtn) {
+    const isFavMode = smartFilter.tag === FAV_TAG;
+    favsBtn.classList.toggle('active', isFavMode);
+    favsBtn.textContent = isFavMode ? '★' : '☆';
+  }
+  updateFilterChips();
   renderFileList();
 }
 
-function clearTagFilter() {
-  setTagFilter(null);
+function clearSmartFilter() {
+  smartFilter = { tag: '', key: '', artist: '' };
+  const tagSel = document.getElementById('filter-tag');
+  const keySel = document.getElementById('filter-key');
+  const artSel = document.getElementById('filter-artist');
+  if (tagSel) tagSel.value = '';
+  if (keySel) keySel.value = '';
+  if (artSel) artSel.value = '';
+  // Reset favs button
+  const favsBtn = document.getElementById('sort-btn-favs');
+  if (favsBtn) { favsBtn.classList.remove('active'); favsBtn.textContent = '☆'; }
+  updateFilterChips();
+  renderFileList();
+}
+
+function updateFilterChips() {
+  const chips = document.getElementById('filter-chips');
+  if (!chips) return;
+  // Clear existing chips (keep the "Filters:" label)
+  while (chips.lastChild && chips.lastChild.tagName !== 'SPAN') chips.removeChild(chips.lastChild);
+  chips.querySelectorAll('.filter-chip').forEach(c => c.remove());
+
+  const active = [];
+  if (smartFilter.tag)    active.push({ label: `Tag: ${smartFilter.tag}`,       key: 'tag' });
+  if (smartFilter.key)    active.push({ label: `Key: ${smartFilter.key}`,       key: 'key' });
+  if (smartFilter.artist) active.push({ label: `Artist: ${smartFilter.artist}`, key: 'artist' });
+
+  chips.style.display = active.length ? 'flex' : 'none';
+  active.forEach(({ label, key }) => {
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(232,184,75,0.15);border:1px solid var(--accent);border-radius:12px;padding:2px 8px;font-size:11px;color:var(--accent);';
+    chip.innerHTML = `${label} <button onclick="clearFilterKey('${key}')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;line-height:1;padding:0;">×</button>`;
+    chips.appendChild(chip);
+  });
+}
+
+function clearFilterKey(key) {
+  smartFilter[key] = '';
+  const sel = document.getElementById(`filter-${key}`);
+  if (sel) sel.value = '';
+  updateFilterChips();
+  renderFileList();
+}
+
+function toggleFavFilter() {
+  const btn = document.getElementById('sort-btn-favs');
+  if (smartFilter.tag === FAV_TAG) {
+    // Turn off fav filter
+    smartFilter.tag = '';
+    if (btn) { btn.classList.remove('active'); btn.textContent = '☆'; }
+    const sel = document.getElementById('filter-tag');
+    if (sel) sel.value = '';
+    updateFilterChips();
+    renderFileList();
+  } else {
+    // Turn on fav filter via smart filter
+    smartFilter.tag = FAV_TAG;
+    if (btn) { btn.classList.add('active'); btn.textContent = '★'; }
+    const sel = document.getElementById('filter-tag');
+    if (sel) sel.value = FAV_TAG;
+    updateFilterChips();
+    renderFileList();
+  }
+}
+
+const FAV_TAG = '★ Favourites';
+
+async function toggleFavourite(row, btn) {
+  if (!currentUser) return;
+  const tags = [...(row.tags || [])];
+  const idx = tags.indexOf(FAV_TAG);
+  const adding = idx === -1;
+
+  if (adding) tags.push(FAV_TAG);
+  else tags.splice(idx, 1);
+
+  const { error } = await sb.from('songs')
+    .update({ tags })
+    .eq('user_id', currentUser.id)
+    .eq('filename', row.filename);
+
+  if (error) { alert('Error: ' + error.message); return; }
+
+  // Update cache
+  row.tags = tags;
+  const cached = allFiles.find(f => f.filename === row.filename);
+  if (cached) cached.tags = tags;
+
+  // Update star button in place
+  btn.textContent = adding ? '★' : '☆';
+  btn.title = adding ? 'Remove from Favourites' : 'Add to Favourites';
+  btn.style.color = adding ? 'var(--accent)' : 'var(--text-dim)';
+  btn.style.opacity = adding ? '1' : '0';
+
+  // Refresh tag tree if visible
+  if (currentTab === 'tags') refreshTagTree();
 }
 
 function setUnsaved(val) {
@@ -2144,10 +2316,10 @@ function renderFileList() {
     (f.artist || '').toLowerCase().includes(query)
   );
 
-  // Apply active tag filter
-  if (activeTagFilter) {
-    files = files.filter(f => (f.tags || []).includes(activeTagFilter));
-  }
+  // Apply active smart filters
+  if (smartFilter.tag)    files = files.filter(f => (f.tags || []).includes(smartFilter.tag));
+  if (smartFilter.key)    files = files.filter(f => f.key === smartFilter.key);
+  if (smartFilter.artist) files = files.filter(f => f.artist === smartFilter.artist);
 
   // Artist tree view
   if (sortMode === 'artist-tree') {
@@ -2203,18 +2375,20 @@ function buildFileItem(row, container, hideArtist) {
     nameWrap.appendChild(artist);
   }
 
+  const isFav = (row.tags || []).includes('★ Favourites');
+  const starBtn = document.createElement('button');
+  starBtn.title = isFav ? 'Remove from Favourites' : 'Add to Favourites';
+  starBtn.textContent = isFav ? '★' : '☆';
+  starBtn.style.cssText = `background:none;border:none;cursor:pointer;font-size:14px;padding:1px 3px;color:${isFav ? 'var(--accent)' : 'var(--text-dim)'};opacity:${isFav ? '1' : '0'};transition:opacity 0.1s;flex-shrink:0;`;
+  starBtn.addEventListener('click', e => { e.stopPropagation(); toggleFavourite(row, starBtn); });
+  item.addEventListener('mouseenter', () => { if (!starBtn.textContent.includes('★') || starBtn.style.opacity === '0') starBtn.style.opacity = '1'; });
+  item.addEventListener('mouseleave', () => { if (starBtn.textContent === '☆') starBtn.style.opacity = '0'; });
+
   const shareBtn = document.createElement('button');
   shareBtn.className = 'fp-item-share';
   shareBtn.title = 'Share';
   shareBtn.textContent = '↗';
   shareBtn.addEventListener('click', e => { e.stopPropagation(); shareSong(row.filename); });
-
-  const tagBtn = document.createElement('button');
-  tagBtn.className = 'fp-item-ren';
-  tagBtn.title = 'Edit tags';
-  tagBtn.textContent = '🏷';
-  tagBtn.style.fontSize = '11px';
-  tagBtn.addEventListener('click', e => { e.stopPropagation(); fpEditTagsForFile(row.filename); });
 
   const renBtn = document.createElement('button');
   renBtn.className = 'fp-item-ren';
@@ -2245,7 +2419,7 @@ function buildFileItem(row, container, hideArtist) {
     item.appendChild(badge);
   }
 
-  item.appendChild(tagBtn);
+  item.appendChild(starBtn);
   item.appendChild(renBtn);
   item.appendChild(delBtn);
   item.appendChild(shareBtn);
@@ -2694,7 +2868,7 @@ function buildTagGroup(tag, songs, faded) {
   const header = document.createElement('div');
   header.className = 'tag-header';
 
-  const isActive = activeTagFilter === tag;
+  const isActive = smartFilter.tag === tag;
   header.innerHTML = `
     <span class="tag-arrow">▶</span>
     <span class="tag-name"${faded ? ' style="opacity:.5"' : ''}>${tag}</span>
@@ -2721,8 +2895,8 @@ function buildTagGroup(tag, songs, faded) {
   // Filter button activates/clears the tag filter
   filterBtn.addEventListener('click', e => {
     e.stopPropagation();
-    if (activeTagFilter === tag) {
-      clearTagFilter();
+    if (smartFilter.tag === tag) {
+      clearSmartFilter();
     } else {
       setTagFilter(tag);
     }
