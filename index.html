@@ -674,7 +674,7 @@
   .fp-list { flex: 1; overflow-y: auto; padding: 4px 0; }
   .fp-list::-webkit-scrollbar { width: 4px; }
   .fp-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .fp-item { display: flex; align-items: center; padding: 6px 12px; gap: 8px; cursor: pointer; transition: background 0.1s; }
+  .fp-item { display: flex; align-items: center; padding: 6px 12px; gap: 8px; cursor: pointer; transition: background 0.1s; position: relative; }
   .fp-item:hover { background: var(--surface2); }
   .fp-item.active { background: rgba(232,184,75,0.1); }
   .fp-item-icon { font-size: 13px; opacity: 0.45; flex-shrink: 0; }
@@ -860,7 +860,64 @@
   .fp-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
   .fp-sort-btn.active { color: var(--accent); border-color: var(--accent); }
 
-  /* ─── ARTIST TREE VIEW ───────────────────────────────────────────── */
+  /* ─── QUICK SETLIST MODE ─────────────────────────────────────────── */
+  .fp-item.qs-mode { cursor: pointer; }
+  .fp-item.qs-mode .qs-check {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    transition: all 0.1s;
+  }
+  .fp-item.qs-mode.qs-selected .qs-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #1a1a22;
+  }
+  .fp-item.qs-mode.qs-selected { background: rgba(232,184,75,0.07); }
+
+  /* ─── ADD TO SETLIST POPUP ───────────────────────────────────────── */
+  .sl-add-popup {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    min-width: 180px;
+    max-width: 240px;
+    padding: 4px 0;
+    display: none;
+  }
+  .sl-add-popup.open { display: block; }
+  .sl-add-popup-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sl-add-popup-item:hover { background: var(--surface2); color: var(--text); }
+  .sl-add-popup-item.new-sl { color: var(--accent); border-top: 1px solid var(--border); margin-top: 2px; }
+  .sl-add-popup-title {
+    padding: 5px 12px 3px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+
   .artist-heading {
     display: flex;
     align-items: center;
@@ -1272,7 +1329,17 @@
         <div class="fp-actions">
           <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpNew()">New</button>
           <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpEditTags()" id="fp-tags-btn" title="Edit tags for current file">Tags</button>
+          <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="toggleQuickSetlist()" id="quick-sl-btn" title="Build a setlist by ticking songs">+ Setlist</button>
           <button class="btn btn-primary" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpSave()">Save<span class="unsaved-dot" id="unsaved-dot"></span></button>
+        </div>
+        <!-- Quick setlist bar — shown when in setlist-building mode -->
+        <div id="quick-sl-bar" style="display:none;flex-direction:column;gap:4px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input class="fp-search" id="quick-sl-name" placeholder="Setlist name…" style="flex:1;" autocomplete="off">
+            <button class="btn btn-primary" style="font-size:12px;padding:4px 10px;flex-shrink:0;" onclick="saveQuickSetlist()">Save</button>
+            <button class="btn btn-ghost" style="font-size:12px;padding:4px 8px;flex-shrink:0;" onclick="toggleQuickSetlist()">Cancel</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);" id="quick-sl-count">Tick songs below to add to this setlist</div>
         </div>
         <div class="fp-search-row">
           <input class="fp-search" id="fp-search" placeholder="Search…" oninput="renderFileList()" autocomplete="off">
@@ -1307,6 +1374,14 @@
         </div>
 
         <div class="fp-current" id="fp-current">No file open</div>
+        <!-- Recent songs -->
+        <div id="fp-recent" style="display:none;flex-direction:column;flex-shrink:0;border-bottom:1px solid var(--border);">
+          <div style="padding:5px 12px 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);display:flex;align-items:center;justify-content:space-between;">
+            <span>Recent</span>
+            <button onclick="clearRecent()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:10px;padding:0;">Clear</button>
+          </div>
+          <div id="fp-recent-list"></div>
+        </div>
         <div class="fp-list" id="fp-list">
           <div class="fp-loading">Loading…</div>
         </div>
@@ -2223,6 +2298,188 @@ function toggleFavFilter() {
   }
 }
 
+// ─── Quick Setlist Builder ────────────────────────────────────────────────────
+
+let quickSlMode = false;
+let quickSlSelected = []; // ordered list of filenames
+
+function toggleQuickSetlist() {
+  quickSlMode = !quickSlMode;
+  quickSlSelected = [];
+  const bar = document.getElementById('quick-sl-bar');
+  const btn = document.getElementById('quick-sl-btn');
+  const nameInput = document.getElementById('quick-sl-name');
+  bar.style.display = quickSlMode ? 'flex' : 'none';
+  btn.classList.toggle('active', quickSlMode);
+  btn.textContent = quickSlMode ? '✕ Cancel' : '+ Setlist';
+  if (quickSlMode) {
+    nameInput.value = '';
+    nameInput.focus();
+    updateQuickSlCount();
+  }
+  renderFileList();
+}
+
+function toggleQuickSlSong(filename) {
+  const idx = quickSlSelected.indexOf(filename);
+  if (idx === -1) quickSlSelected.push(filename);
+  else quickSlSelected.splice(idx, 1);
+  updateQuickSlCount();
+  // Update just this item's visual without full re-render
+  const items = document.querySelectorAll('#fp-list .fp-item.qs-mode');
+  items.forEach(item => {
+    if (item.dataset.filename === filename) {
+      const sel = quickSlSelected.includes(filename);
+      item.classList.toggle('qs-selected', sel);
+      const check = item.querySelector('.qs-check');
+      if (check) check.textContent = sel ? '✓' : '';
+    }
+  });
+}
+
+function updateQuickSlCount() {
+  const el = document.getElementById('quick-sl-count');
+  if (!el) return;
+  const n = quickSlSelected.length;
+  el.textContent = n === 0
+    ? 'Tick songs below to add to this setlist'
+    : `${n} song${n !== 1 ? 's' : ''} selected — tick more or save`;
+}
+
+async function saveQuickSetlist() {
+  const name = document.getElementById('quick-sl-name').value.trim();
+  if (!name) { document.getElementById('quick-sl-name').focus(); return; }
+  if (!quickSlSelected.length) { alert('Please select at least one song.'); return; }
+  const { error } = await sb.from('setlists').insert({
+    user_id: currentUser.id,
+    name,
+    song_filenames: quickSlSelected,
+  });
+  if (error) { alert('Error: ' + error.message); return; }
+  toggleQuickSetlist(); // exits mode, re-renders list
+  fpSwitchTab('setlists');
+  refreshSetlists();
+}
+
+// ─── Recent Songs ──────────────────────────────────────────────────────────────
+
+const RECENT_KEY = 'recentSongs';
+const RECENT_MAX = 8;
+
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function trackRecent(filename) {
+  let recent = getRecent().filter(f => f !== filename);
+  recent.unshift(filename);
+  recent = recent.slice(0, RECENT_MAX);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+  renderRecent();
+}
+
+function clearRecent() {
+  localStorage.removeItem(RECENT_KEY);
+  renderRecent();
+}
+
+function renderRecent() {
+  const recent = getRecent().filter(f => allFiles.some(af => af.filename === f));
+  const section = document.getElementById('fp-recent');
+  const list = document.getElementById('fp-recent-list');
+  if (!section || !list) return;
+  if (!recent.length) { section.style.display = 'none'; return; }
+  section.style.display = 'flex';
+  list.innerHTML = '';
+  recent.forEach(filename => {
+    const row = allFiles.find(f => f.filename === filename);
+    if (!row) return;
+    const item = document.createElement('div');
+    item.className = 'fp-item' + (filename === currentFilename ? ' active' : '');
+    item.style.paddingTop = '4px';
+    item.style.paddingBottom = '4px';
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon'; icon.textContent = '↺';
+    icon.style.opacity = '0.5';
+    const name = document.createElement('span');
+    name.className = 'fp-item-name'; name.textContent = filename;
+    name.style.fontSize = '11px';
+    item.appendChild(icon);
+    item.appendChild(name);
+    if (row.key) {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+      badge.textContent = row.key;
+      item.appendChild(badge);
+    }
+    item.addEventListener('click', () => fpLoad(filename));
+    list.appendChild(item);
+  });
+}
+
+// ─── Add to Setlist popup ─────────────────────────────────────────────────────
+
+let cachedSetlists = [];
+
+async function populateSlAddPopup(popup, filename) {
+  popup.innerHTML = '<div class="sl-add-popup-title">Add to Setlist</div>';
+  const { data } = await sb.from('setlists').select('id, name, song_filenames').order('name');
+  cachedSetlists = data || [];
+  if (!cachedSetlists.length) {
+    const empty = document.createElement('div');
+    empty.className = 'sl-add-popup-item';
+    empty.textContent = 'No setlists yet';
+    empty.style.opacity = '0.5';
+    popup.appendChild(empty);
+  } else {
+    cachedSetlists.forEach(sl => {
+      const alreadyIn = (sl.song_filenames || []).includes(filename);
+      const popItem = document.createElement('div');
+      popItem.className = 'sl-add-popup-item';
+      popItem.innerHTML = `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${sl.name}</span>${alreadyIn ? '<span style="font-size:10px;color:var(--accent);">✓</span>' : ''}`;
+      if (!alreadyIn) {
+        popItem.addEventListener('click', e => { e.stopPropagation(); addSongToSetlist(sl, filename, popup); });
+      } else {
+        popItem.style.opacity = '0.5';
+        popItem.style.cursor = 'default';
+      }
+      popup.appendChild(popItem);
+    });
+  }
+  const newItem = document.createElement('div');
+  newItem.className = 'sl-add-popup-item new-sl';
+  newItem.textContent = '+ New Setlist with this song';
+  newItem.addEventListener('click', e => { e.stopPropagation(); popup.classList.remove('open'); quickNewSetlist(filename); });
+  popup.appendChild(newItem);
+}
+
+async function addSongToSetlist(sl, filename, popup) {
+  const filenames = [...(sl.song_filenames || [])];
+  if (filenames.includes(filename)) return;
+  filenames.push(filename);
+  const { error } = await sb.from('setlists').update({ song_filenames: filenames }).eq('id', sl.id);
+  if (error) { alert('Error: ' + error.message); return; }
+  const cached = cachedSetlists.find(s => s.id === sl.id);
+  if (cached) cached.song_filenames = filenames;
+  popup.classList.remove('open');
+  // Show brief confirmation in the popup item area
+  const allItems = popup.querySelectorAll('.sl-add-popup-item');
+  allItems.forEach(i => { if (i.textContent.trim().startsWith(sl.name)) { i.innerHTML = `<span style="flex:1">${sl.name}</span><span style="font-size:10px;color:var(--accent);">✓ Added</span>`; } });
+  if (currentTab === 'setlists') refreshSetlists();
+}
+
+async function quickNewSetlist(filename) {
+  const name = prompt('New setlist name:', '');
+  if (!name?.trim()) return;
+  const { error } = await sb.from('setlists').insert({
+    user_id: currentUser.id, name: name.trim(), song_filenames: [filename],
+  });
+  if (error) { alert('Error: ' + error.message); return; }
+  if (currentTab === 'setlists') refreshSetlists();
+}
+
+// ─── Favourites ────────────────────────────────────────────────────────────────
+
 const FAV_TAG = '★ Favourites';
 
 async function toggleFavourite(row, btn) {
@@ -2299,6 +2556,7 @@ async function refreshFileList() {
   }
   allFiles = data || [];
   renderFileList();
+  renderRecent();
 }
 
 let hasUnsavedChanges = false;
@@ -2353,7 +2611,40 @@ function renderFileList() {
 
 function buildFileItem(row, container, hideArtist) {
   const item = document.createElement('div');
-  item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '');
+  const isSelected = quickSlSelected.includes(row.filename);
+  item.className = 'fp-item' + (row.filename === currentFilename ? ' active' : '') +
+    (quickSlMode ? ' qs-mode' + (isSelected ? ' qs-selected' : '') : '');
+  item.dataset.filename = row.filename;
+
+  // Quick setlist mode — checkbox + click to toggle
+  if (quickSlMode) {
+    const check = document.createElement('span');
+    check.className = 'qs-check';
+    check.textContent = isSelected ? '✓' : '';
+    item.appendChild(check);
+
+    const name = document.createElement('span');
+    name.className = 'fp-item-name';
+    name.style.flex = '1';
+    name.textContent = row.filename;
+    item.appendChild(name);
+
+    if (row.artist) {
+      const artistEl = document.createElement('span');
+      artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);flex-shrink:0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      artistEl.textContent = row.artist;
+      item.appendChild(artistEl);
+    }
+    if (row.key) {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+      badge.textContent = row.key;
+      item.appendChild(badge);
+    }
+    item.addEventListener('click', () => toggleQuickSlSong(row.filename));
+    container.appendChild(item);
+    return;
+  }
 
   const icon = document.createElement('span');
   icon.className = 'fp-item-icon';
@@ -2419,7 +2710,31 @@ function buildFileItem(row, container, hideArtist) {
     item.appendChild(badge);
   }
 
+  // Add to setlist button + popup
+  const addSlBtn = document.createElement('button');
+  addSlBtn.className = 'fp-item-ren';
+  addSlBtn.title = 'Add to setlist';
+  addSlBtn.textContent = '☰+';
+  addSlBtn.style.cssText = 'font-size:11px;letter-spacing:-1px;';
+
+  const slPopup = document.createElement('div');
+  slPopup.className = 'sl-add-popup';
+
+  addSlBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    // Close any other open popups
+    document.querySelectorAll('.sl-add-popup.open').forEach(p => { if (p !== slPopup) p.classList.remove('open'); });
+    if (slPopup.classList.contains('open')) { slPopup.classList.remove('open'); return; }
+    populateSlAddPopup(slPopup, row.filename);
+    slPopup.classList.add('open');
+  });
+
+  // Close popup when clicking outside
+  document.addEventListener('click', () => slPopup.classList.remove('open'), { capture: false });
+
+  item.appendChild(slPopup);
   item.appendChild(starBtn);
+  item.appendChild(addSlBtn);
   item.appendChild(renBtn);
   item.appendChild(delBtn);
   item.appendChild(shareBtn);
@@ -2512,6 +2827,7 @@ async function fpLoad(filename) {
   setUnsaved(false);
   resetTranspose();
   updateCurrentFile();
+  trackRecent(filename);
   renderFileList();
 }
 
@@ -3120,15 +3436,15 @@ async function slLoad() {
   if (hasUnsavedChanges && !confirm('You have unsaved changes. Load setlist anyway?')) return;
   const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
   if (error) { alert('Error: ' + error.message); return; }
-  // Load each song's content and join with ---
   const contents = [];
   for (const fn of (data.song_filenames || [])) {
-    const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).single();
-    if (sd) contents.push(sd.content.trim());
+    const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).maybeSingle();
+    if (sd?.content) contents.push(sd.content.trim());
   }
+  if (!contents.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
   document.getElementById('editor').value = contents.join('\n\n---\n\n');
   document.getElementById('editor').dispatchEvent(new Event('input'));
-  currentFilename = null;  // setlist is not a single file
+  currentFilename = null;
   setUnsaved(false);
   updateCurrentFile();
   currentSetlistId = selectedSetlistId;
