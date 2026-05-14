@@ -336,6 +336,27 @@
     letter-spacing: 0.04em;
     margin-bottom: 10px;
   }
+  .song-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .song-link {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid rgba(232,184,75,0.35);
+    border-radius: 4px;
+    padding: 1px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 260px;
+    text-overflow: ellipsis;
+    display: inline-block;
+  }
+  .song-link:hover { background: rgba(232,184,75,0.1); text-decoration: underline; }
   .song-divider {
     height: 1px;
     background: var(--divider);
@@ -4851,6 +4872,7 @@ function parseChordPro(text) {
       else if (/^capo$/.test(k))                           song.capo      = v;
       else if (/^(tempo|bpm)$/.test(k))                    song.tempo     = v;
       else if (/^tab_font_size$/.test(k))                  song.tabFontSize = parseFloat(v) || null;
+      else if (/^link$/.test(k))                           { if (!song.links) song.links = []; song.links.push(v); }
       else if (/^(time|time_sig)$/.test(k))                song.time      = v;
       else if (/^duration$/.test(k))                       song.duration  = v;
       else if (/^album$/.test(k))                          song.album     = v;
@@ -5026,6 +5048,23 @@ function renderSong(song) {
     m.className = 'song-meta';
     m.textContent = metaParts.join(' | ');
     div.appendChild(m);
+  }
+
+  // ── Links ─────────────────────────────────────────────────────────────
+  if (song.links && song.links.length) {
+    const linksEl = document.createElement('div');
+    linksEl.className = 'song-links';
+    song.links.forEach(url => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'song-link';
+      // Show a friendly label — strip protocol for display
+      a.textContent = '🔗 ' + url.replace(/^https?:\/\//, '');
+      linksEl.appendChild(a);
+    });
+    div.appendChild(linksEl);
   }
 
   if (song.title || creditParts.length || albumParts.length || metaParts.length) {
@@ -5797,6 +5836,8 @@ function printSongs(paperEl) {
     .song-artist { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; color: #5a5a6a; margin-bottom: 1px; }
     .song-album { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: #5a5a6a; margin-bottom: 2px; }
     .song-meta { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; color: #1a1a22; margin-bottom: 10px; }
+    .song-links { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .song-link { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; color: #1a3a8a; border: 1px solid #ccc; border-radius: 4px; padding: 1px 6px; text-decoration: none; }
     .song-divider { height: 1px; background: #c8c0b0; margin-bottom: 16px; }
 
     .section { margin-bottom: 14px; }
@@ -6283,6 +6324,7 @@ function hideHelp(e) {
           <tr><td><code>{capo: 2}</code></td><td>Capo position — shown in meta line and footer chip</td></tr>
           <tr><td><code>{tempo: 120}</code></td><td>Tempo in BPM — shown in footer chip</td></tr>
           <tr><td><code>{tab_font_size: 12}</code></td><td>Override the tab notation font size for this song (in px) — overrides the global setting</td></tr>
+          <tr><td><code>{link: https://…}</code></td><td>Add a clickable link to the song header — useful for video references. Multiple links supported.</td></tr>
           <tr><td><code>{bpm: 120}</code></td><td>Shorthand for tempo</td></tr>
           <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip</td></tr>
           <tr><td><code>{duration: 3:45}</code></td><td>Song duration — shown in meta line</td></tr>
