@@ -140,13 +140,15 @@
 
   /* ─── LEFT: EDITOR ────────────────────────────────────────────────── */
   .editor-pane {
-    width: var(--editor-w);
+    width: 46%;
     min-width: 280px;
+    max-width: 75%;
     display: flex;
     flex-direction: column;
     background: var(--surface);
     border-right: 1px solid var(--border);
     position: relative;
+    flex-shrink: 0;
   }
 
   .pane-header {
@@ -881,6 +883,34 @@
   .fp-sort-btn:hover { color: var(--text); border-color: var(--text-dim); }
   .fp-sort-btn.active { color: var(--accent); border-color: var(--accent); }
 
+  /* ─── PERFORMANCE MODE ────────────────────────────────────────────── */
+  .perf-fullscreen {
+    position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 2000;
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+  }
+  .perf-fullscreen .pane-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .perf-fullscreen .preview-scroll {
+    flex: 1;
+    overflow-y: auto;
+  }
+  /* Hide header controls in fullscreen after inactivity */
+  .perf-fullscreen.controls-hidden .pane-header {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  .perf-fullscreen .pane-header {
+    transition: opacity 0.3s;
+  }
+
   /* ─── QUICK SETLIST MODE ─────────────────────────────────────────── */
   .fp-item.qs-mode { cursor: pointer; }
   .fp-item.qs-mode .qs-check {
@@ -1087,7 +1117,6 @@
       overflow: hidden;
       position: relative;
     }
-    .drag-handle,
     .panel-drag-handle { display: none !important; }
 
     /* All three panels become full-screen fixed layers */
@@ -1178,7 +1207,7 @@
     .editor-status { display: none; }
 
     /* File panel: show scrollable */
-    #fp-files-view, #fp-group-mode {
+    #fp-files-view {
       flex: 1;
       overflow: hidden;
       display: flex;
@@ -1207,9 +1236,10 @@
     }
   }
 
-  /* Desktop: hide mobile tab bar */
+  /* Desktop: hide mobile tab bar, ensure drag handle visible */
   @media (min-width: 1025px) {
     .mobile-tab-bar { display: none; }
+    .drag-handle { display: block !important; }
   }
 
 </style>
@@ -1270,12 +1300,21 @@
   <div class="drag-handle" id="dragHandle"></div>
 
   <!-- RIGHT: Preview -->
-  <div class="preview-pane">
+  <div class="preview-pane" id="previewPane">
     <div class="pane-header">
       <div class="pane-dot" style="background:#6a9e5a"></div>
       <span class="pane-label">Preview</span>
+      <div id="perf-nav" style="display:none;align-items:center;gap:6px;margin-left:8px;">
+        <button class="ctrl-btn" id="perf-prev" onclick="perfPrevSong()" title="Previous song (Page Up)">◀</button>
+        <span id="perf-pos" style="font-size:11px;color:var(--text-dim);white-space:nowrap;"></span>
+        <button class="ctrl-btn" id="perf-next" onclick="perfNextSong()" title="Next song (Page Down)">▶</button>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+        <span id="offline-badge" style="display:none;font-size:10px;color:#6a9e5a;border:1px solid #6a9e5a;border-radius:3px;padding:1px 5px;">✓ Offline</span>
+        <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Full screen (F11)">⛶</button>
+      </div>
     </div>
-    <div class="preview-scroll">
+    <div class="preview-scroll" id="previewScroll">
       <div class="paper" id="paper">
         <div class="empty-state">
           <div class="empty-icon">♩</div>
@@ -1342,7 +1381,6 @@
         <button class="fp-tab active" id="tab-songs" onclick="fpSwitchTab('songs')">Songs</button>
         <button class="fp-tab" id="tab-tags" onclick="fpSwitchTab('tags')">Tags</button>
         <button class="fp-tab" id="tab-setlists" onclick="fpSwitchTab('setlists')">Setlists</button>
-        <button class="fp-tab" id="tab-groups" onclick="fpSwitchTab('groups')">Groups</button>
       </div>
 
       <!-- Songs tab -->
@@ -1431,54 +1469,15 @@
       </div>
 
       <!-- Groups tab -->
-      <div id="fp-tab-groups" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
-        <div class="fp-actions">
-          <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpCreate()">New Group</button>
-          <button class="btn btn-primary" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpJoinPrompt()">Join Group</button>
-        </div>
-        <div class="sl-list" id="grp-list">
-          <div class="fp-loading">Loading…</div>
-        </div>
-      </div>
+      
 
       <!-- Group mode — shown instead of normal tabs when a group is active -->
     </div>
 
     <!-- Group mode — sibling of fp-files-view inside filePanel -->
-    <div id="fp-group-mode" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
-      <div style="padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="fp-signout" onclick="grpExitMode()" title="Back to My Files">← Back</button>
-        <span style="font-size:13px;font-weight:700;color:var(--accent);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="grp-mode-name"></span>
-        <button class="btn btn-ghost" style="font-size:12px;padding:4px 10px;" onclick="grpManage()" title="Manage group — members, invite, settings">⚙ Manage</button>
-      </div>
-      <div class="fp-tabs" style="flex-shrink:0;">
-        <button class="fp-tab active" id="grp-tab-songs" onclick="grpSwitchTab('songs')">Songs</button>
-        <button class="fp-tab" id="grp-tab-setlists" onclick="grpSwitchTab('setlists')">Setlists</button>
-      </div>
+    <!-- Group mode — sibling of fp-files-view inside filePanel -->
+    
 
-      <!-- Group Songs -->
-      <div id="grp-panel-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
-        <div class="fp-actions">
-          <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpAddSong()">Add Song</button>
-          <button class="btn btn-primary" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpSaveSong()" id="grp-save-btn">Save to Group</button>
-        </div>
-        <div class="fp-search-row">
-          <input class="fp-search" id="grp-search" placeholder="Search…" oninput="grpRenderSongList()" autocomplete="off">
-        </div>
-        <div class="fp-current" id="grp-current">No song open</div>
-        <div class="fp-list" id="grp-song-list"><div class="fp-loading">Loading…</div></div>
-      </div>
-
-      <!-- Group Setlists -->
-      <div id="grp-panel-setlists" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
-        <div class="sl-actions">
-          <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpSlNew()">New Setlist</button>
-          <button class="btn btn-primary" style="flex:1;font-size:13px;padding:5px 8px;" onclick="grpSlLoad()" id="grp-sl-load-btn" disabled>Open</button>
-        </div>
-        <div class="sl-current" id="grp-sl-current">No setlist open</div>
-        <div class="sl-list" id="grp-sl-list"><div class="fp-loading">Loading…</div></div>
-      </div>
-    </div>
   </div>
 
 </div>
@@ -1672,72 +1671,13 @@
 </div>
 
 <!-- Create Group modal -->
-<div class="saveas-overlay" id="grpCreateOverlay">
-  <div class="saveas-box">
-    <div class="saveas-title">New Group</div>
-    <input class="saveas-input" id="grp-create-name" placeholder="Group name (e.g. Sunday Team)">
-    <div class="fp-err" id="grp-create-err"></div>
-    <div class="saveas-actions">
-      <button class="btn btn-ghost" onclick="closeModal('grpCreateOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="grpCreateConfirm()">Create Group</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Join Group modal -->
-<div class="saveas-overlay" id="grpJoinOverlay">
-  <div class="saveas-box">
-    <div class="saveas-title">Join Group</div>
-    <div style="font-size:13px;color:var(--text-dim);">Enter an invite code or paste a join link</div>
-    <input class="saveas-input" id="grp-join-token" placeholder="Invite code or join link">
-    <div class="fp-err" id="grp-join-err"></div>
-    <div class="saveas-actions">
-      <button class="btn btn-ghost" onclick="closeModal('grpJoinOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="grpJoinConfirm()">Join Group</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Manage Group modal -->
-<div class="saveas-overlay" id="grpManageOverlay">
-  <div class="saveas-box" style="max-width:440px;">
-    <div class="saveas-title" id="grp-manage-title">Manage Group</div>
 
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Invite Link</div>
-    <div class="share-link-box">
-      <span class="share-link-text" id="grp-invite-link"></span>
-      <button class="share-copy-btn" onclick="grpCopyInvite()">Copy</button>
-    </div>
-    <button class="btn btn-ghost" style="font-size:13px;align-self:flex-start;" onclick="grpEmailInvite()">✉ Email Invite</button>
-    <button class="btn btn-ghost" style="font-size:13px;align-self:flex-start;" onclick="grpRegenerateInvite()">Regenerate invite link</button>
-
-    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Rename Group</div>
-    <div style="display:flex;gap:6px;">
-      <input class="saveas-input" id="grp-rename-input" placeholder="New group name" style="flex:1;">
-      <button class="btn btn-ghost" style="font-size:13px;flex-shrink:0;" onclick="grpRenameConfirm()">Rename</button>
-    </div>
-    <div class="fp-err" id="grp-manage-err"></div>
-
-    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Members</div>
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Admins can edit songs, manage members and settings. Use ↑/↓ to change roles, × to remove.</div>
-    <div id="grp-members-list" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
-
-    <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost" style="font-size:13px;color:#e05a5a;border-color:#e05a5a;" id="grp-delete-btn" onclick="grpDelete()">Delete Group…</button>
-      <button class="btn btn-ghost" style="font-size:13px;" onclick="grpLeave()">Leave Group</button>
-    </div>
-
-    <div class="saveas-actions">
-      <button class="btn btn-primary" onclick="closeModal('grpManageOverlay')">Done</button>
-    </div>
-  </div>
-</div>
 
 <!-- Export/Import progress modal -->
 <div class="saveas-overlay" id="backupProgressOverlay">
@@ -1831,16 +1771,14 @@ async function fpInit() {
     currentUser = session.user;
     fpShowFilesView();
     refreshFileList();
-    checkForJoinToken();
   }
   sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     if (currentUser) {
       // Don't disrupt group mode on token refresh or other auth events
-      if (!currentGroup) fpShowFilesView();
+      fpShowFilesView();
       refreshFileList();
-      checkForJoinToken();
-    } else {
+      } else {
       fpShowAuthView();
     }
   });
@@ -2319,7 +2257,206 @@ function toggleFavFilter() {
   }
 }
 
-// ─── Quick Setlist Builder ────────────────────────────────────────────────────
+// ─── Performance Mode ─────────────────────────────────────────────────────────
+
+let perfSongs = [];       // array of song text blocks when a setlist is loaded
+let perfCurrentIdx = 0;
+let perfActive = false;
+let perfHideTimer = null;
+
+// Called from updatePreview when multiple songs are loaded
+function updatePerfNav(songs) {
+  perfSongs = songs;
+  const nav = document.getElementById('perf-nav');
+  if (!nav) return;
+  if (songs.length > 1) {
+    nav.style.display = 'flex';
+    updatePerfPos();
+  } else {
+    nav.style.display = 'none';
+  }
+}
+
+function updatePerfPos() {
+  const pos = document.getElementById('perf-pos');
+  if (pos) pos.textContent = `${perfCurrentIdx + 1} / ${perfSongs.length}`;
+  document.getElementById('perf-prev').disabled = perfCurrentIdx === 0;
+  document.getElementById('perf-next').disabled = perfCurrentIdx === perfSongs.length - 1;
+}
+
+function perfShowSong(idx) {
+  if (idx < 0 || idx >= perfSongs.length) return;
+  perfCurrentIdx = idx;
+  // Scroll to the correct song div in the paper
+  const paper = document.getElementById('paper');
+  const songs = paper.querySelectorAll('.song');
+  if (songs[idx]) {
+    songs[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  updatePerfPos();
+}
+
+function perfNextSong() { perfShowSong(perfCurrentIdx + 1); }
+function perfPrevSong() { perfShowSong(perfCurrentIdx - 1); }
+
+// ── Fullscreen ─────────────────────────────────────────────────────────────────
+
+function toggleFullscreen() {
+  const previewPane = document.getElementById('previewPane');
+  if (!previewPane) return;
+
+  if (perfActive) {
+    exitFullscreen();
+  } else {
+    enterFullscreen(previewPane);
+  }
+}
+
+function enterFullscreen(el) {
+  perfActive = true;
+  el.classList.add('perf-fullscreen');
+  document.getElementById('fullscreen-btn').textContent = '✕';
+  document.getElementById('fullscreen-btn').title = 'Exit full screen (Esc)';
+
+  // Try native fullscreen (works on desktop + iPadOS 16+)
+  if (el.requestFullscreen) {
+    el.requestFullscreen().catch(() => {}); // ignore if denied
+  } else if (el.webkitRequestFullscreen) {
+    el.webkitRequestFullscreen();
+  }
+
+  // Auto-hide header after 3s of no activity
+  startPerfHideTimer(el);
+  el.addEventListener('mousemove', () => showPerfControls(el), { passive: true });
+  el.addEventListener('touchstart', () => showPerfControls(el), { passive: true });
+
+  // Scroll to current song
+  if (perfSongs.length > 1) updatePerfPos();
+}
+
+function exitFullscreen() {
+  perfActive = false;
+  const previewPane = document.getElementById('previewPane');
+  if (!previewPane) return;
+  previewPane.classList.remove('perf-fullscreen', 'controls-hidden');
+  document.getElementById('fullscreen-btn').textContent = '⛶';
+  document.getElementById('fullscreen-btn').title = 'Full screen (F11)';
+  clearTimeout(perfHideTimer);
+
+  // Exit native fullscreen if active
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document).catch(() => {});
+  }
+}
+
+function startPerfHideTimer(el) {
+  clearTimeout(perfHideTimer);
+  perfHideTimer = setTimeout(() => {
+    if (perfActive) el.classList.add('controls-hidden');
+  }, 3000);
+}
+
+function showPerfControls(el) {
+  el.classList.remove('controls-hidden');
+  startPerfHideTimer(el);
+}
+
+// Exit fullscreen on Escape (native fullscreen triggers this automatically,
+// but our CSS-fullscreen needs it too)
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && perfActive) {
+    exitFullscreen();
+  }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && perfActive) {
+    exitFullscreen();
+  }
+});
+
+// ── Page turner / keyboard navigation ─────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  // Only intercept when performance mode active or setlist loaded
+  if (!perfActive && perfSongs.length <= 1) return;
+  if (e.key === 'PageDown' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    perfNextSong();
+  } else if (e.key === 'PageUp' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    perfPrevSong();
+  } else if (e.key === 'Escape' && perfActive) {
+    exitFullscreen();
+  }
+});
+
+// ── Offline cache (IndexedDB) ──────────────────────────────────────────────────
+
+const PERF_DB_NAME  = 'chordpro-perf';
+const PERF_DB_VER   = 1;
+const PERF_STORE    = 'songs';
+
+function openPerfDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PERF_DB_NAME, PERF_DB_VER);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(PERF_STORE, { keyPath: 'filename' });
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function cacheSetlistSongs(filenames) {
+  if (!filenames || !filenames.length) return;
+  try {
+    const db = await openPerfDB();
+    const tx = db.transaction(PERF_STORE, 'readwrite');
+    const store = tx.objectStore(PERF_STORE);
+    for (const fn of filenames) {
+      // Try network first, fall back to cache
+      const cached = await new Promise(r => {
+        const req = store.get(fn);
+        req.onsuccess = () => r(req.result);
+        req.onerror   = () => r(null);
+      });
+      if (!cached) {
+        // Fetch from DB and cache it
+        const { data } = await sb.from('songs').select('content').eq('filename', fn).maybeSingle();
+        if (data?.content) {
+          store.put({ filename: fn, content: data.content, cachedAt: Date.now() });
+        }
+      }
+    }
+    document.getElementById('offline-badge').style.display = 'inline';
+  } catch (err) {
+    console.warn('Offline cache failed:', err);
+  }
+}
+
+async function loadFromCacheIfOffline(filename) {
+  try {
+    const db = await openPerfDB();
+    return new Promise(resolve => {
+      const req = db.transaction(PERF_STORE).objectStore(PERF_STORE).get(filename);
+      req.onsuccess = () => resolve(req.result?.content || null);
+      req.onerror   = () => resolve(null);
+    });
+  } catch { return null; }
+}
+
+// ─── Resize observer — re-render VexTab when preview pane size changes ─────────
+
+(function() {
+  const previewPane = document.querySelector('.preview-pane');
+  if (!previewPane || typeof ResizeObserver === 'undefined') return;
+  let resizeTimer = null;
+  const ro = new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(reRenderVextab, 200);
+  });
+  ro.observe(previewPane);
+})();
 
 let quickSlMode = false;
 let quickSlSelected = []; // ordered list of filenames
@@ -2862,6 +2999,52 @@ async function fpSave() {
 
 // doSave with undefined tags will preserve existing tags via upsert
 
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+}
+
+function toggleFilePanel() {
+  filePanelOpen = !filePanelOpen;
+  document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
+  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
+  document.getElementById('panelDragHandle').classList.toggle('visible', filePanelOpen);
+  if (filePanelOpen) {
+    const savedW = localStorage.getItem('filePanelWidth');
+    if (savedW) setPanelWidth(parseInt(savedW));
+    if (currentUser) refreshFileList();
+  }
+}
+
+async function doSave(filename, tags) {
+  const content = document.getElementById('editor').value;
+  const title = extractTitle(content);
+  const artist = extractArtist(content);
+  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
+  const key = keyMatch ? keyMatch[1] : null;
+  const record = {
+    user_id: currentUser.id,
+    filename,
+    title: title || filename,
+    artist: artist || null,
+    key: key || null,
+    content,
+  };
+  if (tags !== undefined) record.tags = tags;
+  const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
+  if (error) alert('Save failed: ' + error.message);
+  else {
+    clearTimeout(autoSaveTimer);
+    currentFilename = filename;
+    updateCurrentFile();
+    const idx = allFiles.findIndex(f => f.filename === filename);
+    const entry = { filename, title: title || filename, artist: artist || null, key, tags: tags || [], updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
+    if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
+    renderFileList();
+    if (currentTab === 'tags') refreshTagTree();
+    flashSaved();
+  }
+}
+
 function fpNew() {
   if (hasUnsavedChanges) {
     if (!confirm('Start a new file? Unsaved changes will be lost.')) return;
@@ -3014,13 +3197,12 @@ let currentTab = 'songs';
 
 function fpSwitchTab(tab) {
   currentTab = tab;
-  ['songs', 'tags', 'setlists', 'groups'].forEach(t => {
+  ['songs', 'tags', 'setlists'].forEach(t => {
     document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
     document.getElementById(`fp-tab-${t}`)?.style && (document.getElementById(`fp-tab-${t}`).style.display = t === tab ? 'flex' : 'none');
   });
   if (tab === 'tags') refreshTagTree();
   if (tab === 'setlists') refreshSetlists();
-  if (tab === 'groups') refreshGroupList();
 }
 
 // ─── Transpose ────────────────────────────────────────────────────────────────
@@ -3472,6 +3654,8 @@ async function slLoad() {
   currentSetlistName = data.name;
   document.getElementById('sl-current').innerHTML = `☰ <b>${data.name}</b>`;
   resetTranspose();
+  // Cache songs for offline use
+  cacheSetlistSongs(data.song_filenames || []);
 }
 
 async function slDelete(id, e) {
@@ -3581,21 +3765,6 @@ async function slSave() {
   const errEl = document.getElementById('sl-builder-err');
   if (!name) { errEl.textContent = 'Please enter a setlist name.'; return; }
 
-  if (window._grpSetlistMode && currentGroup) {
-    // Save as group setlist
-    const { error } = await sb.from('group_setlists').insert({
-      group_id: currentGroup.id,
-      name,
-      song_filenames: slSelectedSongs,
-      created_by: currentUser.id,
-    });
-    if (error) { errEl.textContent = error.message; return; }
-    window._grpSetlistMode = false;
-    closeSlBuilder();
-    refreshGroupSetlists();
-    return;
-  }
-
   const { error } = await sb.from('setlists').insert({
     user_id: currentUser.id,
     name,
@@ -3608,7 +3777,6 @@ async function slSave() {
 
 function closeSlBuilder() {
   document.getElementById('slBuilderOverlay').classList.remove('open');
-  window._grpSetlistMode = false;
 }
 
 document.getElementById('slBuilderOverlay')?.addEventListener('click', e => {
@@ -3662,43 +3830,6 @@ async function exportBackup() {
       for (const sl of setlists) {
         const content = (sl.song_filenames || []).join('\n');
         slFolder.file(safeFolder(sl.name) + '.txt', content);
-      }
-    }
-
-    // ── Groups (admin only) ───────────────────────────────────────────────
-    setBackupProgress(55, 'Fetching groups…');
-    const { data: memberships } = await sb.from('group_members')
-      .select('role, groups(id, name)')
-      .eq('user_id', currentUser.id)
-      .eq('role', 'admin');
-
-    if (memberships && memberships.length) {
-      const grpsFolder = root.folder('groups');
-      let grpDone = 0;
-      for (const m of memberships) {
-        const g = m.groups;
-        const grpFolder = grpsFolder.folder(safeFolder(g.name));
-        setBackupProgress(55 + Math.round((grpDone / memberships.length) * 35),
-          `Group: ${g.name}…`);
-
-        // Group songs
-        const { data: gsongs } = await sb.from('group_songs')
-          .select('filename, content').eq('group_id', g.id);
-        if (gsongs && gsongs.length) {
-          const gSongsFolder = grpFolder.folder('songs');
-          for (const s of gsongs) gSongsFolder.file(s.filename, s.content || '');
-        }
-
-        // Group setlists
-        const { data: gsl } = await sb.from('group_setlists')
-          .select('name, song_filenames').eq('group_id', g.id);
-        if (gsl && gsl.length) {
-          const gSlFolder = grpFolder.folder('setlists');
-          for (const sl of gsl) {
-            gSlFolder.file(safeFolder(sl.name) + '.txt', (sl.song_filenames || []).join('\n'));
-          }
-        }
-        grpDone++;
       }
     }
 
@@ -4096,638 +4227,6 @@ function svClose() {
   svSharedItem = null;
 }
 
-// ─── Groups ───────────────────────────────────────────────────────────────────
-
-const GRP_BASE_URL = 'https://chordpro-render.onrender.com';
-let currentGroup = null;        // { id, name, invite_token, myRole }
-let currentGroupTab = 'songs';
-let grpAllSongs = [];           // cached group song list
-let grpSelectedSetlistId = null;
-
-// ── Utility ───────────────────────────────────────────────────────────────────
-
-function closeModal(id) {
-  document.getElementById(id)?.classList.remove('open');
-}
-
-function grpIsAdmin() {
-  return currentGroup?.myRole === 'admin';
-}
-
-// ── Tab & mode switching ──────────────────────────────────────────────────────
-
-function grpEnterMode(group) {
-  currentGroup = group;
-  document.getElementById('grp-mode-name').textContent = group.name;
-  // Ensure panel is open — only set default width if it was closed
-  if (!filePanelOpen) {
-    filePanelOpen = true;
-    document.getElementById('filePanel').classList.remove('collapsed');
-    document.getElementById('filesToggleBtn').classList.add('active');
-    document.getElementById('panelDragHandle').classList.add('visible');
-    setPanelWidth(PANEL_DEFAULT);
-  }
-  // fp-group-mode and fp-files-view are siblings inside filePanel — just swap them
-  document.getElementById('fp-auth-view').style.display = 'none';
-  document.getElementById('fp-files-view').style.display = 'none';
-  document.getElementById('fp-group-mode').style.display = 'flex';
-  document.getElementById('file-panel-header').style.display = 'none';
-  // Admin-only save button
-  document.getElementById('grp-save-btn').style.display = grpIsAdmin() ? '' : 'none';
-  grpSwitchTab('songs');
-  refreshGroupSongs();
-}
-
-function grpExitMode() {
-  currentGroup = null;
-  currentGroupSongId = null;
-  currentGroupSongFilename = null;
-  // Swap back to personal view inside filePanel
-  document.getElementById('fp-group-mode').style.display = 'none';
-  document.getElementById('fp-files-view').style.display = 'flex';
-  document.getElementById('file-panel-header').style.display = '';
-  fpSwitchTab('groups');
-}
-
-function grpSwitchTab(tab) {
-  currentGroupTab = tab;
-  ['songs', 'setlists'].forEach(t => {
-    document.getElementById(`grp-tab-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`grp-panel-${t}`).style.display = t === tab ? 'flex' : 'none';
-  });
-  if (tab === 'setlists') refreshGroupSetlists();
-}
-
-// ── Groups list ───────────────────────────────────────────────────────────────
-
-async function refreshGroupList() {
-  const list = document.getElementById('grp-list');
-  if (!list) return;
-  list.innerHTML = '<div class="fp-loading">Loading…</div>';
-  // Fetch groups this user belongs to (via group_members join)
-  const { data, error } = await sb
-    .from('group_members')
-    .select('role, groups(id, name, invite_token)')
-    .eq('user_id', currentUser.id);
-  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
-  if (!data.length) {
-    list.innerHTML = '<div class="fp-empty">No groups yet.<br>Create one or join with an invite link.</div>';
-    return;
-  }
-  list.innerHTML = '';
-  data.forEach(row => {
-    const g = row.groups;
-    const item = document.createElement('div');
-    item.className = 'sl-item';
-    const icon = document.createElement('span');
-    icon.className = 'sl-item-icon';
-    icon.textContent = '⊕';
-    const name = document.createElement('span');
-    name.className = 'sl-item-name';
-    name.textContent = g.name;
-    const roleBadge = document.createElement('span');
-    roleBadge.style.cssText = 'font-size:9px;color:var(--text-dim);flex-shrink:0;';
-    roleBadge.textContent = row.role;
-    item.appendChild(icon);
-    item.appendChild(name);
-    item.appendChild(roleBadge);
-    item.addEventListener('click', () => grpEnterMode({ id: g.id, name: g.name, invite_token: g.invite_token, myRole: row.role }));
-    list.appendChild(item);
-  });
-}
-
-// ── Create group ──────────────────────────────────────────────────────────────
-
-function grpCreate() {
-  document.getElementById('grp-create-name').value = '';
-  document.getElementById('grp-create-err').textContent = '';
-  document.getElementById('grpCreateOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('grp-create-name').focus(), 50);
-}
-
-async function grpCreateConfirm() {
-  const name = document.getElementById('grp-create-name').value.trim();
-  const errEl = document.getElementById('grp-create-err');
-  if (!name) { errEl.textContent = 'Please enter a group name.'; return; }
-
-  // Create the group — don't select() immediately as member row doesn't exist yet
-  const { error: grpErr } = await sb.from('groups')
-    .insert({ name, created_by: currentUser.id });
-  if (grpErr) { errEl.textContent = grpErr.message; return; }
-
-  // Fetch the new group by created_by + name (creator policy allows this)
-  const { data: grp, error: fetchErr } = await sb.from('groups')
-    .select('id, name, invite_token')
-    .eq('created_by', currentUser.id)
-    .eq('name', name)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchErr) { errEl.textContent = fetchErr.message; return; }
-
-  // Add creator as admin member
-  const { error: memErr } = await sb.from('group_members').insert({
-    group_id: grp.id,
-    user_id: currentUser.id,
-    role: 'admin',
-    display_name: currentUser.user_metadata?.display_name || currentUser.email,
-  });
-  if (memErr) { errEl.textContent = memErr.message; return; }
-
-  closeModal('grpCreateOverlay');
-  refreshGroupList();
-  grpEnterMode({ id: grp.id, name: grp.name, invite_token: grp.invite_token, myRole: 'admin' });
-}
-
-document.getElementById('grpCreateOverlay')?.addEventListener('click', e => {
-  if (e.target === document.getElementById('grpCreateOverlay')) closeModal('grpCreateOverlay');
-});
-document.getElementById('grp-create-name')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') grpCreateConfirm();
-  if (e.key === 'Escape') closeModal('grpCreateOverlay');
-});
-
-// ── Join group ────────────────────────────────────────────────────────────────
-
-function grpJoinPrompt() {
-  document.getElementById('grp-join-token').value = '';
-  document.getElementById('grp-join-err').textContent = '';
-  document.getElementById('grpJoinOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('grp-join-token').focus(), 50);
-}
-
-async function grpJoinConfirm() {
-  let raw = document.getElementById('grp-join-token').value.trim();
-  const errEl = document.getElementById('grp-join-err');
-  // Extract token from URL if pasted as full link
-  const match = raw.match(/[#?]join=([a-zA-Z0-9]+)/);
-  const token = match ? match[1] : raw;
-  if (!token) { errEl.textContent = 'Please enter an invite code or link.'; return; }
-  await grpJoinByToken(token, errEl);
-}
-
-async function grpJoinByToken(token, errEl) {
-  // Look up group by token
-  const { data: grp, error } = await sb.from('groups')
-    .select('id, name, invite_token')
-    .eq('invite_token', token)
-    .single();
-  if (error || !grp) {
-    if (errEl) errEl.textContent = 'Invalid or expired invite code.';
-    else alert('Invalid or expired invite code.');
-    return;
-  }
-  // Check if already a member
-  const { data: existing } = await sb.from('group_members')
-    .select('id').eq('group_id', grp.id).eq('user_id', currentUser.id).single();
-  if (existing) {
-    closeModal('grpJoinOverlay');
-    alert(`You're already a member of "${grp.name}".`);
-    refreshGroupList();
-    return;
-  }
-  // Join as member
-  const { error: joinErr } = await sb.from('group_members').insert({
-    group_id: grp.id,
-    user_id: currentUser.id,
-    role: 'member',
-    display_name: currentUser.user_metadata?.display_name || currentUser.email,
-  });
-  if (joinErr) {
-    if (errEl) errEl.textContent = joinErr.message;
-    else alert(joinErr.message);
-    return;
-  }
-  closeModal('grpJoinOverlay');
-  refreshGroupList();
-  grpEnterMode({ id: grp.id, name: grp.name, invite_token: grp.invite_token, myRole: 'member' });
-}
-
-document.getElementById('grpJoinOverlay')?.addEventListener('click', e => {
-  if (e.target === document.getElementById('grpJoinOverlay')) closeModal('grpJoinOverlay');
-});
-document.getElementById('grp-join-token')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') grpJoinConfirm();
-  if (e.key === 'Escape') closeModal('grpJoinOverlay');
-});
-
-// ── Check for join token in URL (like share links) ────────────────────────────
-
-async function checkForJoinToken() {
-  if (!currentUser) return;
-
-  // Check URL hash first (already logged in when link opened)
-  let token = null;
-  if (window.location.hash.startsWith('#join=')) {
-    token = window.location.hash.slice('#join='.length);
-    history.replaceState(null, '', window.location.pathname);
-  }
-
-  // Fall back to pending token saved before login
-  if (!token) {
-    token = localStorage.getItem('pendingJoinToken');
-  }
-
-  if (!token) return;
-  localStorage.removeItem('pendingJoinToken');
-  await grpJoinByToken(token, null);
-}
-
-// ── Manage group ──────────────────────────────────────────────────────────────
-
-async function grpManage() {
-  if (!currentGroup) return;
-  document.getElementById('grp-manage-title').textContent = currentGroup.name;
-  document.getElementById('grp-rename-input').value = currentGroup.name;
-  document.getElementById('grp-manage-err').textContent = '';
-  document.getElementById('grp-invite-link').textContent =
-    `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
-  document.getElementById('grp-delete-btn').style.display = grpIsAdmin() ? '' : 'none';
-  await grpLoadMembers();
-  document.getElementById('grpManageOverlay').classList.add('open');
-}
-
-async function grpLoadMembers() {
-  const list = document.getElementById('grp-members-list');
-  list.innerHTML = '<div class="fp-loading">Loading…</div>';
-  const { data, error } = await sb.from('group_members')
-    .select('id, user_id, role, display_name')
-    .eq('group_id', currentGroup.id);
-  if (error) { list.innerHTML = `<div style="color:#e05a5a;font-size:13px;">${error.message}</div>`; return; }
-  list.innerHTML = '';
-  data.forEach(m => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);';
-    const nameEl = document.createElement('span');
-    nameEl.style.cssText = 'flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    nameEl.textContent = m.display_name || m.user_id.slice(0, 8) + '…';
-    const roleEl = document.createElement('span');
-    roleEl.style.cssText = `font-size:11px;font-weight:600;padding:2px 7px;border-radius:3px;flex-shrink:0;${
-      m.role === 'admin'
-        ? 'color:var(--accent);border:1px solid var(--accent);background:rgba(232,184,75,0.08);'
-        : 'color:var(--text-dim);border:1px solid var(--border);'
-    }`;
-    roleEl.textContent = m.role;
-    row.appendChild(nameEl);
-    row.appendChild(roleEl);
-    // Admin controls for other members
-    if (grpIsAdmin() && m.user_id !== currentUser.id) {
-      const promoteBtn = document.createElement('button');
-      const isAdmin = m.role === 'admin';
-      promoteBtn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:11px;padding:2px 7px;border-radius:3px;white-space:nowrap;';
-      promoteBtn.textContent = isAdmin ? '↓ Member' : '↑ Admin';
-      promoteBtn.title = isAdmin ? 'Demote to member' : 'Promote to admin';
-      promoteBtn.addEventListener('click', async () => {
-        const newRole = m.role === 'admin' ? 'member' : 'admin';
-        await sb.from('group_members').update({ role: newRole }).eq('id', m.id);
-        grpLoadMembers();
-      });
-      const removeBtn = document.createElement('button');
-      removeBtn.style.cssText = 'background:none;border:1px solid #e05a5a;color:#e05a5a;cursor:pointer;font-size:13px;padding:2px 7px;border-radius:3px;line-height:1;';
-      removeBtn.textContent = '×';
-      removeBtn.title = 'Remove from group';
-      removeBtn.addEventListener('click', async () => {
-        if (!confirm(`Remove ${nameEl.textContent} from the group?`)) return;
-        await sb.from('group_members').delete().eq('id', m.id);
-        grpLoadMembers();
-      });
-      row.appendChild(promoteBtn);
-      row.appendChild(removeBtn);
-    }
-    list.appendChild(row);
-  });
-}
-
-function grpEmailInvite() {
-  const url = `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
-  const subject = encodeURIComponent(`Join my group on ChordPro Editor: ${currentGroup.name}`);
-  const body = encodeURIComponent(`Hi,\n\nI'd like to invite you to collaborate on "${currentGroup.name}" in ChordPro Editor.\n\nClick the link below to join:\n${url}\n\nYou'll need a free account to join. If you don't have one, you can create one when you open the link.`);
-  window.open(`mailto:?subject=${subject}&body=${body}`);
-}
-
-function grpCopyInvite() {
-  const url = `${GRP_BASE_URL}/#join=${currentGroup.invite_token}`;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.querySelector('#grpManageOverlay .share-copy-btn');
-    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1800); }
-  });
-}
-
-async function grpRegenerateInvite() {
-  if (!confirm('Regenerate the invite link? The old link will stop working.')) return;
-  const newToken = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
-  const { error } = await sb.from('groups').update({ invite_token: newToken }).eq('id', currentGroup.id);
-  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
-  currentGroup.invite_token = newToken;
-  document.getElementById('grp-invite-link').textContent = `${GRP_BASE_URL}/#join=${newToken}`;
-}
-
-async function grpRenameConfirm() {
-  const name = document.getElementById('grp-rename-input').value.trim();
-  const errEl = document.getElementById('grp-manage-err');
-  if (!name) { errEl.textContent = 'Please enter a name.'; return; }
-  const { error } = await sb.from('groups').update({ name }).eq('id', currentGroup.id);
-  if (error) { errEl.textContent = error.message; return; }
-  currentGroup.name = name;
-  document.getElementById('grp-mode-name').textContent = name;
-  document.getElementById('grp-manage-title').textContent = name;
-  errEl.style.color = '#6a9e5a'; errEl.textContent = '✓ Renamed!';
-  setTimeout(() => { errEl.style.color = ''; errEl.textContent = ''; }, 1500);
-  refreshGroupList();
-}
-
-async function grpDelete() {
-  if (!confirm(`Delete group "${currentGroup.name}"? This removes all group songs and setlists.`)) return;
-  if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
-  const { error } = await sb.from('groups').delete().eq('id', currentGroup.id);
-  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
-  closeModal('grpManageOverlay');
-  grpExitMode();
-}
-
-async function grpLeave() {
-  if (!confirm(`Leave group "${currentGroup.name}"?`)) return;
-  const { error } = await sb.from('group_members')
-    .delete().eq('group_id', currentGroup.id).eq('user_id', currentUser.id);
-  if (error) { document.getElementById('grp-manage-err').textContent = error.message; return; }
-  closeModal('grpManageOverlay');
-  grpExitMode();
-}
-
-document.getElementById('grpManageOverlay')?.addEventListener('click', e => {
-  if (e.target === document.getElementById('grpManageOverlay')) closeModal('grpManageOverlay');
-});
-
-// ── Group Songs ───────────────────────────────────────────────────────────────
-
-async function refreshGroupSongs() {
-  const list = document.getElementById('grp-song-list');
-  if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
-  const { data, error } = await sb.from('group_songs')
-    .select('id, filename, title, updated_at')
-    .eq('group_id', currentGroup.id)
-    .order('filename');
-  if (error) { if (list) list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
-  grpAllSongs = data || [];
-  grpRenderSongList();
-}
-
-function grpRenderSongList() {
-  const list = document.getElementById('grp-song-list');
-  if (!list) return;
-  const query = (document.getElementById('grp-search')?.value || '').toLowerCase();
-  const files = grpAllSongs.filter(f =>
-    !query || f.filename.toLowerCase().includes(query) || (f.title||'').toLowerCase().includes(query)
-  );
-  if (!files.length) {
-    list.innerHTML = query
-      ? `<div class="fp-empty">No songs matching "${query}"</div>`
-      : '<div class="fp-empty">No songs yet.<br>Add a song to get started.</div>';
-    return;
-  }
-  list.innerHTML = '';
-  files.forEach(row => {
-    const item = document.createElement('div');
-    item.className = 'fp-item';
-    const icon = document.createElement('span');
-    icon.className = 'fp-item-icon'; icon.textContent = '♩';
-    const name = document.createElement('span');
-    name.className = 'fp-item-name'; name.textContent = row.filename;
-    item.appendChild(icon);
-    item.appendChild(name);
-    // Admins can delete
-    if (grpIsAdmin()) {
-      const delBtn = document.createElement('button');
-      delBtn.className = 'fp-item-del'; delBtn.textContent = '×'; delBtn.title = 'Remove from group';
-      delBtn.addEventListener('click', e => { e.stopPropagation(); grpDeleteSong(row.id, row.filename, e); });
-      item.appendChild(delBtn);
-    }
-    item.addEventListener('click', () => grpLoadSong(row));
-    list.appendChild(item);
-  });
-}
-
-async function grpLoadSong(row) {
-  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
-  const { data, error } = await sb.from('group_songs').select('content').eq('id', row.id).single();
-  if (error) { alert('Error: ' + error.message); return; }
-  document.getElementById('editor').value = data.content;
-  document.getElementById('editor').dispatchEvent(new Event('input'));
-  currentFilename = null; // group songs don't use personal filename
-  setUnsaved(false);
-  resetTranspose();
-  document.getElementById('grp-current').innerHTML = `⊕ <b>${row.filename}</b>`;
-  // Store which group song is open
-  currentGroupSongId = row.id;
-  currentGroupSongFilename = row.filename;
-  grpRenderSongList();
-}
-
-let currentGroupSongId = null;
-let currentGroupSongFilename = null;
-
-async function grpSaveSong() {
-  if (!currentGroupSongId) { alert('No group song open. Use "Add Song" to add the current song to the group.'); return; }
-  if (!currentGroup) return;
-  const content = document.getElementById('editor').value;
-  if (!content.trim()) return;
-  const title = extractTitle(content);
-  const { error } = await sb.from('group_songs').update({
-    content, title: title || currentGroupSongFilename,
-    last_edited_by: currentUser.id,
-  }).eq('id', currentGroupSongId);
-  if (error) { alert('Save failed: ' + error.message); return; }
-  setUnsaved(false);
-  document.getElementById('grp-current').innerHTML = `✓ Saved — ⊕ <b>${currentGroupSongFilename}</b>`;
-  setTimeout(() => {
-    document.getElementById('grp-current').innerHTML = `⊕ <b>${currentGroupSongFilename}</b>`;
-  }, 1500);
-  refreshGroupSongs();
-}
-
-async function grpAddSong() {
-  const content = document.getElementById('editor').value.trim();
-  if (!content) { alert('Nothing in the editor to add. Write or load a song first.'); return; }
-  const title = extractTitle(content);
-  const suggested = (title || 'untitled').replace(/[^a-z0-9\-_ ]/gi, '').trim();
-  const filename = prompt('Filename for this song in the group:', suggested + '.cho');
-  if (!filename) return;
-  const finalName = filename.endsWith('.cho') ? filename : filename + '.cho';
-  if (grpAllSongs.some(s => s.filename === finalName)) {
-    alert(`A song named "${finalName}" already exists in this group.`); return;
-  }
-  const { error } = await sb.from('group_songs').insert({
-    group_id: currentGroup.id,
-    filename: finalName,
-    title: title || finalName,
-    content,
-    added_by: currentUser.id,
-    last_edited_by: currentUser.id,
-  });
-  if (error) { alert('Error: ' + error.message); return; }
-  // Refresh to get the real ID from the server
-  await refreshGroupSongs();
-  // Find the newly inserted song in the refreshed list
-  const newSong = grpAllSongs.find(s => s.filename === finalName);
-  if (newSong) {
-    currentGroupSongId = newSong.id;
-    currentGroupSongFilename = finalName;
-  }
-  document.getElementById('grp-current').innerHTML = `⊕ <b>${finalName}</b>`;
-  setUnsaved(false);
-}
-
-async function grpDeleteSong(id, filename, e) {
-  e.stopPropagation();
-  if (!confirm(`Remove "${filename}" from the group?`)) return;
-  const { error } = await sb.from('group_songs').delete().eq('id', id);
-  if (error) { alert('Error: ' + error.message); return; }
-  if (currentGroupSongId === id) {
-    currentGroupSongId = null; currentGroupSongFilename = null;
-    document.getElementById('grp-current').textContent = 'No song open';
-  }
-  grpAllSongs = grpAllSongs.filter(s => s.id !== id);
-  grpRenderSongList();
-}
-
-// ── Group Setlists ────────────────────────────────────────────────────────────
-
-async function refreshGroupSetlists() {
-  const list = document.getElementById('grp-sl-list');
-  if (!list) return;
-  list.innerHTML = '<div class="fp-loading">Loading…</div>';
-  const { data, error } = await sb.from('group_setlists')
-    .select('id, name, song_filenames').eq('group_id', currentGroup.id).order('name');
-  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
-  if (!data.length) { list.innerHTML = '<div class="fp-empty">No setlists yet.</div>'; return; }
-  list.innerHTML = '';
-  data.forEach(sl => {
-    const item = document.createElement('div');
-    item.className = 'sl-item';
-    item.dataset.id = sl.id;
-    const icon = document.createElement('span'); icon.className = 'sl-item-icon'; icon.textContent = '☰';
-    const name = document.createElement('span'); name.className = 'sl-item-name'; name.textContent = sl.name;
-    const count = document.createElement('span');
-    count.style.cssText = 'font-size:10px;color:var(--text-dim);flex-shrink:0;';
-    count.textContent = (sl.song_filenames||[]).length;
-    const delBtn = document.createElement('button');
-    delBtn.className = 'sl-item-del'; delBtn.textContent = '×'; delBtn.title = 'Delete setlist';
-    delBtn.addEventListener('click', e => { e.stopPropagation(); grpSlDelete(sl.id, e); });
-    item.appendChild(icon); item.appendChild(name); item.appendChild(count); item.appendChild(delBtn);
-    item.addEventListener('click', () => {
-      grpSelectedSetlistId = sl.id;
-      document.querySelectorAll('#grp-sl-list .sl-item').forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      document.getElementById('grp-sl-load-btn').disabled = false;
-    });
-    list.appendChild(item);
-  });
-}
-
-async function grpSlLoad() {
-  if (!grpSelectedSetlistId) return;
-  if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
-  const { data, error } = await sb.from('group_setlists')
-    .select('name, song_filenames').eq('id', grpSelectedSetlistId).single();
-  if (error) { alert('Error: ' + error.message); return; }
-  const contents = [];
-  for (const fn of (data.song_filenames || [])) {
-    const { data: sd } = await sb.from('group_songs').select('content')
-      .eq('group_id', currentGroup.id).eq('filename', fn).single();
-    if (sd) contents.push(sd.content.trim());
-  }
-  document.getElementById('editor').value = contents.join('\n\n---\n\n');
-  document.getElementById('editor').dispatchEvent(new Event('input'));
-  currentGroupSongId = null; currentGroupSongFilename = null;
-  currentFilename = null; setUnsaved(false); resetTranspose();
-  document.getElementById('grp-sl-current').innerHTML = `☰ <b>${data.name}</b>`;
-}
-
-async function grpSlNew() {
-  // Reuse the existing setlist builder but backed by group_songs
-  const { data } = await sb.from('group_songs').select('filename, title')
-    .eq('group_id', currentGroup.id).order('filename');
-  allSongs = data || [];
-  document.getElementById('sl-name-input').value = '';
-  document.getElementById('sl-builder-title').textContent = 'New Group Setlist';
-  document.getElementById('sl-builder-err').textContent = '';
-  const searchEl = document.getElementById('sl-search');
-  if (searchEl) searchEl.value = '';
-  renderSlPicker([]);
-  renderSlAvailableFiltered();
-  // Override slSave to save to group_setlists
-  window._grpSetlistMode = true;
-  document.getElementById('slBuilderOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('sl-name-input').focus(), 50);
-}
-
-async function grpSlDelete(id, e) {
-  e.stopPropagation();
-  if (!confirm('Delete this group setlist?')) return;
-  await sb.from('group_setlists').delete().eq('id', id);
-  if (grpSelectedSetlistId === id) {
-    grpSelectedSetlistId = null;
-    document.getElementById('grp-sl-current').textContent = 'No setlist open';
-  }
-  refreshGroupSetlists();
-}
-
-// ─── Updated save flow (with tags) ────────────────────────────────────────────
-
-async function doSave(filename, tags) {
-  const content = document.getElementById('editor').value;
-  const title = extractTitle(content);
-  const artist = extractArtist(content);
-  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
-  const key = keyMatch ? keyMatch[1] : null;
-  const record = {
-    user_id: currentUser.id,
-    filename,
-    title: title || filename,
-    artist: artist || null,
-    key: key || null,
-    content,
-  };
-  if (tags !== undefined) record.tags = tags;
-  const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
-  if (error) alert('Save failed: ' + error.message);
-  else {
-    clearTimeout(autoSaveTimer);
-    currentFilename = filename;
-    updateCurrentFile();
-    // Update local cache entry
-    const idx = allFiles.findIndex(f => f.filename === filename);
-    const entry = { filename, title: title || filename, artist: artist || null, key, tags: tags || [], updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
-    if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
-    renderFileList();
-    if (currentTab === 'tags') refreshTagTree();
-    flashSaved();
-  }
-}
-
-// ─── File panel toggle ────────────────────────────────────────────────────────
-
-function toggleFilePanel() {
-  filePanelOpen = !filePanelOpen;
-  document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
-  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
-  document.getElementById('panelDragHandle').classList.toggle('visible', filePanelOpen);
-  // Re-apply saved width when opening so CSS transition goes to correct size
-  if (filePanelOpen) {
-    const savedW = localStorage.getItem('filePanelWidth');
-    if (savedW) setPanelWidth(parseInt(savedW));
-    if (currentUser) refreshFileList();
-  }
-}
-
-// Keyboard shortcut: Ctrl/Cmd+S to save
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-    e.preventDefault();
-    if (currentUser) fpSave();
-  }
-});
-
 // ─── Mobile layout ────────────────────────────────────────────────────────────
 
 function isMobile() {
@@ -4809,20 +4308,7 @@ function toggleFilePanel() {
   _originalToggleFilePanel();
 }
 
-// ─── Override grpEnterMode to stay on files tab on mobile ────────────────────
-const _originalGrpEnterMode = grpEnterMode;
-function grpEnterMode(group) {
-  _originalGrpEnterMode(group);
-  if (isMobile()) mobileSwitchTab('files');
-}
-
-const _originalGrpExitMode = grpExitMode;
-function grpExitMode() {
-  _originalGrpExitMode();
-  if (isMobile()) mobileSwitchTab('files');
-}
-
-// Init on load
+// ─── Init ─────────────────────────────────────────────────────────────────────
 fpInit();
 checkForShareToken();
 applyInterfacePrefs();
@@ -4872,7 +4358,19 @@ function parseChordPro(text) {
       else if (/^capo$/.test(k))                           song.capo      = v;
       else if (/^(tempo|bpm)$/.test(k))                    song.tempo     = v;
       else if (/^tab_font_size$/.test(k))                  song.tabFontSize = parseFloat(v) || null;
-      else if (/^link$/.test(k))                           { if (!song.links) song.links = []; song.links.push(v); }
+      else if (/^link$/.test(k)) {
+        if (!song.links) song.links = [];
+        // Support: {link: [Label] URL} or {link: URL [Label]} or {link: URL}
+        const labelMatch = v.match(/^\[(.+?)\]\s*(https?:\/\/\S+)$/) ||
+                           v.match(/^(https?:\/\/\S+)\s*\[(.+?)\]$/);
+        if (labelMatch) {
+          const url   = labelMatch[1].startsWith('http') ? labelMatch[1] : labelMatch[2];
+          const label = labelMatch[1].startsWith('http') ? labelMatch[2] : labelMatch[1];
+          song.links.push({ url, label });
+        } else {
+          song.links.push({ url: v.trim(), label: null });
+        }
+      }
       else if (/^(time|time_sig)$/.test(k))                song.time      = v;
       else if (/^duration$/.test(k))                       song.duration  = v;
       else if (/^album$/.test(k))                          song.album     = v;
@@ -5054,14 +4552,14 @@ function renderSong(song) {
   if (song.links && song.links.length) {
     const linksEl = document.createElement('div');
     linksEl.className = 'song-links';
-    song.links.forEach(url => {
+    song.links.forEach(({ url, label }) => {
       const a = document.createElement('a');
       a.href = url;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
       a.className = 'song-link';
-      // Show a friendly label — strip protocol for display
-      a.textContent = '🔗 ' + url.replace(/^https?:\/\//, '');
+      a.textContent = '🔗 ' + (label || url.replace(/^https?:\/\//, ''));
+      a.title = url;
       linksEl.appendChild(a);
     });
     div.appendChild(linksEl);
@@ -5306,6 +4804,21 @@ function flushAllNotationRenders() {
   flushVextabRenders();
 }
 
+// Re-render VexTab sections when preview width changes (e.g. after resizing panes)
+function reRenderVextab() {
+  const paper = document.getElementById('paper');
+  if (!paper) return;
+  // Find all rendered vextab holders (they have data-vt-raw set)
+  const holders = paper.querySelectorAll('[data-vt-raw]');
+  if (!holders.length) return;
+  holders.forEach(holder => {
+    // Remove old canvas
+    holder.querySelectorAll('canvas').forEach(c => c.remove());
+    pendingVextabRenders.push(holder.id);
+  });
+  flushVextabRenders();
+}
+
 function renderLine(line, isTab) {
   if (isTab || !line.hasChords) {
     const el = document.createElement('span');
@@ -5445,6 +4958,10 @@ function updatePreview() {
   }
   flushAllNotationRenders();
 
+  // Performance nav — show when multiple songs loaded
+  perfCurrentIdx = 0;
+  updatePerfNav(songs);
+
   // Update key badge (first song's key)
   document.getElementById('key-display').textContent = songs[0].key || '—';
 
@@ -5529,35 +5046,37 @@ const handle = document.getElementById('dragHandle');
 const editorPane = document.getElementById('editorPane');
 let dragging = false;
 
-// Restore saved editor width
-const savedEditorW = localStorage.getItem('editorPaneWidth');
-if (savedEditorW) editorPane.style.width = savedEditorW;
+if (handle && editorPane) {
+  // Restore saved editor width, or set default explicitly so inline style is always in control
+  const savedEditorW = localStorage.getItem('editorPaneWidth');
+  editorPane.style.width = savedEditorW || '46%';
 
-handle.addEventListener('mousedown', e => {
-  dragging = true;
-  handle.classList.add('dragging');
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-});
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
 
-document.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  const workspace = document.querySelector('.workspace');
-  const rect = workspace.getBoundingClientRect();
-  const pct = ((e.clientX - rect.left) / rect.width) * 100;
-  const clamped = Math.min(Math.max(pct, 20), 75);
-  editorPane.style.width = clamped + '%';
-});
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const workspace = document.querySelector('.workspace');
+    const rect = workspace.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    const clamped = Math.min(Math.max(pct, 20), 75);
+    editorPane.style.width = clamped + '%';
+  });
 
-document.addEventListener('mouseup', () => {
-  if (!dragging) return;
-  dragging = false;
-  handle.classList.remove('dragging');
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  // Persist editor width
-  localStorage.setItem('editorPaneWidth', editorPane.style.width);
-});
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem('editorPaneWidth', editorPane.style.width);
+    reRenderVextab();
+  });
+}
 
 // ─── Panel drag to resize ─────────────────────────────────────────────────────
 
@@ -5630,6 +5149,7 @@ document.addEventListener('mouseup', () => {
   document.body.style.userSelect = '';
   filePanel.style.transition = '';
   savePanelWidth();
+  reRenderVextab();
 });
 
 // ─── Load example ─────────────────────────────────────────────────────────────
@@ -6124,7 +5644,6 @@ function printSongs(paperEl) {
       overflow: hidden;
       position: relative;
     }
-    .drag-handle,
     .panel-drag-handle { display: none !important; }
 
     /* All three panels become full-screen fixed layers */
@@ -6215,7 +5734,7 @@ function printSongs(paperEl) {
     .editor-status { display: none; }
 
     /* File panel: show scrollable on mobile */
-    #fp-files-view, #fp-group-mode {
+    #fp-files-view {
       flex: 1;
       overflow: hidden;
       display: flex;
@@ -6223,9 +5742,10 @@ function printSongs(paperEl) {
     }
   }
 
-  /* Desktop: hide mobile tab bar */
+  /* Desktop: hide mobile tab bar, ensure drag handle visible */
   @media (min-width: 1025px) {
     .mobile-tab-bar { display: none; }
+    .drag-handle { display: block !important; }
   }
 
 </style>
@@ -6454,16 +5974,37 @@ That [G]saved a [Em]wretch like [D]me
         <div class="help-section-title">Files, Tags &amp; Setlists</div>
         <table class="help-table">
           <tr><td><b>⊞ Files</b></td><td>Open the file panel — sign in to save and access your songs from any device</td></tr>
-          <tr><td><b>Songs tab</b></td><td>Lists all your saved <code>.cho</code> files — click a file to load it into the editor</td></tr>
+          <tr><td><b>Songs tab</b></td><td>Lists all your saved <code>.cho</code> files — click a file to load it into the editor. Hover a song for rename ✎, delete ×, share ↗, add to setlist ☰+, and favourite ☆ buttons.</td></tr>
           <tr><td><b>New</b></td><td>Clears the editor to start a new song (prompts if unsaved changes)</td></tr>
           <tr><td><b>Save</b></td><td>Saves the current file — prompts for a filename if new, then asks for tags</td></tr>
+          <tr><td><b>+ Setlist</b></td><td>Quick setlist builder — tick songs from the list, type a name, and save</td></tr>
+          <tr><td><b>⊟ Filter</b></td><td>Filter songs by tag, key, and artist combined — active filters show as chips</td></tr>
+          <tr><td><b>☆ Favs</b></td><td>Show only starred songs — star any song by hovering and clicking ☆</td></tr>
           <tr><td><b>Tags button</b></td><td>Edit the tags on the currently open file — type a tag and press Enter to add, × to remove</td></tr>
-          <tr><td><b>Tags tab</b></td><td>Shows all songs grouped by tag in a collapsible tree — click any song to load it</td></tr>
-          <tr><td><b>Setlists tab</b></td><td>Create and open setlists — opens multiple songs joined by <code>---</code> separators</td></tr>
-          <tr><td><b>New Setlist</b></td><td>Name a setlist and click songs from your library to add them</td></tr>
-          <tr><td><b>↗ Share</b></td><td>Share a song or setlist — generates a link you can copy or send by email. Recipients with an account can save a copy; others get a read-only view.</td></tr>
-          <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, or delete your account</td></tr>
+          <tr><td><b>Tags tab</b></td><td>Songs grouped by tag — search the tag list, click ⊞ Filter on any tag to show only those songs</td></tr>
+          <tr><td><b>Setlists tab</b></td><td>Create and open setlists — click a setlist to select it, then click Open to load all songs into the editor and preview for printing</td></tr>
+          <tr><td><b>↗ Share</b></td><td>Share a song or setlist — generates a link you can copy or send by email</td></tr>
+          <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, export/import ZIP backup, or delete your account</td></tr>
           <tr><td><b>Ctrl/Cmd+S</b></td><td>Keyboard shortcut to save the current file at any time</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Groups &amp; Collaboration</div>
+        <table class="help-table">
+          <tr><td><b>Groups tab</b></td><td>See all groups you belong to — click a group to enter it</td></tr>
+          <tr><td><b>New Group</b></td><td>Create a collaboration group — you become the admin</td></tr>
+          <tr><td><b>Join Group</b></td><td>Paste an invite link or code to join someone else's group</td></tr>
+          <tr><td><b>⚙ Manage</b></td><td>Opens the group management panel — available to admins</td></tr>
+          <tr><td><b>Invite link</b></td><td>Copy or email the invite link to share with others — they open the link while logged in to join automatically. If they're not logged in, the link is saved and processed after login.</td></tr>
+          <tr><td><b>↑ Admin / ↓ Member</b></td><td>Promote or demote a group member — admins can edit songs, manage members and settings</td></tr>
+          <tr><td><b>× Remove</b></td><td>Remove a member from the group</td></tr>
+          <tr><td><b>Rename</b></td><td>Rename the group (admins only)</td></tr>
+          <tr><td><b>Regenerate invite link</b></td><td>Creates a new invite token — the old link stops working</td></tr>
+          <tr><td><b>Add Song</b></td><td>Adds the current editor content to the group as a new song</td></tr>
+          <tr><td><b>Save to Group</b></td><td>Saves changes to the currently open group song</td></tr>
+          <tr><td><b>Leave Group</b></td><td>Leave a group — you can rejoin with a new invite link</td></tr>
+          <tr><td><b>Delete Group</b></td><td>Permanently deletes the group and all its songs (admins only, irreversible)</td></tr>
         </table>
       </div>
 
