@@ -306,6 +306,21 @@
     color: var(--ink);
   }
 
+  /* In fullscreen/performance mode — paper expands to fill available width */
+  .perf-fullscreen .preview-scroll {
+    padding: 24px;
+  }
+  .perf-fullscreen #paper {
+    max-width: 100%;
+    min-height: unset;
+    padding: 40px 5%;
+    box-shadow: none;
+    border-radius: 0;
+    --preview-fs: 16px;
+    --preview-fs-sup: 11px;
+    --tab-fs: 13px;
+  }
+
   /* ─── SONG WITHIN PAPER ──────────────────────────────────────────── */
   .song + .song {
     margin-top: 48px;
@@ -5830,7 +5845,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606020338</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606020344</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
