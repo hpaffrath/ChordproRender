@@ -667,8 +667,8 @@
   }
 
   /* ─── FILE PANEL ──────────────────────────────────────────────────── */
-  .file-panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: width 0.2s, min-width 0.2s; width: 220px; min-width: 220px; }
-  .file-panel.collapsed { width: 0; min-width: 0; border-left: none; }
+  .file-panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; width: 364px; min-width: 220px; }
+  .file-panel.collapsed { width: 0 !important; min-width: 0 !important; border-left: none; overflow: hidden; }
   .file-panel-header { height: 36px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--border); gap: 6px; flex-shrink: 0; }
   .file-panel-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); flex: 1; }
   .file-icon-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 7px; border-radius: 3px; font-size: 18px; line-height: 1; }
@@ -701,7 +701,7 @@
   .fp-item:hover { background: var(--surface2); }
   .fp-item.active { background: rgba(232,184,75,0.1); }
   .fp-item-icon { font-size: 13px; opacity: 0.45; flex-shrink: 0; }
-  .fp-item-name { font-size: 13px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-item-name { font-size: 13px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; min-width: 0; }
   .fp-item.active .fp-item-name { color: var(--accent); }
   .fp-item-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 18px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
   .fp-item:hover .fp-item-del { opacity: 1; }
@@ -1268,7 +1268,7 @@
     <button class="ctrl-btn" onclick="changeFontSize(+1)" title="Increase font size">+</button>
   </div>
   <div class="header-actions">
-    <button class="btn btn-files" id="filesToggleBtn" onclick="toggleFilePanel()">⊞ Files</button>
+    <button class="btn btn-files active" id="filesToggleBtn" onclick="toggleFilePanel()">⊞ Files</button>
     <button class="btn btn-ghost" onclick="showHelp()">? Help</button>
     <button class="btn btn-ghost" id="loadExampleBtn" onclick="loadExample()">Load Example</button>
     <button class="btn btn-ghost" onclick="clearEditor()">Clear</button>
@@ -1333,7 +1333,7 @@
   <div class="panel-drag-handle" id="panelDragHandle"></div>
 
   <!-- FILE PANEL -->
-  <div class="file-panel collapsed" id="filePanel">
+  <div class="file-panel" id="filePanel" style="width:364px;min-width:364px;display:flex;">
     <div class="file-panel-header" id="file-panel-header">
       <span class="file-panel-label">My Files</span>
       <button class="file-icon-btn" onclick="refreshFileList()" title="Refresh">↺</button>
@@ -1754,7 +1754,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
 let currentFilename = null;
-let filePanelOpen = false;
+let filePanelOpen = true;
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -2808,7 +2808,7 @@ function buildFileItem(row, container, hideArtist) {
   icon.className = 'fp-item-icon';
   icon.textContent = '♩';
 
-  const nameWrap = document.createElement('span');
+  const nameWrap = document.createElement('div');
   nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
 
   const name = document.createElement('span');
@@ -3005,14 +3005,22 @@ function closeModal(id) {
 
 function toggleFilePanel() {
   filePanelOpen = !filePanelOpen;
-  document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
-  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
-  document.getElementById('panelDragHandle').classList.toggle('visible', filePanelOpen);
+  const fp = document.getElementById('filePanel');
   if (filePanelOpen) {
+    // Remove collapsed FIRST, then set width so it's visible
+    fp.classList.remove('collapsed');
     const savedW = localStorage.getItem('filePanelWidth');
-    if (savedW) setPanelWidth(parseInt(savedW));
+    setPanelWidth(savedW ? parseInt(savedW) : PANEL_DEFAULT);
+    document.getElementById('panelDragHandle').classList.add('visible');
     if (currentUser) refreshFileList();
+  } else {
+    // Clear inline styles FIRST so collapsed CSS wins cleanly
+    fp.style.width = '';
+    fp.style.minWidth = '';
+    fp.classList.add('collapsed');
+    document.getElementById('panelDragHandle').classList.remove('visible');
   }
+  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
 }
 
 async function doSave(filename, tags) {
@@ -3432,7 +3440,7 @@ function buildTagGroup(tag, songs, faded) {
     const icon = document.createElement('span');
     icon.className = 'fp-item-icon'; icon.textContent = '♩';
 
-    const nameWrap = document.createElement('span');
+    const nameWrap = document.createElement('div');
     nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
 
     const nameEl = document.createElement('span');
@@ -5080,9 +5088,9 @@ if (handle && editorPane) {
 
 // ─── Panel drag to resize ─────────────────────────────────────────────────────
 
-const PANEL_MIN = 180;
-const PANEL_MAX = 380;
-const PANEL_DEFAULT = 220;
+const PANEL_MIN = 220;
+const PANEL_MAX = 500;
+const PANEL_DEFAULT = 364;
 
 const panelHandle = document.getElementById('panelDragHandle');
 const filePanel = document.getElementById('filePanel');
@@ -5091,36 +5099,36 @@ let panelDragging = false;
 function setPanelWidth(w) {
   if (!filePanel) return;
   const clamped = Math.min(Math.max(Math.round(w), PANEL_MIN), PANEL_MAX);
-  filePanel.style.transition = 'none';
   filePanel.style.width = clamped + 'px';
   filePanel.style.minWidth = clamped + 'px';
+  localStorage.setItem('filePanelWidth', clamped + 'px');
 }
 
 function savePanelWidth() {
-  localStorage.setItem('filePanelWidth', filePanel.style.width);
+  if (!filePanel) return;
+  const w = filePanel.style.width;
+  if (w) localStorage.setItem('filePanelWidth', w);
 }
 
-// Restore saved panel width (or set default so inline style is always authoritative)
-const savedPanelW = localStorage.getItem('filePanelWidth');
-setPanelWidth(savedPanelW ? parseInt(savedPanelW) : PANEL_DEFAULT);
+if (panelHandle) {
+  panelHandle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    panelDragging = true;
+    panelHandle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
 
-panelHandle.addEventListener('mousedown', e => {
-  e.preventDefault();
-  panelDragging = true;
-  panelHandle.classList.add('dragging');
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-});
-
-// Touch / pointer support for iPad
-panelHandle.addEventListener('touchstart', e => {
-  e.preventDefault();
-  panelDragging = true;
-  panelHandle.classList.add('dragging');
-}, { passive: false });
+  // Touch / pointer support for iPad
+  panelHandle.addEventListener('touchstart', e => {
+    e.preventDefault();
+    panelDragging = true;
+    panelHandle.classList.add('dragging');
+  }, { passive: false });
+}
 
 document.addEventListener('touchmove', e => {
-  if (!panelDragging) return;
+  if (!panelDragging || !filePanel) return;
   const touch = e.touches[0];
   const rect = filePanel.getBoundingClientRect();
   setPanelWidth(rect.right - touch.clientX);
@@ -5129,9 +5137,15 @@ document.addEventListener('touchmove', e => {
 document.addEventListener('touchend', () => {
   if (!panelDragging) return;
   panelDragging = false;
-  panelHandle.classList.remove('dragging');
-  filePanel.style.transition = '';
+  if (panelHandle) panelHandle.classList.remove('dragging');
+  if (filePanel) filePanel.style.transition = '';
   savePanelWidth();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!panelDragging || !filePanel) return;
+  const rect = filePanel.getBoundingClientRect();
+  setPanelWidth(rect.right - e.clientX);
 });
 
 document.addEventListener('mousemove', e => {
@@ -5816,7 +5830,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference</div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606020338</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
