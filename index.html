@@ -1348,7 +1348,7 @@
   <div class="panel-drag-handle" id="panelDragHandle"></div>
 
   <!-- FILE PANEL -->
-  <div class="file-panel" id="filePanel" style="width:364px;min-width:364px;display:flex;">
+  <div class="file-panel" id="filePanel" style="width:364px;min-width:364px;">
     <div class="file-panel-header" id="file-panel-header">
       <span class="file-panel-label">My Files</span>
       <button class="file-icon-btn" onclick="refreshFileList()" title="Refresh">↺</button>
@@ -3053,13 +3053,7 @@ async function doSave(filename, tags) {
 
 // ─── File panel toggle ────────────────────────────────────────────────────────
 
-function toggleFilePanel() {
-  filePanelOpen = !filePanelOpen;
-  document.getElementById('filePanel').classList.toggle('collapsed', !filePanelOpen);
-  document.getElementById('filesToggleBtn').classList.toggle('active', filePanelOpen);
-  // Refresh list when opening panel if logged in
-  if (filePanelOpen && currentUser) refreshFileList();
-}
+
 
 // Keyboard shortcut: Ctrl/Cmd+S to save
 document.addEventListener('keydown', e => {
@@ -3821,17 +3815,20 @@ function closeModal(id) {
 }
 
 function toggleFilePanel() {
+  // On mobile/tablet, just switch to the files tab
+  if (typeof isMobile === 'function' && isMobile()) {
+    mobileSwitchTab('files');
+    return;
+  }
   filePanelOpen = !filePanelOpen;
   const fp = document.getElementById('filePanel');
   if (filePanelOpen) {
-    // Remove collapsed FIRST, then set width so it's visible
     fp.classList.remove('collapsed');
     const savedW = localStorage.getItem('filePanelWidth');
     setPanelWidth(savedW ? parseInt(savedW) : PANEL_DEFAULT);
     document.getElementById('panelDragHandle').classList.add('visible');
     if (currentUser) refreshFileList();
   } else {
-    // Clear inline styles FIRST so collapsed CSS wins cleanly
     fp.style.width = '';
     fp.style.minWidth = '';
     fp.classList.add('collapsed');
@@ -5139,14 +5136,7 @@ window.addEventListener('resize', () => {
 // Not enabled by default — user can switch manually
 
 // ─── Override toggleFilePanel on mobile ─────────────────────────────────────
-const _originalToggleFilePanel = toggleFilePanel;
-function toggleFilePanel() {
-  if (isMobile()) {
-    mobileSwitchTab('files');
-    return;
-  }
-  _originalToggleFilePanel();
-}
+
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 fpInit();
@@ -6677,7 +6667,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606072306</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606091301</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
