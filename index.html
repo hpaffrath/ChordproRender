@@ -2976,20 +2976,30 @@ async function refreshGroupSetlists() {
 async function grpSlLoad() {
   if (!grpSelectedSetlistId) return;
   if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
-  const { data, error } = await sb.from('group_setlists')
-    .select('name, song_filenames').eq('id', grpSelectedSetlistId).single();
-  if (error) { alert('Error: ' + error.message); return; }
-  const contents = [];
-  for (const fn of (data.song_filenames || [])) {
-    const { data: sd } = await sb.from('group_songs').select('content')
-      .eq('group_id', currentGroup.id).eq('filename', fn).single();
-    if (sd) contents.push(sd.content.trim());
+  try {
+    const { data, error } = await sb.from('group_setlists')
+      .select('name, song_filenames').eq('id', grpSelectedSetlistId).single();
+    if (error) { alert('Error: ' + error.message); return; }
+    const contents = [];
+    for (const entry of (data.song_filenames || [])) {
+      const { filename: fn, offset } = slDecodeEntry(entry);
+      if (!fn) continue;
+      const { data: sd } = await sb.from('group_songs').select('content')
+        .eq('group_id', currentGroup.id).eq('filename', fn).maybeSingle();
+      if (sd) {
+        const content = offset ? transposeText(sd.content.trim(), offset) : sd.content.trim();
+        contents.push(content);
+      }
+    }
+    document.getElementById('editor').value = contents.join('\n\n---\n\n');
+    document.getElementById('editor').dispatchEvent(new Event('input'));
+    currentGroupSongId = null; currentGroupSongFilename = null;
+    currentFilename = null; setUnsaved(false); resetTranspose();
+    document.getElementById('grp-sl-current').innerHTML = `☰ <b>${data.name}</b>`;
+  } catch (err) {
+    console.error('grpSlLoad failed:', err);
+    alert('Could not open setlist: ' + err.message);
   }
-  document.getElementById('editor').value = contents.join('\n\n---\n\n');
-  document.getElementById('editor').dispatchEvent(new Event('input'));
-  currentGroupSongId = null; currentGroupSongFilename = null;
-  currentFilename = null; setUnsaved(false); resetTranspose();
-  document.getElementById('grp-sl-current').innerHTML = `☰ <b>${data.name}</b>`;
 }
 
 async function grpSlNew() {
@@ -3319,10 +3329,13 @@ async function saveQuickSetlist() {
   const name = document.getElementById('quick-sl-name').value.trim();
   if (!name) { document.getElementById('quick-sl-name').focus(); return; }
   if (!quickSlSelected.length) { alert('Please select at least one song.'); return; }
+  // If the currently open song is among those selected and transposed, encode its offset
+  const entries = quickSlSelected.map(fn =>
+    (fn === currentFilename && transposeOffset) ? slEncodeEntry(fn, transposeOffset) : fn);
   const { error } = await sb.from('setlists').insert({
     user_id: currentUser.id,
     name,
-    song_filenames: quickSlSelected,
+    song_filenames: entries,
   });
   if (error) { alert('Error: ' + error.message); return; }
   toggleQuickSetlist(); // exits mode, re-renders list
@@ -3394,6 +3407,8 @@ async function populateSlAddPopup(popup, filename) {
   popup.innerHTML = '<div class="sl-add-popup-title">Add to Setlist</div>';
   const { data } = await sb.from('setlists').select('id, name, song_filenames').order('name');
   cachedSetlists = data || [];
+  // If this song is currently open and transposed, capture that offset
+  const offset = (filename === currentFilename) ? transposeOffset : 0;
   if (!cachedSetlists.length) {
     const empty = document.createElement('div');
     empty.className = 'sl-add-popup-item';
@@ -3402,12 +3417,12 @@ async function populateSlAddPopup(popup, filename) {
     popup.appendChild(empty);
   } else {
     cachedSetlists.forEach(sl => {
-      const alreadyIn = (sl.song_filenames || []).includes(filename);
+      const alreadyIn = (sl.song_filenames || []).some(e => slDecodeEntry(e).filename === filename);
       const popItem = document.createElement('div');
       popItem.className = 'sl-add-popup-item';
       popItem.innerHTML = `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${sl.name}</span>${alreadyIn ? '<span style="font-size:10px;color:var(--accent);">✓</span>' : ''}`;
       if (!alreadyIn) {
-        popItem.addEventListener('click', e => { e.stopPropagation(); addSongToSetlist(sl, filename, popup); });
+        popItem.addEventListener('click', e => { e.stopPropagation(); addSongToSetlist(sl, filename, popup, offset); });
       } else {
         popItem.style.opacity = '0.5';
         popItem.style.cursor = 'default';
@@ -3417,15 +3432,15 @@ async function populateSlAddPopup(popup, filename) {
   }
   const newItem = document.createElement('div');
   newItem.className = 'sl-add-popup-item new-sl';
-  newItem.textContent = '+ New Setlist with this song';
-  newItem.addEventListener('click', e => { e.stopPropagation(); popup.classList.remove('open'); quickNewSetlist(filename); });
+  newItem.textContent = offset ? `+ New Setlist with this song (${offset > 0 ? '+' : ''}${offset})` : '+ New Setlist with this song';
+  newItem.addEventListener('click', e => { e.stopPropagation(); popup.classList.remove('open'); quickNewSetlist(filename, offset); });
   popup.appendChild(newItem);
 }
 
-async function addSongToSetlist(sl, filename, popup) {
+async function addSongToSetlist(sl, filename, popup, offset) {
   const filenames = [...(sl.song_filenames || [])];
-  if (filenames.includes(filename)) return;
-  filenames.push(filename);
+  if (filenames.some(e => slDecodeEntry(e).filename === filename)) return;
+  filenames.push(slEncodeEntry(filename, offset || 0));
   const { error } = await sb.from('setlists').update({ song_filenames: filenames }).eq('id', sl.id);
   if (error) { alert('Error: ' + error.message); return; }
   const cached = cachedSetlists.find(s => s.id === sl.id);
@@ -3437,11 +3452,11 @@ async function addSongToSetlist(sl, filename, popup) {
   if (currentTab === 'setlists') refreshSetlists();
 }
 
-async function quickNewSetlist(filename) {
+async function quickNewSetlist(filename, offset) {
   const name = prompt('New setlist name:', '');
   if (!name?.trim()) return;
   const { error } = await sb.from('setlists').insert({
-    user_id: currentUser.id, name: name.trim(), song_filenames: [filename],
+    user_id: currentUser.id, name: name.trim(), song_filenames: [slEncodeEntry(filename, offset || 0)],
   });
   if (error) { alert('Error: ' + error.message); return; }
   if (currentTab === 'setlists') refreshSetlists();
@@ -3805,6 +3820,10 @@ async function fpSave() {
   const content = document.getElementById('editor').value;
   if (!content.trim()) return;
   if (!currentFilename) { openSaveAs(); return; }
+  if (transposeOffset) {
+    const dir = transposeOffset > 0 ? '+' + transposeOffset : transposeOffset;
+    if (!confirm(`This song is currently transposed (${dir} semitones). Saving now will permanently change "${currentFilename}" to this new key.\n\nIf you only wanted a different key for a setlist, use "Add to setlist" instead and Cancel here.\n\nSave anyway?`)) return;
+  }
   await doSave(currentFilename, undefined);
 }
 
@@ -4060,6 +4079,27 @@ function transposeChord(chord, semitones, preferFlats) {
   });
 }
 
+// Reusable: transpose a ChordPro text block by `semitones`. Returns new text.
+// Used by the editor transpose buttons AND by setlist/group loading to apply
+// a stored per-song transpose offset.
+function transposeText(text, semitones) {
+  if (!text || !semitones) return text;
+
+  const keyMatch = text.match(/\{key:\s*([A-G][b#]?m?)\}/i);
+  const key = keyMatch ? keyMatch[1] : '';
+  const preferFlats = FLAT_KEYS.has(key);
+
+  const transposed = text.replace(/\[([^\]]+)\]/g, (_, chord) => {
+    return '[' + transposeChord(chord, semitones, preferFlats) + ']';
+  });
+
+  return transposed.replace(/(\{key:\s*)([A-G][b#]?m?)(\})/gi, (_, pre, k, post) => {
+    const mSuffix = k.endsWith('m') ? 'm' : '';
+    const noteOnly = mSuffix ? k.slice(0, -1) : k;
+    return pre + transposeNote(noteOnly, semitones, preferFlats) + mSuffix + post;
+  });
+}
+
 function transpose(delta) {
   const editor = document.getElementById('editor');
   const text = editor.value;
@@ -4069,32 +4109,38 @@ function transpose(delta) {
   const offsetEl = document.getElementById('transpose-display');
   if (offsetEl) offsetEl.textContent = transposeOffset === 0 ? '' : (transposeOffset > 0 ? '+' + transposeOffset : String(transposeOffset));
 
-  // Detect key from {key:} directive to decide sharps vs flats
-  const keyMatch = text.match(/\{key:\s*([A-G][b#]?m?)\}/i);
-  const key = keyMatch ? keyMatch[1] : '';
-  const preferFlats = FLAT_KEYS.has(key);
+  editor.value = transposeText(text, delta);
 
-  // Transpose all [Chord] inline markers
-  const transposed = text.replace(/\[([^\]]+)\]/g, (_, chord) => {
-    return '[' + transposeChord(chord, delta, preferFlats) + ']';
-  });
-
-  // Also update {key:} directive
-  const result = transposed.replace(/(\{key:\s*)([A-G][b#]?m?)(\})/gi, (_, pre, k, post) => {
-    // Transpose just the note part of the key, keeping m if present
-    const mSuffix = k.endsWith('m') ? 'm' : '';
-    const noteOnly = mSuffix ? k.slice(0, -1) : k;
-    return pre + transposeNote(noteOnly, delta, preferFlats) + mSuffix + post;
-  });
-
-  editor.value = result;
-  editor.dispatchEvent(new Event('input'));
+  // Update preview & line numbers directly — deliberately skip the normal
+  // 'input' event so transposing doesn't mark the file unsaved or trigger
+  // autosave. Transposing is presentation-only (e.g. to add a song to a
+  // setlist at a different pitch) and must not overwrite the saved song.
+  updateLineNumbers();
+  clearTimeout(renderTimeout);
+  renderTimeout = setTimeout(updatePreview, 120);
 }
 
 function resetTranspose() {
   transposeOffset = 0;
   const el = document.getElementById('transpose-display');
   if (el) el.textContent = '';
+}
+
+// ── Setlist entry encoding ──────────────────────────────────────────────────
+// Setlist song_filenames entries are normally just "Song.cho". When a song is
+// added at a transposed pitch, the entry becomes "Song.cho::+2" / "Song.cho::-1"
+// so the stored transpose offset travels with the setlist/group reference.
+
+function slEncodeEntry(filename, offset) {
+  if (!offset) return filename;
+  return `${filename}::${offset > 0 ? '+' : ''}${offset}`;
+}
+
+function slDecodeEntry(entry) {
+  if (typeof entry !== 'string') return { filename: entry, offset: 0 };
+  const m = entry.match(/^(.*)::([+-]?\d+)$/);
+  if (m) return { filename: m[1], offset: parseInt(m[2], 10) };
+  return { filename: entry, offset: 0 };
 }
 
 // ─── Font size ────────────────────────────────────────────────────────────────
@@ -4460,25 +4506,35 @@ async function refreshSetlists() {
 async function slLoad() {
   if (!selectedSetlistId) return;
   if (hasUnsavedChanges && !confirm('You have unsaved changes. Load setlist anyway?')) return;
-  const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
-  if (error) { alert('Error: ' + error.message); return; }
-  const contents = [];
-  for (const fn of (data.song_filenames || [])) {
-    const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).maybeSingle();
-    if (sd?.content) contents.push(sd.content.trim());
+  try {
+    const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
+    if (error) { alert('Error: ' + error.message); return; }
+    const entries = (data.song_filenames || []).map(slDecodeEntry);
+    const contents = [];
+    for (const { filename: fn, offset } of entries) {
+      if (!fn) continue;
+      const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).maybeSingle();
+      if (sd?.content) {
+        const content = offset ? transposeText(sd.content.trim(), offset) : sd.content.trim();
+        contents.push(content);
+      }
+    }
+    if (!contents.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
+    document.getElementById('editor').value = contents.join('\n\n---\n\n');
+    document.getElementById('editor').dispatchEvent(new Event('input'));
+    currentFilename = null;
+    setUnsaved(false);
+    updateCurrentFile();
+    currentSetlistId = selectedSetlistId;
+    currentSetlistName = data.name;
+    document.getElementById('sl-current').innerHTML = `☰ <b>${data.name}</b>`;
+    resetTranspose();
+    // Cache songs for offline use (cache by base filename, transpose applied on load)
+    cacheSetlistSongs(entries.map(e => e.filename).filter(Boolean));
+  } catch (err) {
+    console.error('slLoad failed:', err);
+    alert('Could not open setlist: ' + err.message);
   }
-  if (!contents.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
-  document.getElementById('editor').value = contents.join('\n\n---\n\n');
-  document.getElementById('editor').dispatchEvent(new Event('input'));
-  currentFilename = null;
-  setUnsaved(false);
-  updateCurrentFile();
-  currentSetlistId = selectedSetlistId;
-  currentSetlistName = data.name;
-  document.getElementById('sl-current').innerHTML = `☰ <b>${data.name}</b>`;
-  resetTranspose();
-  // Cache songs for offline use
-  cacheSetlistSongs(data.song_filenames || []);
 }
 
 async function slDelete(id, e) {
@@ -4893,9 +4949,13 @@ async function shareSetlist(id, name) {
   const { data: sl, error } = await sb.from('setlists').select('song_filenames').eq('id', id).single();
   if (error) { document.getElementById('share-err').textContent = error.message; return; }
   const contents = [];
-  for (const fn of (sl.song_filenames || [])) {
-    const { data: sd } = await sb.from('songs').select('content, title').eq('filename', fn).single();
-    if (sd) contents.push({ filename: fn, title: sd.title || fn, content: sd.content });
+  for (const entry of (sl.song_filenames || [])) {
+    const { filename: fn, offset } = slDecodeEntry(entry);
+    const { data: sd } = await sb.from('songs').select('content, title').eq('filename', fn).maybeSingle();
+    if (sd) {
+      const content = offset ? transposeText(sd.content, offset) : sd.content;
+      contents.push({ filename: fn, title: sd.title || fn, content });
+    }
   }
   // Check for existing share
   const { data: existing } = await sb.from('shared_items')
@@ -6667,7 +6727,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606091301</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606141335</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
@@ -6834,6 +6894,7 @@ That [G]saved a [Em]wretch like [D]me
           <tr><td><b>Tags button</b></td><td>Edit the tags on the currently open file — type a tag and press Enter to add, × to remove</td></tr>
           <tr><td><b>Tags tab</b></td><td>Songs grouped by tag — search the tag list, click ⊞ Filter on any tag to show only those songs</td></tr>
           <tr><td><b>Setlists tab</b></td><td>Create and open setlists — click a setlist to select it, then click Open to load all songs into the editor and preview for printing</td></tr>
+          <tr><td><b>☰+ Add to setlist</b></td><td>If you've transposed the currently open song, it's added to the setlist at that transposed pitch — the offset is remembered and re-applied each time the setlist is opened, without changing your saved song</td></tr>
           <tr><td><b>↗ Share</b></td><td>Share a song or setlist — generates a link you can copy or send by email</td></tr>
           <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, export/import ZIP backup, or delete your account</td></tr>
           <tr><td><b>Ctrl/Cmd+S</b></td><td>Keyboard shortcut to save the current file at any time</td></tr>
@@ -6986,7 +7047,7 @@ That [G]saved a [Em]wretch like [D]me
   }
 </style>
 
-<!-- Mobile tab bar -->
+
 <div class="mobile-tab-bar" id="mobileTabBar">
   <button class="mobile-tab active" id="mob-tab-edit" onclick="mobileSwitchTab('edit')">
     <span class="mobile-tab-icon">✎</span>
