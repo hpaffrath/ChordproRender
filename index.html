@@ -681,6 +681,27 @@
     .page-break-marker::after { display: none; }
   }
 
+  /* ─── MULTI-COLUMN LAYOUT ─────────────────────────────────────────── */
+  .song-body-columns {
+    column-count: var(--song-columns, 1);
+    column-gap: 32px;
+  }
+  /* Keep these from splitting awkwardly across columns */
+  .song-body-columns .section { break-inside: avoid-column; }
+  .song-body-columns .section-label { break-after: avoid-column; }
+  .column-break-marker {
+    break-after: column;
+    height: 0;
+    margin: 0;
+  }
+  /* Collapse to a single column on narrow / mobile layouts */
+  @media (max-width: 1024px) {
+    .song-body-columns { column-count: 1 !important; }
+  }
+  @media print {
+    .column-break-marker { height: 0; margin: 0; }
+  }
+
   /* ─── FILE PANEL ──────────────────────────────────────────────────── */
   .file-panel { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; width: 364px; min-width: 220px; }
   .file-panel.collapsed { width: 0 !important; min-width: 0 !important; border-left: none; overflow: hidden; }
@@ -5365,7 +5386,8 @@ function parseChordPro(text) {
     if (currentSection.lines.length > 0 || currentSection.rawAbc ||
         currentSection.rawVextab ||
         currentSection.isComment ||
-        currentSection.label === '\x00PAGE_BREAK\x00') {
+        currentSection.label === '\x00PAGE_BREAK\x00' ||
+        currentSection.label === '\x00COLUMN_BREAK\x00') {
       song.sections.push(currentSection);
     }
     currentSection = { label: '', lines: [] };
@@ -5410,6 +5432,7 @@ function parseChordPro(text) {
       else if (/^year$/.test(k))                           song.year      = v;
       else if (/^ccli$/.test(k))                           song.ccli      = v;
       else if (/^(copyright|footer)$/.test(k))             song.copyright = v;
+      else if (/^columns$/.test(k))                        song.columns   = Math.min(4, Math.max(1, parseInt(v, 10) || 1));
 
       // ── New song (treat like a hard separator — reset counters) ───────
       else if (/^(new_song|ns)$/.test(k))                  { flush(); verseN = 0; chorusN = 0; }
@@ -5444,7 +5467,7 @@ function parseChordPro(text) {
 
       // ── Layout ────────────────────────────────────────────────────────
       else if (/^(new_page|np)$/.test(k))                  { flush(); currentSection.label = '\x00PAGE_BREAK\x00'; flush(); }
-      else if (/^(column_break|cb)$/.test(k))              { /* ignored — no column layout */ }
+      else if (/^column_break$/.test(k))                   { flush(); currentSection.label = '\x00COLUMN_BREAK\x00'; flush(); }
 
       continue;
     }
@@ -5477,6 +5500,14 @@ function parseChordPro(text) {
   }
 
   flush();
+
+  // Multi-column layout doesn't mix well with tab/grid/ABC/VexTab sections
+  // (fixed-width monospace staves and rendered notation don't reflow nicely
+  // into narrow columns), so ignore {columns:} for songs containing any.
+  if (song.columns && song.sections.some(s => s.isTab || s.isGrid || s.isAbc || s.isVextab)) {
+    song.columns = null;
+  }
+
   return song;
 }
 
@@ -5605,12 +5636,29 @@ function renderSong(song) {
   }
 
   // ── Sections ──────────────────────────────────────────────────────────
+  const body = document.createElement('div');
+  body.className = 'song-body';
+  if (song.columns && song.columns > 1) {
+    body.style.setProperty('--song-columns', song.columns);
+    body.classList.add('song-body-columns');
+  }
+
   for (const section of song.sections) {
     // Page break marker
     if (section.label === '\x00PAGE_BREAK\x00') {
       const pb = document.createElement('div');
       pb.className = 'page-break-marker';
-      div.appendChild(pb);
+      body.appendChild(pb);
+      continue;
+    }
+
+    // Column break marker — only meaningful when columns are active
+    if (section.label === '\x00COLUMN_BREAK\x00') {
+      if (song.columns && song.columns > 1) {
+        const cb = document.createElement('div');
+        cb.className = 'column-break-marker';
+        body.appendChild(cb);
+      }
       continue;
     }
 
@@ -5633,21 +5681,21 @@ function renderSong(song) {
 
     // Comment sections are label-only — no lines to render
     if (section.isComment) {
-      div.appendChild(secEl);
+      body.appendChild(secEl);
       continue;
     }
 
     // ── ABC notation section ─────────────────────────────────────────
     if (section.isAbc && section.rawAbc) {
       renderAbcSection(secEl, section.rawAbc);
-      div.appendChild(secEl);
+      body.appendChild(secEl);
       continue;
     }
 
     // ── VexTab notation section ──────────────────────────────────────
     if (section.isVextab && section.rawVextab) {
       renderVextabSection(secEl, section.rawVextab);
-      div.appendChild(secEl);
+      body.appendChild(secEl);
       continue;
     }
 
@@ -5691,8 +5739,10 @@ function renderSong(song) {
       }
     }
 
-    div.appendChild(secEl);
+    body.appendChild(secEl);
   }
+
+  div.appendChild(body);
 
   // ── Musician footer ───────────────────────────────────────────────────
   const footer = document.createElement('div');
@@ -6390,9 +6440,8 @@ function printSongs(paperEl) {
       position: relative;
     }
     .song-page + .song-page {
-      margin-top: 24pt;
-      padding-top: 20pt;
-      border-top: 1pt solid #c8c0b0;
+      page-break-before: always;
+      break-before: page;
     }
 
     .song-title { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 700; color: #1a1a22; margin-bottom: 2px; }
@@ -6408,6 +6457,10 @@ function printSongs(paperEl) {
     .section-repeat { opacity: 0.8; }
     .section-label { font-family: 'Barlow Condensed', sans-serif; font-size: ${previewFontSize}pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: #1a1a22; margin-bottom: 5px; break-after: avoid; page-break-after: avoid; }
     .section-label-repeat { opacity: 0.55; }
+    .song-body-columns { column-count: var(--song-columns, 1); column-gap: 32px; }
+    .song-body-columns .section { break-inside: avoid-column; }
+    .song-body-columns .section-label { break-after: avoid-column; }
+    .column-break-marker { break-after: column; height: 0; margin: 0; }
     .tab-line { font-family: monospace; font-size: ${tabFontSize}px; color: #1a1a22; line-height: 1.7; display: block; white-space: pre; }
     .tab-stave { display: block; break-inside: avoid; page-break-inside: avoid; }
     .section-comment > .section-label { font-style: italic; color: #5a5a6a; font-weight: 400; text-transform: none; letter-spacing: 0; }
@@ -6860,7 +6913,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606150931</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606150952</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
@@ -6984,7 +7037,8 @@ notes :q 5/3 7/3 5/2 3/2 | :h 5/3 :q 4/3 5/3
           <tr><td><code>{np}</code></td><td>Shorthand for new_page</td></tr>
           <tr><td><code>{new_song}</code></td><td>Mark the start of a new song — resets verse/chorus counters</td></tr>
           <tr><td><code>{ns}</code></td><td>Shorthand for new_song</td></tr>
-          <tr><td><code>{column_break}</code></td><td>Recognised but currently has no effect — this editor doesn't support multi-column layout</td></tr>
+          <tr><td><code>{columns: 2}</code></td><td>Lay out this song's sections in 2 (or more, up to 4) columns — collapses to a single column on phones/tablets. Ignored if the song contains tab, grid, ABC, or VexTab sections.</td></tr>
+          <tr><td><code>{column_break}</code></td><td>Force a break to the next column — only has an effect when <code>{columns:}</code> is active</td></tr>
           <tr><td>(blank line)</td><td>Ends the current section and adds vertical spacing</td></tr>
           <tr><td><code>---</code></td><td>Separator between multiple songs in one document</td></tr>
         </table>
