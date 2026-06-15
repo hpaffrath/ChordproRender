@@ -751,6 +751,18 @@
     color: var(--accent);
     min-width: 20px;
   }
+  .autoscroll-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    background: var(--surface2);
+  }
+  .autoscroll-group #autoscroll-toggle.active {
+    color: var(--accent);
+  }
   .fontsize-group {
     display: flex;
     align-items: center;
@@ -1326,6 +1338,14 @@
       </div>
       <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
         <span id="offline-badge" style="display:none;font-size:10px;color:#6a9e5a;border:1px solid #6a9e5a;border-radius:3px;padding:1px 5px;">✓ Offline</span>
+        <div class="autoscroll-group" id="autoscroll-group">
+          <button class="ctrl-btn" id="autoscroll-toggle" onclick="toggleAutoScroll()" title="Auto-scroll (Space)">▶</button>
+          <button class="ctrl-btn" onclick="changeAutoScrollSpeed(-0.5)" title="Slower">−</button>
+          <input type="number" id="autoscroll-speed-input" class="ctrl-val" value="3.0" min="0.5" max="10" step="0.1"
+            title="Auto-scroll speed (0.5–10)" style="width:42px;background:transparent;border:none;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;"
+            onchange="setAutoScrollSpeed(parseFloat(this.value))" onkeydown="if(event.key==='Enter')this.blur()">
+          <button class="ctrl-btn" onclick="changeAutoScrollSpeed(0.5)" title="Faster">+</button>
+        </div>
         <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Full screen (F11)">⛶</button>
       </div>
     </div>
@@ -3107,6 +3127,7 @@ function updatePerfPos() {
 
 function perfShowSong(idx) {
   if (idx < 0 || idx >= perfSongs.length) return;
+  if (autoScrollActive) stopAutoScroll();
   perfCurrentIdx = idx;
   // Scroll to the correct song div in the paper
   const paper = document.getElementById('paper');
@@ -3157,6 +3178,7 @@ function enterFullscreen(el) {
 
 function exitFullscreen() {
   perfActive = false;
+  if (autoScrollActive) stopAutoScroll();
   const previewPane = document.getElementById('previewPane');
   if (!previewPane) return;
   previewPane.classList.remove('perf-fullscreen', 'controls-hidden');
@@ -3210,6 +3232,111 @@ document.addEventListener('keydown', e => {
     exitFullscreen();
   }
 });
+
+// ── Auto-scroll ──────────────────────────────────────────────────────────────
+// Smooth, continuous scrolling of the preview pane for hands-free reading.
+// Speed is a 0.5-10 value (0.1 steps) mapped to pixels/second; persisted in localStorage.
+
+let autoScrollActive = false;
+let autoScrollRAF = null;
+let autoScrollLastTime = null;
+let autoScrollPos = 0; // float accumulator — avoids losing sub-pixel amounts to scrollTop rounding
+let autoScrollSpeed = parseFloat(localStorage.getItem('autoScrollSpeed') || '3');
+
+const AUTOSCROLL_MIN_SPEED = 0.5;
+const AUTOSCROLL_MAX_SPEED = 10;
+// Halved from the original 8 so max speed (10) feels the same as the old
+// midpoint (5) did under the previous mapping.
+const AUTOSCROLL_PX_PER_SEC_PER_UNIT = 4; // speed 10 ≈ 40px/sec (== old speed 5)
+
+function updateAutoScrollSpeedDisplay() {
+  const el = document.getElementById('autoscroll-speed-input');
+  if (el) el.value = autoScrollSpeed.toFixed(1);
+}
+
+function setAutoScrollSpeed(value) {
+  if (isNaN(value)) { updateAutoScrollSpeedDisplay(); return; }
+  autoScrollSpeed = Math.min(AUTOSCROLL_MAX_SPEED, Math.max(AUTOSCROLL_MIN_SPEED, Math.round(value * 10) / 10));
+  localStorage.setItem('autoScrollSpeed', autoScrollSpeed);
+  updateAutoScrollSpeedDisplay();
+}
+
+function changeAutoScrollSpeed(delta) {
+  setAutoScrollSpeed(autoScrollSpeed + delta);
+}
+
+function toggleAutoScroll() {
+  if (autoScrollActive) stopAutoScroll();
+  else startAutoScroll();
+}
+
+function startAutoScroll() {
+  const scroller = document.getElementById('previewScroll');
+  if (!scroller) return;
+  autoScrollActive = true;
+  autoScrollLastTime = null;
+  autoScrollPos = scroller.scrollTop; // start accumulator from current position
+  document.getElementById('autoscroll-toggle')?.classList.add('active');
+  const btn = document.getElementById('autoscroll-toggle');
+  if (btn) { btn.textContent = '⏸'; btn.title = 'Pause auto-scroll (Space)'; }
+
+  function step(timestamp) {
+    if (!autoScrollActive) return;
+    if (autoScrollLastTime !== null) {
+      const dt = (timestamp - autoScrollLastTime) / 1000; // seconds
+      const pxPerSec = autoScrollSpeed * AUTOSCROLL_PX_PER_SEC_PER_UNIT;
+      // Accumulate in floating point — scroller.scrollTop rounds to whole
+      // pixels in most browsers, so reading it back would lose the
+      // fractional progress made at slow speeds and scrolling would stall.
+      autoScrollPos += pxPerSec * dt;
+      scroller.scrollTop = autoScrollPos;
+      // Stop automatically at the bottom
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1) {
+        stopAutoScroll();
+        return;
+      }
+    }
+    autoScrollLastTime = timestamp;
+    autoScrollRAF = requestAnimationFrame(step);
+  }
+  autoScrollRAF = requestAnimationFrame(step);
+}
+
+function stopAutoScroll() {
+  autoScrollActive = false;
+  if (autoScrollRAF) cancelAnimationFrame(autoScrollRAF);
+  autoScrollRAF = null;
+  autoScrollLastTime = null;
+  document.getElementById('autoscroll-toggle')?.classList.remove('active');
+  const btn = document.getElementById('autoscroll-toggle');
+  if (btn) { btn.textContent = '▶'; btn.title = 'Auto-scroll (Space)'; }
+}
+
+// Pause auto-scroll if the user manually scrolls (drag/wheel/touch)
+(function() {
+  const scroller = document.getElementById('previewScroll');
+  if (!scroller) return;
+  let userScrollGuard = false;
+  ['wheel', 'touchstart', 'mousedown'].forEach(evt => {
+    scroller.addEventListener(evt, () => {
+      if (autoScrollActive) stopAutoScroll();
+    }, { passive: true });
+  });
+})();
+
+// Spacebar toggles auto-scroll (when not typing in the editor)
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space') return;
+  const active = document.activeElement;
+  const isTyping = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable);
+  if (isTyping) return;
+  e.preventDefault();
+  toggleAutoScroll();
+});
+
+// Initialise speed display on load
+document.addEventListener('DOMContentLoaded', updateAutoScrollSpeedDisplay);
+updateAutoScrollSpeedDisplay();
 
 // ── Offline cache (IndexedDB) ──────────────────────────────────────────────────
 
@@ -5263,6 +5390,7 @@ function parseChordPro(text) {
       else if (/^capo$/.test(k))                           song.capo      = v;
       else if (/^(tempo|bpm)$/.test(k))                    song.tempo     = v;
       else if (/^tab_font_size$/.test(k))                  song.tabFontSize = parseFloat(v) || null;
+      else if (/^(auto[-_]?scroll|autoscroll)$/.test(k))   song.autoScroll = parseFloat(v) || null;
       else if (/^link$/.test(k)) {
         if (!song.links) song.links = [];
         // Support: {link: [Label] URL} or {link: URL [Label]} or {link: URL}
@@ -5869,6 +5997,11 @@ function updatePreview() {
 
   // Update key badge (first song's key)
   document.getElementById('key-display').textContent = songs[0].key || '—';
+
+  // {auto-scroll: N} on the first song sets the default auto-scroll speed
+  if (songs[0].autoScroll && typeof setAutoScrollSpeed === 'function') {
+    setAutoScrollSpeed(songs[0].autoScroll);
+  }
 
   updateStats(songs, text);
 }
@@ -6727,7 +6860,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606141335</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606150931</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
@@ -6747,7 +6880,7 @@ function hideHelp(e) {
           <tr><td><code>{title: My Song}</code></td><td>Song title — displayed large at the top</td></tr>
           <tr><td><code>{t: My Song}</code></td><td>Shorthand for title</td></tr>
           <tr><td><code>{subtitle: Live Version}</code></td><td>Secondary title line — shown below the title in italics</td></tr>
-          <tr><td><code>{st: …}</code></td><td>Shorthand for subtitle</td></tr>
+          <tr><td><code>{st: …}</code></td><td>Shorthand for subtitle (also accepts <code>{subtitles: …}</code>)</td></tr>
           <tr><td><code>{artist: Name}</code></td><td>Artist or performer name</td></tr>
           <tr><td><code>{composer: Name}</code></td><td>Music composer — shown separately if different from artist</td></tr>
           <tr><td><code>{lyricist: Name}</code></td><td>Lyrics writer</td></tr>
@@ -6755,9 +6888,10 @@ function hideHelp(e) {
           <tr><td><code>{capo: 2}</code></td><td>Capo position — shown in meta line and footer chip</td></tr>
           <tr><td><code>{tempo: 120}</code></td><td>Tempo in BPM — shown in footer chip</td></tr>
           <tr><td><code>{tab_font_size: 12}</code></td><td>Override the tab notation font size for this song (in px) — overrides the global setting</td></tr>
+          <tr><td><code>{auto-scroll: 3.5}</code></td><td>Set the default auto-scroll speed (0.5–10) for this song — applied automatically when previewed</td></tr>
           <tr><td><code>{link: https://…}</code></td><td>Add a clickable link to the song header — useful for video references. Multiple links supported.</td></tr>
           <tr><td><code>{bpm: 120}</code></td><td>Shorthand for tempo</td></tr>
-          <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip</td></tr>
+          <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip (also accepts <code>{time_sig: …}</code>)</td></tr>
           <tr><td><code>{duration: 3:45}</code></td><td>Song duration — shown in meta line</td></tr>
           <tr><td><code>{album: Album Name}</code></td><td>Album name — shown below artist</td></tr>
           <tr><td><code>{year: 2024}</code></td><td>Release year — shown alongside album</td></tr>
@@ -6850,6 +6984,7 @@ notes :q 5/3 7/3 5/2 3/2 | :h 5/3 :q 4/3 5/3
           <tr><td><code>{np}</code></td><td>Shorthand for new_page</td></tr>
           <tr><td><code>{new_song}</code></td><td>Mark the start of a new song — resets verse/chorus counters</td></tr>
           <tr><td><code>{ns}</code></td><td>Shorthand for new_song</td></tr>
+          <tr><td><code>{column_break}</code></td><td>Recognised but currently has no effect — this editor doesn't support multi-column layout</td></tr>
           <tr><td>(blank line)</td><td>Ends the current section and adds vertical spacing</td></tr>
           <tr><td><code>---</code></td><td>Separator between multiple songs in one document</td></tr>
         </table>
@@ -6879,6 +7014,19 @@ That [G]saved a [Em]wretch like [D]me
 
 {title: Second Song}
 …</pre>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Performance &amp; Preview</div>
+        <table class="help-table">
+          <tr><td><b>⛶ Full screen</b></td><td>Expands the preview to fill the screen with larger text — ideal for performances. Press Esc to exit.</td></tr>
+          <tr><td><b>◀ / ▶</b></td><td>Step through songs in a loaded setlist — also works with Page Up/Down or Left/Right arrow keys</td></tr>
+          <tr><td><b>▶ Auto-scroll</b></td><td>Smoothly scrolls the preview for hands-free reading — toggle with the button or the Spacebar (when not typing)</td></tr>
+          <tr><td><b>Auto-scroll − / +</b></td><td>Adjust scroll speed in steps of 0.5 (range 0.5–10) — your chosen speed is remembered</td></tr>
+          <tr><td><b>Auto-scroll speed field</b></td><td>Click and type to enter an exact speed (e.g. 3.1) — press Enter to apply</td></tr>
+          <tr><td>Manual scroll</td><td>Touching, clicking, or using the mouse wheel on the preview automatically pauses auto-scroll</td></tr>
+          <tr><td><b>✓ Offline</b></td><td>Shown once a setlist's songs are cached for offline use</td></tr>
+        </table>
       </div>
 
       <div class="help-section">
