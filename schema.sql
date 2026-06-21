@@ -220,6 +220,7 @@ create table if not exists group_songs (
   group_id       uuid        references groups(id) on delete cascade not null,
   filename       text        not null,
   title          text,
+  artist         text,
   content        text        not null default '',
   tags           text[]      default '{}',
   key            text,
@@ -229,6 +230,9 @@ create table if not exists group_songs (
   updated_at     timestamptz default now(),
   unique (group_id, filename)
 );
+
+-- Migration for existing databases that already have group_songs without artist:
+alter table group_songs add column if not exists artist text;
 
 drop trigger if exists group_songs_updated_at on group_songs;
 create trigger group_songs_updated_at
