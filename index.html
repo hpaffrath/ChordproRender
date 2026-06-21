@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ChordPro Editor</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CjxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjciIGZpbGw9IiMxNDE0MTgiLz4KPHJlY3QgeD0iMTQuNSIgeT0iNiIgd2lkdGg9IjMiIGhlaWdodD0iMTUiIHJ4PSIxLjIiIGZpbGw9IiNlOGI4NGIiLz4KPGVsbGlwc2UgY3g9IjExIiBjeT0iMjMiIHJ4PSI1IiByeT0iMy44IiBmaWxsPSIjZThiODRiIi8+Cjwvc3ZnPgo=">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1563,11 +1564,39 @@
     <div id="grp-panel-songs" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
       <div class="fp-actions">
         <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpAddSong()">Add Song</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpEditTags()" id="grp-tags-btn" title="Edit tags for current group song">Tags</button>
         <button class="btn btn-primary" style="flex:1;font-size:11px;padding:5px 8px;" onclick="grpSaveSong()" id="grp-save-btn">Save to Group</button>
       </div>
       <div class="fp-search-row">
         <input class="fp-search" id="grp-search" placeholder="Search…" oninput="grpRenderSongList()" autocomplete="off">
+        <button class="fp-sort-btn active" id="grp-sort-btn-name" onclick="grpSetSort('name')" title="Sort by name">A–Z</button>
+        <button class="fp-sort-btn" id="grp-sort-btn-artist" onclick="grpSetSort('artist')" title="Sort by artist">Artist</button>
+        <button class="fp-sort-btn" id="grp-sort-btn-date" onclick="grpSetSort('date')" title="Sort by date">Date</button>
+        <button class="fp-sort-btn" id="grp-sort-btn-key" onclick="grpSetSort('key')" title="Sort by key">Key</button>
+        <button class="fp-sort-btn" id="grp-sort-btn-filter" onclick="grpToggleSmartFilter()" title="Filter by tag, key or artist">⊟</button>
       </div>
+
+      <!-- Smart filter panel -->
+      <div id="grp-smart-filter-panel" style="display:none;flex-direction:column;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0;">
+        <div style="display:flex;gap:6px;">
+          <select id="grp-filter-tag" onchange="grpApplySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+            <option value="">All Tags</option>
+          </select>
+          <select id="grp-filter-key" onchange="grpApplySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+            <option value="">All Keys</option>
+          </select>
+          <select id="grp-filter-artist" onchange="grpApplySmartFilter()" style="flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:5px 6px;font-size:12px;font-family:'Barlow Condensed',sans-serif;">
+            <option value="">All Artists</option>
+          </select>
+        </div>
+        <div id="grp-filter-chips" style="display:none;flex-wrap:wrap;gap:4px;align-items:center;">
+          <span style="font-size:11px;color:var(--text-dim);">Filters:</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button onclick="grpClearSmartFilter()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:0;">Clear all ×</button>
+        </div>
+      </div>
+
       <div class="fp-current" id="grp-current">No song open</div>
       <div class="fp-list" id="grp-song-list"><div class="fp-loading">Loading…</div></div>
     </div>
@@ -1892,76 +1921,6 @@
   </div>
 </div>
 
-<!-- Create Group modal -->
-<div class="saveas-overlay" id="grpCreateOverlay">
-  <div class="saveas-box">
-    <div class="saveas-title">New Group</div>
-    <input class="saveas-input" id="grp-create-name" placeholder="Group name (e.g. Sunday Team)">
-    <div class="fp-err" id="grp-create-err"></div>
-    <div class="saveas-actions">
-      <button class="btn btn-ghost" onclick="closeModal('grpCreateOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="grpCreateConfirm()">Create Group</button>
-    </div>
-  </div>
-</div>
-
-<!-- Join Group modal -->
-<div class="saveas-overlay" id="grpJoinOverlay">
-  <div class="saveas-box">
-    <div class="saveas-title">Join Group</div>
-    <div style="font-size:13px;color:var(--text-dim);">Enter an invite code or paste a join link</div>
-    <input class="saveas-input" id="grp-join-token" placeholder="Invite code or join link">
-    <div class="fp-err" id="grp-join-err"></div>
-    <div class="saveas-actions">
-      <button class="btn btn-ghost" onclick="closeModal('grpJoinOverlay')">Cancel</button>
-      <button class="btn btn-primary" onclick="grpJoinConfirm()">Join Group</button>
-    </div>
-  </div>
-</div>
-
-<!-- Manage Group modal -->
-<div class="saveas-overlay" id="grpManageOverlay">
-  <div class="saveas-box" style="max-width:440px;">
-    <div class="saveas-title" id="grp-manage-title">Manage Group</div>
-
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Invite Link</div>
-    <div class="share-link-box">
-      <span class="share-link-text" id="grp-invite-link" style="word-break:break-all;flex:1;"></span>
-      <button class="share-copy-btn" onclick="grpCopyInvite()">Copy</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost" style="font-size:13px;" onclick="grpEmailInvite()">✉ Email Invite</button>
-      <button class="btn btn-ghost" style="font-size:13px;" onclick="grpRegenerateInvite()">↺ Regenerate Link</button>
-    </div>
-
-    <div style="height:1px;background:var(--border);margin:8px 0;"></div>
-
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Rename Group</div>
-    <div style="display:flex;gap:6px;">
-      <input class="saveas-input" id="grp-rename-input" placeholder="New group name" style="flex:1;">
-      <button class="btn btn-ghost" style="font-size:13px;flex-shrink:0;" onclick="grpRenameConfirm()">Rename</button>
-    </div>
-
-    <div style="height:1px;background:var(--border);margin:8px 0;"></div>
-
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Members</div>
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Admins can edit songs, manage members and settings.</div>
-    <div id="grp-members-list" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:4px;"></div>
-
-    <div class="fp-err" id="grp-manage-err"></div>
-    <div style="height:1px;background:var(--border);margin:8px 0;"></div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost" style="font-size:13px;color:#e05a5a;border-color:#e05a5a;" id="grp-delete-btn" onclick="grpDelete()">Delete Group…</button>
-      <button class="btn btn-ghost" style="font-size:13px;" onclick="grpLeave()">Leave Group</button>
-    </div>
-
-    <div class="saveas-actions" style="margin-top:12px;">
-      <button class="btn btn-primary" onclick="closeModal('grpManageOverlay')">Done</button>
-    </div>
-  </div>
-</div>
-
 <!-- Rename modal -->
 <div class="saveas-overlay" id="renameOverlay">
   <div class="saveas-box">
@@ -2248,9 +2207,13 @@ async function settingsDeleteAccount() {
 
 let editTagsFilename = null;
 let editTagsCurrent = [];
+let editTagsIsGroup = false;
+let editTagsGroupSongId = null;
 
 async function fpEditTagsForFile(filename) {
   if (!currentUser) return;
+  editTagsIsGroup = false;
+  editTagsGroupSongId = null;
   const { data, error } = await sb.from('songs').select('tags').eq('filename', filename).eq('user_id', currentUser.id).single();
   if (error) { alert('Error: ' + error.message); return; }
   editTagsFilename = filename;
@@ -2278,6 +2241,40 @@ async function fpEditTagsForFile(filename) {
 async function fpEditTags() {
   if (!currentFilename) { alert('Please open a file first, then click the Tags button.'); return; }
   fpEditTagsForFile(currentFilename);
+}
+
+async function grpEditTagsForFile(id, filename) {
+  if (!currentGroup) return;
+  editTagsIsGroup = true;
+  editTagsGroupSongId = id;
+  const { data, error } = await sb.from('group_songs').select('tags').eq('id', id).single();
+  if (error) { alert('Error: ' + error.message); return; }
+  editTagsFilename = filename;
+  editTagsCurrent = data.tags || [];
+  document.getElementById('edit-tags-filename').textContent = filename;
+  document.getElementById('edit-tags-err').textContent = '';
+  document.getElementById('edit-tag-text').value = '';
+  document.getElementById('edit-tag-suggestions-wrap').style.display = 'none';
+  document.getElementById('edit-tag-suggestions').innerHTML = '';
+  const wrap = document.getElementById('edit-tag-wrap');
+  wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
+  editTagsCurrent.forEach(tag => addEditTagPill(tag, true));
+  document.getElementById('editTagsOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('edit-tag-text').focus(), 50);
+  // Suggestions sourced from tags already used elsewhere in this group
+  const { data: allData } = await sb.from('group_songs').select('tags').eq('group_id', currentGroup.id);
+  if (allData) {
+    const allTags = [...new Set(allData.flatMap(r => r.tags || []))].sort();
+    if (allTags.length) {
+      renderEditTagSuggestions(allTags);
+      document.getElementById('edit-tag-suggestions-wrap').style.display = 'flex';
+    }
+  }
+}
+
+function grpEditTags() {
+  if (!currentGroupSongId) { alert('Please open a group song first, then click the Tags button.'); return; }
+  grpEditTagsForFile(currentGroupSongId, currentGroupSongFilename);
 }
 
 function renderEditTagSuggestions(allTags) {
@@ -2349,6 +2346,17 @@ async function confirmEditTags() {
   // Flush any pending text
   const text = document.getElementById('edit-tag-text').value.trim();
   if (text) addEditTagPill(text);
+
+  if (editTagsIsGroup) {
+    const { error } = await sb.from('group_songs')
+      .update({ tags: editTagsCurrent })
+      .eq('id', editTagsGroupSongId);
+    if (error) { document.getElementById('edit-tags-err').textContent = error.message; return; }
+    closeEditTags();
+    refreshGroupSongs();
+    return;
+  }
+
   const { error } = await sb.from('songs')
     .update({ tags: editTagsCurrent })
     .eq('filename', editTagsFilename)
@@ -2871,15 +2879,117 @@ document.getElementById('grpManageOverlay')?.addEventListener('click', e => {
 
 // ── Group Songs ───────────────────────────────────────────────────────────────
 
+// Group songs sort/filter state — mirrors the personal Songs tab
+let grpSortMode = 'name';
+let grpSmartFilter = { tag: '', key: '', artist: '' };
+let grpSmartFilterOpen = false;
+
 async function refreshGroupSongs() {
   const list = document.getElementById('grp-song-list');
   if (list) list.innerHTML = '<div class="fp-loading">Loading…</div>';
   const { data, error } = await sb.from('group_songs')
-    .select('id, filename, title, updated_at')
+    .select('id, filename, title, artist, key, tags, updated_at')
     .eq('group_id', currentGroup.id)
     .order('filename');
   if (error) { if (list) list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
   grpAllSongs = data || [];
+  if (grpSmartFilterOpen) grpPopulateSmartFilterDropdowns();
+  grpRenderSongList();
+}
+
+function grpSetSort(mode) {
+  grpSortMode = mode;
+  ['name', 'artist', 'date', 'key'].forEach(m => {
+    document.getElementById(`grp-sort-btn-${m}`)?.classList.toggle('active', m === mode);
+  });
+  grpRenderSongList();
+}
+
+function grpToggleSmartFilter() {
+  grpSmartFilterOpen = !grpSmartFilterOpen;
+  const panel = document.getElementById('grp-smart-filter-panel');
+  const btn = document.getElementById('grp-sort-btn-filter');
+  if (panel) panel.style.display = grpSmartFilterOpen ? 'flex' : 'none';
+  if (btn) btn.classList.toggle('active', grpSmartFilterOpen);
+  if (grpSmartFilterOpen) grpPopulateSmartFilterDropdowns();
+}
+
+function grpPopulateSmartFilterDropdowns() {
+  const tags    = [...new Set(grpAllSongs.flatMap(f => f.tags || []))].sort();
+  const keys    = [...new Set(grpAllSongs.map(f => f.key).filter(Boolean))].sort();
+  const artists = [...new Set(grpAllSongs.map(f => f.artist).filter(Boolean))].sort();
+
+  const tagSel    = document.getElementById('grp-filter-tag');
+  const keySel    = document.getElementById('grp-filter-key');
+  const artistSel = document.getElementById('grp-filter-artist');
+  if (!tagSel) return;
+
+  const rebuild = (sel, items, current, label) => {
+    const cur = current || sel.value;
+    sel.innerHTML = `<option value="">All ${label}</option>`;
+    items.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      if (v === cur) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  };
+
+  rebuild(tagSel, tags, grpSmartFilter.tag, 'Tags');
+  rebuild(keySel, keys, grpSmartFilter.key, 'Keys');
+  rebuild(artistSel, artists, grpSmartFilter.artist, 'Artists');
+
+  tagSel.value    = grpSmartFilter.tag    || '';
+  keySel.value    = grpSmartFilter.key    || '';
+  artistSel.value = grpSmartFilter.artist || '';
+}
+
+function grpApplySmartFilter() {
+  grpSmartFilter.tag    = document.getElementById('grp-filter-tag')?.value    || '';
+  grpSmartFilter.key    = document.getElementById('grp-filter-key')?.value    || '';
+  grpSmartFilter.artist = document.getElementById('grp-filter-artist')?.value || '';
+  grpUpdateFilterChips();
+  grpRenderSongList();
+}
+
+function grpClearSmartFilter() {
+  grpSmartFilter = { tag: '', key: '', artist: '' };
+  const tagSel = document.getElementById('grp-filter-tag');
+  const keySel = document.getElementById('grp-filter-key');
+  const artSel = document.getElementById('grp-filter-artist');
+  if (tagSel) tagSel.value = '';
+  if (keySel) keySel.value = '';
+  if (artSel) artSel.value = '';
+  grpUpdateFilterChips();
+  grpRenderSongList();
+}
+
+function grpUpdateFilterChips() {
+  const chips = document.getElementById('grp-filter-chips');
+  if (!chips) return;
+  while (chips.lastChild && chips.lastChild.tagName !== 'SPAN') chips.removeChild(chips.lastChild);
+  chips.querySelectorAll('.filter-chip').forEach(c => c.remove());
+
+  const active = [];
+  if (grpSmartFilter.tag)    active.push({ label: `Tag: ${grpSmartFilter.tag}`,       key: 'tag' });
+  if (grpSmartFilter.key)    active.push({ label: `Key: ${grpSmartFilter.key}`,       key: 'key' });
+  if (grpSmartFilter.artist) active.push({ label: `Artist: ${grpSmartFilter.artist}`, key: 'artist' });
+
+  chips.style.display = active.length ? 'flex' : 'none';
+  active.forEach(({ label, key }) => {
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(232,184,75,0.15);border:1px solid var(--accent);border-radius:12px;padding:2px 8px;font-size:11px;color:var(--accent);';
+    chip.innerHTML = `${label} <button onclick="grpClearFilterKey('${key}')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;line-height:1;padding:0;">×</button>`;
+    chips.appendChild(chip);
+  });
+}
+
+function grpClearFilterKey(key) {
+  grpSmartFilter[key] = '';
+  const sel = document.getElementById(`grp-filter-${key}`);
+  if (sel) sel.value = '';
+  grpUpdateFilterChips();
   grpRenderSongList();
 }
 
@@ -2887,12 +2997,30 @@ function grpRenderSongList() {
   const list = document.getElementById('grp-song-list');
   if (!list) return;
   const query = (document.getElementById('grp-search')?.value || '').toLowerCase();
-  const files = grpAllSongs.filter(f =>
-    !query || f.filename.toLowerCase().includes(query) || (f.title||'').toLowerCase().includes(query)
+
+  let files = grpAllSongs.filter(f =>
+    !query || f.filename.toLowerCase().includes(query) ||
+    (f.title || '').toLowerCase().includes(query) ||
+    (f.artist || '').toLowerCase().includes(query)
   );
+
+  if (grpSmartFilter.tag)    files = files.filter(f => (f.tags || []).includes(grpSmartFilter.tag));
+  if (grpSmartFilter.key)    files = files.filter(f => f.key === grpSmartFilter.key);
+  if (grpSmartFilter.artist) files = files.filter(f => f.artist === grpSmartFilter.artist);
+
+  if (grpSortMode === 'name') {
+    files.sort((a, b) => a.filename.localeCompare(b.filename));
+  } else if (grpSortMode === 'artist') {
+    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || a.filename.localeCompare(b.filename));
+  } else if (grpSortMode === 'date') {
+    files.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  } else if (grpSortMode === 'key') {
+    files.sort((a, b) => (a.key || 'zzz').localeCompare(b.key || 'zzz'));
+  }
+
   if (!files.length) {
-    list.innerHTML = query
-      ? `<div class="fp-empty">No songs matching "${query}"</div>`
+    list.innerHTML = query || grpSmartFilter.tag || grpSmartFilter.key || grpSmartFilter.artist
+      ? `<div class="fp-empty">No songs matching your search/filter</div>`
       : '<div class="fp-empty">No songs yet.<br>Add a song to get started.</div>';
     return;
   }
@@ -2900,12 +3028,39 @@ function grpRenderSongList() {
   files.forEach(row => {
     const item = document.createElement('div');
     item.className = 'fp-item';
+
     const icon = document.createElement('span');
     icon.className = 'fp-item-icon'; icon.textContent = '♩';
+
+    const nameWrap = document.createElement('span');
+    nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
     const name = document.createElement('span');
     name.className = 'fp-item-name'; name.textContent = row.filename;
+    nameWrap.appendChild(name);
+    if (row.artist) {
+      const artistEl = document.createElement('span');
+      artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      artistEl.textContent = row.artist;
+      nameWrap.appendChild(artistEl);
+    }
+
     item.appendChild(icon);
-    item.appendChild(name);
+    item.appendChild(nameWrap);
+
+    if (row.key) {
+      const keyBadge = document.createElement('span');
+      keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+      keyBadge.textContent = row.key;
+      item.appendChild(keyBadge);
+    }
+
+    if (grpSortMode === 'date' && row.updated_at) {
+      const badge = document.createElement('span');
+      badge.style.cssText = 'font-size:9px;color:var(--text-dim);flex-shrink:0;';
+      badge.textContent = new Date(row.updated_at).toLocaleDateString();
+      item.appendChild(badge);
+    }
+
     // Admins can delete
     if (grpIsAdmin()) {
       const delBtn = document.createElement('button');
@@ -2943,8 +3098,11 @@ async function grpSaveSong() {
   const content = document.getElementById('editor').value;
   if (!content.trim()) return;
   const title = extractTitle(content);
+  const artist = extractArtist(content);
+  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
+  const key = keyMatch ? keyMatch[1] : null;
   const { error } = await sb.from('group_songs').update({
-    content, title: title || currentGroupSongFilename,
+    content, title: title || currentGroupSongFilename, artist, key,
     last_edited_by: currentUser.id,
   }).eq('id', currentGroupSongId);
   if (error) { alert('Save failed: ' + error.message); return; }
@@ -2960,6 +3118,9 @@ async function grpAddSong() {
   const content = document.getElementById('editor').value.trim();
   if (!content) { alert('Nothing in the editor to add. Write or load a song first.'); return; }
   const title = extractTitle(content);
+  const artist = extractArtist(content);
+  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
+  const key = keyMatch ? keyMatch[1] : null;
   const suggested = (title || 'untitled').replace(/[^a-z0-9\-_ ]/gi, '').trim();
   const filename = prompt('Filename for this song in the group:', suggested + '.cho');
   if (!filename) return;
@@ -2971,6 +3132,7 @@ async function grpAddSong() {
     group_id: currentGroup.id,
     filename: finalName,
     title: title || finalName,
+    artist, key,
     content,
     added_by: currentUser.id,
     last_edited_by: currentUser.id,
@@ -3093,40 +3255,6 @@ async function grpSlDelete(id, e) {
   refreshGroupSetlists();
 }
 
-// ─── Updated save flow (with tags) ────────────────────────────────────────────
-
-async function doSave(filename, tags) {
-  const content = document.getElementById('editor').value;
-  const title = extractTitle(content);
-  const keyMatch = content.match(/^\{key:\s*([A-G][b#]?m?)\}/mi);
-  const key = keyMatch ? keyMatch[1] : null;
-  const record = {
-    user_id: currentUser.id,
-    filename,
-    title: title || filename,
-    content,
-  };
-  if (tags !== undefined) record.tags = tags;
-  const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
-  if (error) alert('Save failed: ' + error.message);
-  else {
-    clearTimeout(autoSaveTimer);
-    currentFilename = filename;
-    updateCurrentFile();
-    // Update local cache entry
-    const idx = allFiles.findIndex(f => f.filename === filename);
-    const entry = { filename, title: title || filename, key, updated_at: new Date().toISOString(), id: idx >= 0 ? allFiles[idx].id : null };
-    if (idx >= 0) allFiles[idx] = entry; else allFiles.push(entry);
-    renderFileList();
-    if (currentTab === 'tags') refreshTagTree();
-    flashSaved();
-  }
-}
-
-// ─── File panel toggle ────────────────────────────────────────────────────────
-
-
-
 // Keyboard shortcut: Ctrl/Cmd+S to save
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -3134,11 +3262,6 @@ document.addEventListener('keydown', e => {
     if (currentUser) fpSave();
   }
 });
-
-// Init on load
-fpInit();
-checkForShareToken();
-applyInterfacePrefs();
 
 // ── Performance Mode ─────────────────────────────────────────────────────────
 
@@ -3997,10 +4120,6 @@ async function fpSave() {
 }
 
 // doSave with undefined tags will preserve existing tags via upsert
-
-function closeModal(id) {
-  document.getElementById(id)?.classList.remove('open');
-}
 
 function toggleFilePanel() {
   // On mobile/tablet, just switch to the files tab
@@ -7084,7 +7203,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606201227</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606212220</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
