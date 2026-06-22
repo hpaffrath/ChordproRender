@@ -2898,10 +2898,37 @@ async function refreshGroupSongs() {
 }
 
 function grpSetSort(mode) {
+  // Artist button cycles: artist → artist-tree → back to artist
+  if (mode === 'artist') {
+    if (grpSortMode === 'artist') mode = 'artist-tree';
+    else if (grpSortMode === 'artist-tree') mode = 'artist';
+  }
+  // Key button cycles: key → key-tree → back to key
+  if (mode === 'key') {
+    if (grpSortMode === 'key') mode = 'key-tree';
+    else if (grpSortMode === 'key-tree') mode = 'key';
+  }
   grpSortMode = mode;
-  ['name', 'artist', 'date', 'key'].forEach(m => {
+
+  ['name', 'date'].forEach(m => {
     document.getElementById(`grp-sort-btn-${m}`)?.classList.toggle('active', m === mode);
   });
+  const artistBtn = document.getElementById('grp-sort-btn-artist');
+  if (artistBtn) {
+    artistBtn.classList.toggle('active', mode === 'artist' || mode === 'artist-tree');
+    artistBtn.textContent = mode === 'artist-tree' ? 'Artist ⊕' : 'Artist';
+    artistBtn.title = mode === 'artist-tree'
+      ? 'Tree view — click for flat sort'
+      : 'Sort by artist — click again for tree view';
+  }
+  const keyBtn = document.getElementById('grp-sort-btn-key');
+  if (keyBtn) {
+    keyBtn.classList.toggle('active', mode === 'key' || mode === 'key-tree');
+    keyBtn.textContent = mode === 'key-tree' ? 'Key ⊕' : 'Key';
+    keyBtn.title = mode === 'key-tree'
+      ? 'Tree view — click for flat sort'
+      : 'Sort by key — click again for tree view';
+  }
   grpRenderSongList();
 }
 
@@ -3008,6 +3035,18 @@ function grpRenderSongList() {
   if (grpSmartFilter.key)    files = files.filter(f => f.key === grpSmartFilter.key);
   if (grpSmartFilter.artist) files = files.filter(f => f.artist === grpSmartFilter.artist);
 
+  if (grpSortMode === 'artist-tree') {
+    list.classList.add('tree-view');
+    grpRenderArtistTree(list, files);
+    return;
+  }
+  if (grpSortMode === 'key-tree') {
+    list.classList.add('tree-view');
+    grpRenderKeyTree(list, files);
+    return;
+  }
+  list.classList.remove('tree-view');
+
   if (grpSortMode === 'name') {
     files.sort((a, b) => a.filename.localeCompare(b.filename));
   } else if (grpSortMode === 'artist') {
@@ -3071,6 +3110,206 @@ function grpRenderSongList() {
     item.addEventListener('click', () => grpLoadSong(row));
     list.appendChild(item);
   });
+}
+
+function grpRenderArtistTree(list, files) {
+  list.innerHTML = '';
+  const artistMap = {};
+  const noArtist = [];
+  files.forEach(f => {
+    if (f.artist) {
+      if (!artistMap[f.artist]) artistMap[f.artist] = [];
+      artistMap[f.artist].push(f);
+    } else {
+      noArtist.push(f);
+    }
+  });
+
+  const sortedArtists = Object.keys(artistMap).sort((a, b) => a.localeCompare(b));
+
+  if (!sortedArtists.length && !noArtist.length) {
+    list.innerHTML = '<div class="fp-empty">No songs yet.</div>';
+    return;
+  }
+
+  sortedArtists.forEach(artist => {
+    const songs = artistMap[artist].sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(grpBuildArtistGroup(artist, songs));
+  });
+
+  if (noArtist.length) {
+    noArtist.sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(grpBuildArtistGroup('(no artist)', noArtist, true));
+  }
+}
+
+function grpBuildArtistGroup(artist, songs, faded) {
+  const group = document.createElement('div');
+  group.className = 'artist-group';
+
+  const heading = document.createElement('div');
+  heading.className = 'artist-heading';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'artist-heading-arrow';
+  arrow.textContent = '▾';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'artist-heading-name';
+  if (faded) nameEl.style.opacity = '0.5';
+  nameEl.textContent = artist;
+
+  const count = document.createElement('span');
+  count.className = 'artist-heading-count';
+  count.textContent = songs.length;
+
+  heading.appendChild(arrow);
+  heading.appendChild(nameEl);
+  heading.appendChild(count);
+
+  const songList = document.createElement('div');
+  songList.className = 'artist-songs';
+
+  songs.forEach(row => {
+    const item = document.createElement('div');
+    item.className = 'fp-item';
+    item.style.paddingLeft = '20px';
+
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+
+    const name = document.createElement('span');
+    name.className = 'fp-item-name'; name.textContent = row.filename;
+
+    item.appendChild(icon);
+    item.appendChild(name);
+
+    if (row.key) {
+      const keyBadge = document.createElement('span');
+      keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
+      keyBadge.textContent = row.key;
+      item.appendChild(keyBadge);
+    }
+
+    if (grpIsAdmin()) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'fp-item-del'; delBtn.textContent = '×'; delBtn.title = 'Remove from group';
+      delBtn.addEventListener('click', e => { e.stopPropagation(); grpDeleteSong(row.id, row.filename, e); });
+      item.appendChild(delBtn);
+    }
+    item.addEventListener('click', () => grpLoadSong(row));
+    songList.appendChild(item);
+  });
+
+  heading.addEventListener('click', () => {
+    const collapsed = songList.classList.toggle('hidden');
+    heading.classList.toggle('collapsed', collapsed);
+  });
+
+  group.appendChild(heading);
+  group.appendChild(songList);
+  return group;
+}
+
+function grpRenderKeyTree(list, files) {
+  list.innerHTML = '';
+  const keyMap = {};
+  const noKey = [];
+  files.forEach(f => {
+    if (f.key) {
+      if (!keyMap[f.key]) keyMap[f.key] = [];
+      keyMap[f.key].push(f);
+    } else {
+      noKey.push(f);
+    }
+  });
+
+  const sortedKeys = Object.keys(keyMap).sort((a, b) => keyGroupOrder(a) - keyGroupOrder(b) || a.localeCompare(b));
+
+  if (!sortedKeys.length && !noKey.length) {
+    list.innerHTML = '<div class="fp-empty">No songs yet.</div>';
+    return;
+  }
+
+  sortedKeys.forEach(key => {
+    const songs = keyMap[key].sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(grpBuildKeyGroup(key, songs));
+  });
+
+  if (noKey.length) {
+    noKey.sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(grpBuildKeyGroup('(no key)', noKey, true));
+  }
+}
+
+function grpBuildKeyGroup(key, songs, faded) {
+  const group = document.createElement('div');
+  group.className = 'artist-group';
+
+  const heading = document.createElement('div');
+  heading.className = 'artist-heading';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'artist-heading-arrow';
+  arrow.textContent = '▾';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'artist-heading-name';
+  if (faded) nameEl.style.opacity = '0.5';
+  nameEl.textContent = key;
+
+  const count = document.createElement('span');
+  count.className = 'artist-heading-count';
+  count.textContent = songs.length;
+
+  heading.appendChild(arrow);
+  heading.appendChild(nameEl);
+  heading.appendChild(count);
+
+  const songList = document.createElement('div');
+  songList.className = 'artist-songs';
+
+  songs.forEach(row => {
+    const item = document.createElement('div');
+    item.className = 'fp-item';
+    item.style.paddingLeft = '20px';
+
+    const icon = document.createElement('span');
+    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+
+    const nameWrap = document.createElement('span');
+    nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
+    const name = document.createElement('span');
+    name.className = 'fp-item-name'; name.textContent = row.filename;
+    nameWrap.appendChild(name);
+    if (row.artist) {
+      const artistEl = document.createElement('span');
+      artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      artistEl.textContent = row.artist;
+      nameWrap.appendChild(artistEl);
+    }
+
+    item.appendChild(icon);
+    item.appendChild(nameWrap);
+
+    if (grpIsAdmin()) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'fp-item-del'; delBtn.textContent = '×'; delBtn.title = 'Remove from group';
+      delBtn.addEventListener('click', e => { e.stopPropagation(); grpDeleteSong(row.id, row.filename, e); });
+      item.appendChild(delBtn);
+    }
+    item.addEventListener('click', () => grpLoadSong(row));
+    songList.appendChild(item);
+  });
+
+  heading.addEventListener('click', () => {
+    const collapsed = songList.classList.toggle('hidden');
+    heading.classList.toggle('collapsed', collapsed);
+  });
+
+  group.appendChild(heading);
+  group.appendChild(songList);
+  return group;
 }
 
 async function grpLoadSong(row) {
@@ -3801,12 +4040,16 @@ function setSort(mode) {
     if (sortMode === 'artist') mode = 'artist-tree';
     else if (sortMode === 'artist-tree') mode = 'artist';
   }
+  if (mode === 'key') {
+    if (sortMode === 'key') mode = 'key-tree';
+    else if (sortMode === 'key-tree') mode = 'key';
+  }
   sortMode = mode;
 
-  ['name','date','key'].forEach(m => {
+  ['name','date'].forEach(m => {
     document.getElementById(`sort-btn-${m}`)?.classList.toggle('active', m === mode);
   });
-  // Artist button is active for both flat and tree
+  // Artist button active for both flat and tree
   const artistBtn = document.getElementById('sort-btn-artist');
   if (artistBtn) {
     artistBtn.classList.toggle('active', mode === 'artist' || mode === 'artist-tree');
@@ -3814,6 +4057,15 @@ function setSort(mode) {
     artistBtn.title = mode === 'artist-tree'
       ? 'Tree view — click for flat sort'
       : 'Sort by artist — click again for tree view';
+  }
+  // Key button active for both flat and tree
+  const keyBtn = document.getElementById('sort-btn-key');
+  if (keyBtn) {
+    keyBtn.classList.toggle('active', mode === 'key' || mode === 'key-tree');
+    keyBtn.textContent = mode === 'key-tree' ? 'Key ⊕' : 'Key';
+    keyBtn.title = mode === 'key-tree'
+      ? 'Tree view — click for flat sort'
+      : 'Sort by key — click again for tree view';
   }
   renderFileList();
 }
@@ -3859,6 +4111,12 @@ function renderFileList() {
   if (sortMode === 'artist-tree') {
     list.classList.add('tree-view');
     renderArtistTree(list, files);
+    return;
+  }
+  // Key tree view
+  if (sortMode === 'key-tree') {
+    list.classList.add('tree-view');
+    renderKeyTree(list, files);
     return;
   }
   list.classList.remove('tree-view');
@@ -4016,6 +4274,91 @@ function buildFileItem(row, container, hideArtist) {
   item.appendChild(shareBtn);
   item.addEventListener('click', () => fpLoad(row.filename));
   container.appendChild(item);
+}
+
+// Circle-of-fifths key order — major keys first, then relative minors grouped under each
+const KEY_ORDER = ['C','G','D','A','E','B','F#','Gb','Db','Ab','Eb','Bb','F'];
+const RELATIVE_MINOR = { C:'Am', G:'Em', D:'Bm', A:'F#m', E:'C#m', B:'G#m', 'F#':'D#m', 'Gb':'Ebm', 'Db':'Bbm', 'Ab':'Fm', 'Eb':'Cm', 'Bb':'Gm', F:'Dm' };
+const MINOR_TO_MAJOR = Object.fromEntries(Object.entries(RELATIVE_MINOR).map(([maj,min]) => [min, maj]));
+
+function keyGroupOrder(key) {
+  if (!key) return 9999;
+  // Minor key — sort under its relative major
+  if (MINOR_TO_MAJOR[key]) {
+    const majorIdx = KEY_ORDER.indexOf(MINOR_TO_MAJOR[key]);
+    return majorIdx * 2 + 1;
+  }
+  const idx = KEY_ORDER.indexOf(key);
+  return idx >= 0 ? idx * 2 : 9998;
+}
+
+function renderKeyTree(list, files) {
+  list.innerHTML = '';
+  const keyMap = {};
+  const noKey = [];
+  files.forEach(f => {
+    if (f.key) {
+      if (!keyMap[f.key]) keyMap[f.key] = [];
+      keyMap[f.key].push(f);
+    } else {
+      noKey.push(f);
+    }
+  });
+
+  const sortedKeys = Object.keys(keyMap).sort((a, b) => keyGroupOrder(a) - keyGroupOrder(b) || a.localeCompare(b));
+
+  if (!sortedKeys.length && !noKey.length) {
+    list.innerHTML = '<div class="fp-empty">No files yet.</div>';
+    return;
+  }
+
+  sortedKeys.forEach(key => {
+    const songs = keyMap[key].sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(buildKeyGroup(key, songs));
+  });
+
+  if (noKey.length) {
+    noKey.sort((a, b) => a.filename.localeCompare(b.filename));
+    list.appendChild(buildKeyGroup('(no key)', noKey, true));
+  }
+}
+
+function buildKeyGroup(key, songs, faded) {
+  const group = document.createElement('div');
+  group.className = 'artist-group';
+
+  const heading = document.createElement('div');
+  heading.className = 'artist-heading';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'artist-heading-arrow';
+  arrow.textContent = '▾';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'artist-heading-name';
+  if (faded) nameEl.style.opacity = '0.5';
+  nameEl.textContent = key;
+
+  const count = document.createElement('span');
+  count.className = 'artist-heading-count';
+  count.textContent = songs.length;
+
+  heading.appendChild(arrow);
+  heading.appendChild(nameEl);
+  heading.appendChild(count);
+
+  const songList = document.createElement('div');
+  songList.className = 'artist-songs';
+  songs.forEach(row => buildFileItem(row, songList, false));
+
+  heading.addEventListener('click', () => {
+    const collapsed = songList.classList.toggle('hidden');
+    heading.classList.toggle('collapsed', collapsed);
+  });
+
+  group.appendChild(heading);
+  group.appendChild(songList);
+  return group;
 }
 
 function renderArtistTree(list, files) {
@@ -7203,7 +7546,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606212220</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606220933</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
