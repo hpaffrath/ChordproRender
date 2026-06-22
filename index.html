@@ -6796,7 +6796,7 @@ function setPanelWidth(w) {
   const clamped = Math.min(Math.max(Math.round(w), PANEL_MIN), PANEL_MAX);
   filePanel.style.width = clamped + 'px';
   filePanel.style.minWidth = clamped + 'px';
-  localStorage.setItem('filePanelWidth', clamped + 'px');
+  // Don't persist to localStorage here — only on mouseup/touchend
 }
 
 function savePanelWidth() {
@@ -6804,6 +6804,14 @@ function savePanelWidth() {
   const w = filePanel.style.width;
   if (w) localStorage.setItem('filePanelWidth', w);
 }
+
+// Restore saved width and show handle on initial page load
+// (filePanelOpen starts true, but toggleFilePanel is never called at startup)
+(function initPanelWidth() {
+  const savedW = localStorage.getItem('filePanelWidth');
+  setPanelWidth(savedW ? parseInt(savedW) : PANEL_DEFAULT);
+  if (panelHandle) panelHandle.classList.add('visible');
+})();
 
 if (panelHandle) {
   panelHandle.addEventListener('mousedown', e => {
@@ -6843,20 +6851,13 @@ document.addEventListener('mousemove', e => {
   setPanelWidth(rect.right - e.clientX);
 });
 
-document.addEventListener('mousemove', e => {
-  if (!panelDragging) return;
-  const rect = filePanel.getBoundingClientRect();
-  const newWidth = rect.right - e.clientX;
-  setPanelWidth(newWidth);
-});
-
 document.addEventListener('mouseup', () => {
   if (!panelDragging) return;
   panelDragging = false;
-  panelHandle.classList.remove('dragging');
+  if (panelHandle) panelHandle.classList.remove('dragging');
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
-  filePanel.style.transition = '';
+  if (filePanel) filePanel.style.transition = '';
   savePanelWidth();
   reRenderVextab();
 });
@@ -7546,7 +7547,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606220933</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606220936</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
