@@ -987,6 +987,35 @@
   }
   .fp-item.qs-mode.qs-selected { background: rgba(232,184,75,0.07); }
 
+  /* ─── CONTEXT MENU ───────────────────────────────────────────────── */
+  .ctx-item {
+    padding: 7px 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ctx-item:hover { background: var(--surface2); color: var(--text); }
+  .ctx-danger { color: #e05a5a !important; }
+  .ctx-danger:hover { background: rgba(224,90,90,0.1) !important; }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* ─── VERSION HISTORY ────────────────────────────────────────────── */
+  .vh-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .vh-item:hover { background: var(--surface2); }
+  .vh-item.active { border-color: var(--accent); background: rgba(232,184,75,0.07); }
+  .vh-item-time { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); flex-shrink: 0; }
+  .vh-item-preview { font-size: 11px; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* ─── ADD TO SETLIST POPUP ───────────────────────────────────────── */
   .sl-add-popup {
     position: absolute;
@@ -1455,6 +1484,7 @@
         <div class="fp-actions">
           <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpNew()">New</button>
           <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpEditTags()" id="fp-tags-btn" title="Edit tags for current file">Tags</button>
+          <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="showVersionHistory()" id="fp-history-btn" title="View version history for current file">History</button>
           <button class="btn btn-ghost" style="flex:1;font-size:13px;padding:5px 8px;" onclick="toggleQuickSetlist()" id="quick-sl-btn" title="Build a setlist by ticking songs">+ Setlist</button>
           <button class="btn btn-primary" style="flex:1;font-size:13px;padding:5px 8px;" onclick="fpSave()">Save<span class="unsaved-dot" id="unsaved-dot"></span></button>
         </div>
@@ -1921,6 +1951,35 @@
   </div>
 </div>
 
+<!-- Version history modal -->
+<div class="saveas-overlay" id="versionHistoryOverlay">
+  <div class="saveas-box" style="max-width:520px;width:95vw;">
+    <div class="saveas-title">Version History — <span id="vh-filename" style="font-weight:400;color:var(--text-dim);text-transform:none;letter-spacing:0;"></span></div>
+    <div style="font-size:12px;color:var(--text-dim);">Last 5 saves are kept. Click a version to preview, then restore if you want it.</div>
+    <div id="vh-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;padding:2px 0;"></div>
+    <div id="vh-preview-wrap" style="display:none;flex-direction:column;gap:6px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Preview</div>
+      <textarea id="vh-preview" readonly style="font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6;background:var(--bg);border:1px solid var(--border);color:var(--text-dim);padding:10px;border-radius:4px;resize:none;height:140px;outline:none;"></textarea>
+      <button class="btn btn-primary" style="align-self:flex-end;font-size:13px;" onclick="restoreVersion()">↩ Restore this version</button>
+    </div>
+    <div class="fp-err" id="vh-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeVersionHistory()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- File item context menu (right-click) -->
+<div id="fileContextMenu" style="display:none;position:fixed;z-index:3000;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.4);padding:4px 0;min-width:160px;">
+  <div class="ctx-item" onclick="ctxLoad()">Open</div>
+  <div class="ctx-item" onclick="ctxHistory()">⟲ Version History</div>
+  <div class="ctx-item" onclick="ctxRename()">✎ Rename</div>
+  <div class="ctx-item" onclick="ctxTags()">Tags</div>
+  <div class="ctx-item" onclick="ctxShare()">↗ Share</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item ctx-danger" onclick="ctxDelete()">× Delete</div>
+</div>
+
 <!-- Rename modal -->
 <div class="saveas-overlay" id="renameOverlay">
   <div class="saveas-box">
@@ -2105,6 +2164,7 @@ document.addEventListener('keydown', e => {
     else if (document.getElementById('shareOverlay')?.classList.contains('open')) closeShare();
     else if (document.getElementById('shareViewOverlay')?.classList.contains('open')) svClose();
     else if (document.getElementById('chordDiagramOverlay')?.classList.contains('open')) closeModal('chordDiagramOverlay');
+    else if (document.getElementById('versionHistoryOverlay')?.classList.contains('open')) closeVersionHistory();
     else if (document.getElementById('grpCreateOverlay')?.classList.contains('open')) closeModal('grpCreateOverlay');
     else if (document.getElementById('grpJoinOverlay')?.classList.contains('open')) closeModal('grpJoinOverlay');
     else if (document.getElementById('grpManageOverlay')?.classList.contains('open')) closeModal('grpManageOverlay');
@@ -4273,6 +4333,7 @@ function buildFileItem(row, container, hideArtist) {
   item.appendChild(delBtn);
   item.appendChild(shareBtn);
   item.addEventListener('click', () => fpLoad(row.filename));
+  item.addEventListener('contextmenu', e => { e.preventDefault(); openFileContextMenu(e, row); });
   container.appendChild(item);
 }
 
@@ -4502,6 +4563,11 @@ async function doSave(filename, tags) {
     content,
   };
   if (tags !== undefined) record.tags = tags;
+
+  // Snapshot the existing content BEFORE overwriting (only when file already exists)
+  const isExisting = allFiles.some(f => f.filename === filename);
+  if (isExisting) await snapshotVersion(filename);
+
   const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
   if (error) alert('Save failed: ' + error.message);
   else {
@@ -4516,6 +4582,165 @@ async function doSave(filename, tags) {
     flashSaved();
   }
 }
+
+// ─── Version history ──────────────────────────────────────────────────────────
+
+const VERSION_MAX = 5;
+let vhCurrentVersions = [];  // loaded for current file
+let vhSelectedVersion = null; // { id, content, saved_at }
+let vhTargetFilename = null;  // which file's history is showing
+
+// Called by doSave before overwriting — snapshots the DB content (not editor content)
+async function snapshotVersion(filename) {
+  // Fetch what's currently in the DB
+  const { data } = await sb.from('songs')
+    .select('content')
+    .eq('user_id', currentUser.id)
+    .eq('filename', filename)
+    .single();
+  if (!data?.content) return;
+
+  // Insert snapshot
+  await sb.from('song_versions').insert({
+    user_id: currentUser.id,
+    filename,
+    content: data.content,
+  });
+
+  // Trim to last VERSION_MAX — Supabase doesn't support DELETE with LIMIT+ORDER directly,
+  // so fetch all version IDs sorted newest-first, then delete any beyond the limit
+  const { data: versions } = await sb.from('song_versions')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .eq('filename', filename)
+    .order('saved_at', { ascending: false });
+
+  if (versions && versions.length > VERSION_MAX) {
+    const toDelete = versions.slice(VERSION_MAX).map(v => v.id);
+    await sb.from('song_versions').delete().in('id', toDelete);
+  }
+}
+
+async function showVersionHistory(filename) {
+  const target = filename || currentFilename;
+  if (!target) { alert('Please open a file first.'); return; }
+  vhTargetFilename = target;
+  vhSelectedVersion = null;
+
+  document.getElementById('vh-filename').textContent = target;
+  document.getElementById('vh-err').textContent = '';
+  document.getElementById('vh-preview-wrap').style.display = 'none';
+  document.getElementById('vh-preview').value = '';
+  document.getElementById('vh-list').innerHTML = '<div class="fp-loading">Loading…</div>';
+  document.getElementById('versionHistoryOverlay').classList.add('open');
+
+  const { data, error } = await sb.from('song_versions')
+    .select('id, saved_at, content')
+    .eq('user_id', currentUser.id)
+    .eq('filename', target)
+    .order('saved_at', { ascending: false });
+
+  const list = document.getElementById('vh-list');
+  if (error) { list.innerHTML = `<div class="fp-empty">${error.message}</div>`; return; }
+  if (!data || !data.length) {
+    list.innerHTML = '<div class="fp-empty" style="padding:16px;text-align:center;">No saved versions yet.<br>Versions are created automatically each time you save over an existing file.</div>';
+    return;
+  }
+
+  vhCurrentVersions = data;
+  list.innerHTML = '';
+  data.forEach((v, i) => {
+    const item = document.createElement('div');
+    item.className = 'vh-item';
+    item.dataset.id = v.id;
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'vh-item-time';
+    const d = new Date(v.saved_at);
+    timeEl.textContent = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const previewEl = document.createElement('span');
+    previewEl.className = 'vh-item-preview';
+    // Show first meaningful content line as a hint
+    const firstLine = v.content.split('\n').find(l => l.trim() && !l.startsWith('{')) || v.content.split('\n')[0] || '';
+    previewEl.textContent = firstLine.replace(/\[[^\]]*\]/g, '').trim() || '(empty)';
+
+    const badge = document.createElement('span');
+    badge.style.cssText = 'font-size:10px;color:var(--text-dim);flex-shrink:0;';
+    badge.textContent = i === 0 ? 'Latest' : `v${data.length - i}`;
+
+    item.appendChild(timeEl);
+    item.appendChild(previewEl);
+    item.appendChild(badge);
+
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.vh-item').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+      vhSelectedVersion = v;
+      document.getElementById('vh-preview').value = v.content;
+      document.getElementById('vh-preview-wrap').style.display = 'flex';
+    });
+
+    list.appendChild(item);
+  });
+}
+
+async function restoreVersion() {
+  if (!vhSelectedVersion || !vhTargetFilename) return;
+  if (!confirm(`Restore this version of "${vhTargetFilename}"? Your current editor content will be replaced.`)) return;
+
+  // Load restored content into editor
+  document.getElementById('editor').value = vhSelectedVersion.content;
+  document.getElementById('editor').dispatchEvent(new Event('input'));
+
+  // Immediately save it as the new current version (which will snapshot what's currently in the DB first)
+  await doSave(vhTargetFilename, undefined);
+
+  closeVersionHistory();
+}
+
+function closeVersionHistory() {
+  document.getElementById('versionHistoryOverlay').classList.remove('open');
+  vhCurrentVersions = [];
+  vhSelectedVersion = null;
+  vhTargetFilename = null;
+}
+
+document.getElementById('versionHistoryOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('versionHistoryOverlay')) closeVersionHistory();
+});
+
+// ─── File item context menu ───────────────────────────────────────────────────
+
+let ctxRow = null; // the file row the context menu was opened on
+
+function openFileContextMenu(e, row) {
+  ctxRow = row;
+  const menu = document.getElementById('fileContextMenu');
+  menu.style.display = 'block';
+  // Position near cursor, keeping within viewport
+  const x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
+  const y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+}
+
+function closeFileContextMenu() {
+  document.getElementById('fileContextMenu').style.display = 'none';
+  ctxRow = null;
+}
+
+// Close context menu on any click or scroll outside it
+document.addEventListener('click',    () => closeFileContextMenu());
+document.addEventListener('keydown',  e => { if (e.key === 'Escape') closeFileContextMenu(); });
+document.addEventListener('scroll',   () => closeFileContextMenu(), true);
+
+function ctxLoad()    { if (ctxRow) fpLoad(ctxRow.filename); }
+function ctxHistory() { if (ctxRow) showVersionHistory(ctxRow.filename); }
+function ctxRename()  { if (ctxRow) fpRename(ctxRow.filename); }
+function ctxTags()    { if (ctxRow) fpEditTagsForFile(ctxRow.filename); }
+function ctxShare()   { if (ctxRow) shareSong(ctxRow.filename); }
+function ctxDelete()  { if (ctxRow) { const r = ctxRow; closeFileContextMenu(); fpDelete(r.filename, { stopPropagation: () => {} }); } }
 
 function fpNew() {
   if (hasUnsavedChanges) {
@@ -4535,12 +4760,12 @@ async function fpDelete(filename, e) {
   e.stopPropagation();
   if (!confirm(`Delete "${filename}"?`)) return;
   const { error } = await sb.from('songs').delete().eq('filename', filename).eq('user_id', currentUser.id);
-  if (error) alert('Delete failed: ' + error.message);
-  else {
-    if (currentFilename === filename) { currentFilename = null; setUnsaved(false); updateCurrentFile(); }
-    allFiles = allFiles.filter(f => f.filename !== filename);
-    renderFileList();
-  }
+  if (error) { alert('Delete failed: ' + error.message); return; }
+  // Clean up version history for this file
+  await sb.from('song_versions').delete().eq('user_id', currentUser.id).eq('filename', filename);
+  if (currentFilename === filename) { currentFilename = null; setUnsaved(false); updateCurrentFile(); }
+  allFiles = allFiles.filter(f => f.filename !== filename);
+  renderFileList();
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
@@ -7547,7 +7772,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606220936</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606232236</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
