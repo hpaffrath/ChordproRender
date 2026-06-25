@@ -1370,6 +1370,13 @@
     <div class="pane-header">
       <div class="pane-dot"></div>
       <span class="pane-label">ChordPro Input</span>
+      <button onclick="openImportModal()" title="Import a tab from Ultimate Guitar format"
+        style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);
+               font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;
+               letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;padding:2px 10px;
+               border-radius:3px;line-height:1.6;"
+        onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-dim)'"
+        onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">⬇ Import UG</button>
     </div>
     <div class="editor-wrap">
       <div class="line-numbers" id="lineNumbers"></div>
@@ -1980,6 +1987,39 @@
   <div class="ctx-item ctx-danger" onclick="ctxDelete()">× Delete</div>
 </div>
 
+<!-- Import UG Tab modal -->
+<div class="saveas-overlay" id="importUGOverlay">
+  <div class="saveas-box" style="max-width:620px;width:95vw;">
+    <div class="saveas-title">Import Ultimate Guitar Tab</div>
+    <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">
+      Paste a tab copied from Ultimate Guitar. Chords, sections, chord diagrams, and tab notation will all be converted.
+      The result may need a quick tidy — conversion is best-effort.
+    </div>
+    <textarea id="ug-import-input" spellcheck="false" autocomplete="off"
+      style="font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6;
+             background:var(--bg);border:1px solid var(--border);color:var(--text);
+             padding:10px;border-radius:4px;resize:vertical;height:260px;outline:none;
+             width:100%;tab-size:2;"
+      placeholder="Paste Ultimate Guitar tab here…
+
+Song: My Song
+Artist: Some Artist
+[Chords]
+    G    D    Em   C
+e|--3--|--2--|--0--|--0--|
+B|--3--|--3--|--0--|--1--|
+...
+[Verse 1]
+ G              D
+Lyrics go here  with chords above"></textarea>
+    <div class="fp-err" id="ug-import-err"></div>
+    <div class="saveas-actions">
+      <button class="btn btn-ghost" onclick="closeImportModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="runUGImport()">Convert &amp; Load</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rename modal -->
 <div class="saveas-overlay" id="renameOverlay">
   <div class="saveas-box">
@@ -2165,6 +2205,7 @@ document.addEventListener('keydown', e => {
     else if (document.getElementById('shareViewOverlay')?.classList.contains('open')) svClose();
     else if (document.getElementById('chordDiagramOverlay')?.classList.contains('open')) closeModal('chordDiagramOverlay');
     else if (document.getElementById('versionHistoryOverlay')?.classList.contains('open')) closeVersionHistory();
+    else if (document.getElementById('importUGOverlay')?.classList.contains('open')) closeImportModal();
     else if (document.getElementById('grpCreateOverlay')?.classList.contains('open')) closeModal('grpCreateOverlay');
     else if (document.getElementById('grpJoinOverlay')?.classList.contains('open')) closeModal('grpJoinOverlay');
     else if (document.getElementById('grpManageOverlay')?.classList.contains('open')) closeModal('grpManageOverlay');
@@ -6757,14 +6798,17 @@ function splitChord(chord) {
 
 function buildChordDiagramSVG(shape) {
   const { frets, fingers, baseFret } = shape;
-  const stringX = [15, 33, 51, 69, 87, 105];
+  // When baseFret > 1, we need left margin for the "Nfr" label
+  const leftMargin = baseFret > 1 ? 28 : 8;
+  const stringSpacing = 18;
+  const stringX = [0,1,2,3,4,5].map(i => leftMargin + i * stringSpacing);
   const nutY = 22;
   const fretSpacing = 22;
   const validFrets = frets.filter(f => f != null && f > 0);
   const maxFret = validFrets.length ? Math.max(...validFrets) : 0;
   const rows = Math.max(4, maxFret);
   const bottomY = nutY + rows * fretSpacing;
-  const width = 120;
+  const width = leftMargin + 5 * stringSpacing + 8;
   const height = bottomY + 14;
 
   let svg = `<svg viewBox="0 0 ${width} ${height}" width="160" height="${Math.round(160 * height / width)}" xmlns="http://www.w3.org/2000/svg">`;
@@ -6779,9 +6823,9 @@ function buildChordDiagramSVG(shape) {
     }
   });
 
-  // Base fret label (when the diagram doesn't start at the nut)
+  // Base fret label — sits to the left of the first string with enough room
   if (baseFret > 1) {
-    svg += `<text x="${stringX[0] - 10}" y="${nutY + fretSpacing * 0.5 + 4}" font-size="10" text-anchor="end" fill="var(--text-dim)" font-family="'JetBrains Mono', monospace">${baseFret}fr</text>`;
+    svg += `<text x="${stringX[0] - 6}" y="${nutY + fretSpacing * 0.5 + 4}" font-size="10" text-anchor="end" fill="var(--text-dim)" font-family="'JetBrains Mono', monospace">${baseFret}fr</text>`;
   }
 
   // Fret lines — the top one is thick (a nut) only when the diagram starts at fret 1
@@ -7250,7 +7294,305 @@ function clearEditor() {
   editor.focus();
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ─── Ultimate Guitar Tab Importer ─────────────────────────────────────────────
+
+function openImportModal() {
+  document.getElementById('ug-import-input').value = '';
+  document.getElementById('ug-import-err').textContent = '';
+  document.getElementById('importUGOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('ug-import-input').focus(), 50);
+}
+
+function closeImportModal() {
+  document.getElementById('importUGOverlay').classList.remove('open');
+}
+
+document.getElementById('importUGOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('importUGOverlay')) closeImportModal();
+});
+
+function runUGImport() {
+  const input = document.getElementById('ug-import-input').value;
+  const errEl = document.getElementById('ug-import-err');
+  errEl.textContent = '';
+  if (!input.trim()) { errEl.textContent = 'Please paste a tab first.'; return; }
+  try {
+    const converted = convertUGToChordPro(input);
+    if (!converted.trim()) { errEl.textContent = 'Nothing could be converted — check the input format.'; return; }
+    if (editor.value.trim() && !confirm('Replace the current editor content?')) return;
+    editor.value = converted;
+    editor.dispatchEvent(new Event('input'));
+    closeImportModal();
+    currentFilename = null;
+    setUnsaved(false);
+    updateCurrentFile();
+  } catch (e) {
+    errEl.textContent = 'Conversion error: ' + e.message;
+    console.error(e);
+  }
+}
+
+function convertUGToChordPro(ugText) {
+  const lines = ugText.split(/\r?\n/);
+  let title = '', artist = '', tabber = '', capo = '', key = '';
+  const defines = [];
+  const out = [];
+  let i = 0;
+  let sectionType = null;   // 'verse'|'chorus'|'bridge'|'tab'
+  let sectionLabel = '';
+
+  // ── Token/line classifiers ─────────────────────────────────────────────────
+  const CHORD_TOKEN = /^[A-G][#b]?[a-zA-Z0-9#b]*(?:\/[A-G][#b]?)?$/;
+  function isChord(s)    { return CHORD_TOKEN.test((s || '').trim()); }
+  function isChordLine(l) {
+    const t = l.trim(); if (!t) return false;
+    const tokens = t.split(/\s+/);
+    return tokens.length > 0 && tokens.every(isChord);
+  }
+  function isTabLine(l)  { return /^\s*[eEBGDA]\|/.test(l); }
+  function isGridLine(l) {
+    const t = l.trim();
+    return t.startsWith('|') && /[A-G]/.test(t) && !/^\|--/.test(t);
+  }
+
+  // ── Section type from name ─────────────────────────────────────────────────
+  function getSectionType(name) {
+    const l = name.toLowerCase();
+    if (/chorus|refrain/.test(l))                                   return 'chorus';
+    if (/bridge/.test(l))                                           return 'bridge';
+    if (/interlude|solo|instrumental|riff|lead\s*guitar|break/.test(l)) return 'tab';
+    return 'verse';
+  }
+
+  // ── Section open/close ─────────────────────────────────────────────────────
+  function closeSection() {
+    if (!sectionType) return;
+    // Tab sections are self-closing (end_of_tab emitted by the tab-line handler)
+    if (sectionType !== 'tab') {
+      out.push(
+        sectionType === 'chorus' ? '{end_of_chorus}' :
+        sectionType === 'bridge' ? '{end_of_bridge}' : '{end_of_verse}'
+      );
+      out.push('');
+    }
+    sectionType = null; sectionLabel = '';
+  }
+
+  function openSection(name) {
+    closeSection();
+    const type = getSectionType(name);
+    sectionType = type; sectionLabel = name;
+    out.push(
+      type === 'chorus' ? `{start_of_chorus: ${name}}` :
+      type === 'bridge' ? `{start_of_bridge: ${name}}` :
+      type === 'tab'    ? `{start_of_tab: ${name}}`    : `{start_of_verse: ${name}}`
+    );
+  }
+
+  // ── Chord + lyric line merger ──────────────────────────────────────────────
+  // Uses character positions from the chord line (fixed-width font) to insert
+  // [Chord] markers into the lyric line. Works right-to-left so earlier
+  // insertions don't shift subsequent positions.
+  function mergeChordLyric(chordLine, lyricLine) {
+    const re = /([A-G][#b]?[a-zA-Z0-9#b]*(?:\/[A-G][#b]?)?)/g;
+    const chords = [];
+    let m;
+    while ((m = re.exec(chordLine)) !== null) {
+      if (isChord(m[1])) chords.push({ name: m[1], pos: m.index });
+    }
+    if (!chords.length) return lyricLine.trim();
+
+    let lyric = lyricLine;
+    for (let j = chords.length - 1; j >= 0; j--) {
+      const { name, pos } = chords[j];
+      if (pos >= lyric.length) {
+        lyric = lyric.padEnd(pos) + `[${name}]`;
+      } else {
+        lyric = lyric.slice(0, pos) + `[${name}]` + lyric.slice(pos);
+      }
+    }
+    return lyric.trim();
+  }
+
+  // ── [Chords] section parser → {define:} directives ────────────────────────
+  function parseChordSection() {
+    while (i < lines.length && !lines[i].trim()) i++;
+    if (i >= lines.length) return;
+
+    // Chord names line
+    const namesLine = lines[i++];
+    const chordNames = [];
+    const nr = /([A-G][#b]?[a-zA-Z0-9#b]*(?:\/[A-G][#b]?)?)/g;
+    let nm;
+    while ((nm = nr.exec(namesLine)) !== null) {
+      if (isChord(nm[1])) chordNames.push(nm[1]);
+    }
+    if (!chordNames.length) return;
+
+    // Read up to 6 string lines (UG order: e B G D A E, high to low)
+    // 'e' (lowercase) = high e string 1; 'E' (uppercase) = low E string 6
+    const strData = {};
+    let strCount = 0;
+    while (i < lines.length && strCount < 6) {
+      const tm = lines[i].trim().match(/^([eEBGDA])\|(.*)/);
+      if (!tm) break;
+      const key = tm[1]; // 'e' and 'E' are distinct JS object keys
+      const slots = tm[2].split('|');
+      strData[key] = slots.map(slot => {
+        const digits = slot.replace(/-/g, '').trim();
+        if (!digits) return 'x';
+        const n = parseInt(digits, 10);
+        return isNaN(n) ? 'x' : n;
+      });
+      strCount++;
+      i++;
+    }
+
+    for (let k = 0; k < chordNames.length; k++) {
+      // ChordPro define order: low-E (6) → A (5) → D (4) → G (3) → B (2) → high-e (1)
+      const frets = [
+        (strData['E'] || [])[k],   // low E
+        (strData['A'] || [])[k],
+        (strData['D'] || [])[k],
+        (strData['G'] || [])[k],
+        (strData['B'] || [])[k],
+        (strData['e'] || [])[k],   // high e
+      ].map(f => f === undefined ? 'x' : f);
+
+      const numeric = frets.filter(f => typeof f === 'number' && f > 0);
+      if (!numeric.length) continue;
+
+      const maxF = Math.max(...numeric);
+      const minF = Math.min(...numeric);
+
+      let baseFret = 1;
+      let positions = frets;
+
+      // Use a window starting at minF when the chord sits high on the neck
+      if (maxF > 5 && minF > 1) {
+        baseFret = minF;
+        positions = frets.map(f =>
+          f === 'x' ? 'x' : f === 0 ? 0 : f - baseFret + 1
+        );
+      }
+
+      defines.push(`{define: ${chordNames[k]} base-fret ${baseFret} frets ${positions.join(' ')}}`);
+    }
+  }
+
+  // ── Main parsing loop ──────────────────────────────────────────────────────
+  while (i < lines.length) {
+    const line  = lines[i];
+    const trimmed = line.trim();
+
+    // Metadata
+    const metaM = trimmed.match(/^(Song|Title|Artist|Tabber|Tabbed\s+by|Transcribed\s+by|Album|Capo|Key)\s*[:\-]\s*(.+)$/i);
+    if (metaM) {
+      const k = metaM[1].toLowerCase().replace(/\s+/g, ' ');
+      const v = metaM[2].trim();
+      if (/^(song|title)$/.test(k))                         title  = v;
+      else if (k === 'artist')                               artist = v;
+      else if (/tabber|tabbed by|transcribed by/.test(k))   tabber = v;
+      else if (k === 'capo')                                 capo   = v;
+      else if (k === 'key')                                  key    = v;
+      i++; continue;
+    }
+
+    // Skip other common header-only lines
+    if (/^(Difficulty|Version|Tuning|Year|Album)\s*[:\-]/i.test(trimmed)) { i++; continue; }
+
+    // [Chords] section
+    if (/^\[Chords\]$/i.test(trimmed)) { i++; parseChordSection(); continue; }
+
+    // Section headers [Name] or [Name] (optional comment)
+    const secM = trimmed.match(/^\[([^\]]+)\](?:\s.*)?$/);
+    if (secM) { openSection(secM[1].trim()); i++; continue; }
+
+    // Tab lines — collect a complete group and wrap in {start/end_of_tab}
+    if (isTabLine(line)) {
+      // If we're already inside a tab section, don't re-wrap
+      if (sectionType !== 'tab') {
+        closeSection();
+        out.push('{start_of_tab}');
+        sectionType = 'tab'; sectionLabel = '';
+      }
+      // Collect consecutive tab lines, allowing a blank separator mid-group
+      while (i < lines.length) {
+        if (isTabLine(lines[i])) {
+          out.push(lines[i].trimEnd());
+          i++;
+        } else if (!lines[i].trim() && i + 1 < lines.length && isTabLine(lines[i + 1])) {
+          out.push('');
+          i++;
+        } else {
+          break;
+        }
+      }
+      // Close the tab section after the block
+      out.push('{end_of_tab}');
+      out.push('');
+      sectionType = null;
+      continue;
+    }
+
+    // Chord grid lines (| G | D/F# | Em |)
+    if (isGridLine(line)) { out.push(trimmed); i++; continue; }
+
+    // Chord line — look ahead for a lyric line to pair with
+    if (isChordLine(line)) {
+      const next = lines[i + 1];
+      const nextT = (next || '').trim();
+      if (next !== undefined && nextT &&
+          !isChordLine(next) && !isTabLine(next) &&
+          !/^\[/.test(nextT) && !isGridLine(next)) {
+        out.push(mergeChordLyric(line, next));
+        i += 2;
+      } else {
+        // No lyric — output as a bare chord sequence
+        const chords = [];
+        const cr = /([A-G][#b]?[a-zA-Z0-9#b]*(?:\/[A-G][#b]?)?)/g;
+        let m2;
+        while ((m2 = cr.exec(line)) !== null) {
+          if (isChord(m2[1])) chords.push(m2[1]);
+        }
+        out.push(chords.map(c => `[${c}]`).join(' '));
+        i++;
+      }
+      continue;
+    }
+
+    // Blank line
+    if (!trimmed) { out.push(''); i++; continue; }
+
+    // Everything else — lyric / comment line
+    out.push(trimmed);
+    i++;
+  }
+
+  closeSection();
+
+  // ── Assemble output ────────────────────────────────────────────────────────
+  const header = [];
+  if (title)  header.push(`{title: ${title}}`);
+  if (artist) header.push(`{artist: ${artist}}`);
+  if (key)    header.push(`{key: ${key}}`);
+  if (capo)   header.push(`{capo: ${capo}}`);
+  if (tabber) header.push(`{comment: Tabbed by ${tabber}}`);
+  if (header.length) header.push('');
+  if (defines.length) { defines.forEach(d => header.push(d)); header.push(''); }
+
+  // Collapse more than one consecutive blank line
+  const combined = [...header, ...out];
+  const cleaned = [];
+  let blanks = 0;
+  for (const l of combined) {
+    if (!l.trim()) { if (++blanks <= 1) cleaned.push(''); }
+    else { blanks = 0; cleaned.push(l); }
+  }
+  return cleaned.join('\n').trim();
+}
+
+
 updateLineNumbers();
 
 // ─── Print ────────────────────────────────────────────────────────────────────
@@ -7772,7 +8114,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606232236</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606242207</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
