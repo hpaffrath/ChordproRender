@@ -2527,9 +2527,9 @@ function populateSmartFilterDropdowns() {
   const artistSel = document.getElementById('filter-artist');
   if (!tagSel) return;
 
-  const rebuild = (sel, items, current) => {
+  const rebuild = (sel, items, current, label) => {
     const cur = current || sel.value;
-    sel.innerHTML = `<option value="">All ${sel.id.replace('filter-','').replace(/^\w/, c=>c.toUpperCase()+'s')}</option>`;
+    sel.innerHTML = `<option value="">All ${label}</option>`;
     items.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v; opt.textContent = v;
@@ -2538,9 +2538,9 @@ function populateSmartFilterDropdowns() {
     });
   };
 
-  rebuild(tagSel, tags, smartFilter.tag);
-  rebuild(keySel, keys, smartFilter.key);
-  rebuild(artistSel, artists, smartFilter.artist);
+  rebuild(tagSel, tags, smartFilter.tag, 'Tags');
+  rebuild(keySel, keys, smartFilter.key, 'Keys');
+  rebuild(artistSel, artists, smartFilter.artist, 'Artists');
 
   tagSel.value    = smartFilter.tag    || '';
   keySel.value    = smartFilter.key    || '';
@@ -8114,7 +8114,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606242207</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606271149</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
