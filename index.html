@@ -6696,13 +6696,16 @@ function renderLine(line, isTab) {
       if (token.chord) {
         const chordEl = document.createElement('span');
         chordEl.className = 'chord-grid-chord';
-        const { root, sup } = splitChord(token.chord);
+        const { root, sup, bass } = splitChord(token.chord);
         chordEl.appendChild(document.createTextNode(root));
         if (sup) {
           const supEl = document.createElement('sup');
           supEl.className = 'token-chord-sup';
           supEl.textContent = sup;
           chordEl.appendChild(supEl);
+        }
+        if (bass) {
+          chordEl.appendChild(document.createTextNode(bass));
         }
         if (token.chordDef) {
           chordEl.classList.add('has-diagram');
@@ -6747,13 +6750,16 @@ function renderLine(line, isTab) {
     const chordEl = document.createElement('span');
     chordEl.className = 'token-chord';
     if (token.chord) {
-      const { root, sup } = splitChord(token.chord);
+      const { root, sup, bass } = splitChord(token.chord);
       chordEl.appendChild(document.createTextNode(root));
       if (sup) {
         const supEl = document.createElement('sup');
         supEl.className = 'token-chord-sup';
         supEl.textContent = sup;
         chordEl.appendChild(supEl);
+      }
+      if (bass) {
+        chordEl.appendChild(document.createTextNode(bass));
       }
       if (token.chordDef) {
         chordEl.classList.add('has-diagram');
@@ -6780,16 +6786,24 @@ function renderLine(line, isTab) {
 //      "C/E"   → {root:"C", sup:"/E"}
 //      "G"     → {root:"G", sup:""}
 function splitChord(chord) {
-  if (!chord) return { root: '', sup: '' };
-  // Slash chords stay whole — no superscript
-  if (chord.includes('/')) return { root: chord, sup: '' };
+  if (!chord) return { root: '', sup: '', bass: '' };
+
+  // Slash chord — split off the bass note, apply quality detection to the upper part
+  if (chord.includes('/')) {
+    const slashIdx = chord.lastIndexOf('/');
+    const upper = chord.slice(0, slashIdx);  // e.g. "D#5", "Cmaj7", "G"
+    const bass  = '/' + chord.slice(slashIdx + 1); // e.g. "/A#", "/E"
+    const { root, sup } = splitChord(upper); // recurse — no slash, so safe
+    return { root, sup, bass };
+  }
+
   // Root = note + optional b/# + optional standalone m/M (minor)
   // But don't grab 'm' if it's the start of 'maj', 'min' etc.
   const m = chord.match(/^([A-G][b#]?(?:m(?!aj|in)|M(?!aj|in))?)(.+)$/);
-  if (!m) return { root: chord, sup: '' };
+  if (!m) return { root: chord, sup: '', bass: '' };
   const sup = m[2];
-  if (/^(maj|min|sus|add|aug|dim|[0-9].*)/.test(sup)) return { root: m[1], sup };
-  return { root: chord, sup: '' };
+  if (/^(maj|min|sus|add|aug|dim|[0-9].*)/.test(sup)) return { root: m[1], sup, bass: '' };
+  return { root: chord, sup: '', bass: '' };
 }
 
 // ─── Chord Diagrams ({define:}) ───────────────────────────────────────────────
@@ -8114,7 +8128,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202606271149</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202607050752</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
