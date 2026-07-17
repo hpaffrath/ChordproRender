@@ -175,6 +175,44 @@
     margin-right: 2px;
   }
 
+  /* ─── UG PASTE BANNER ────────────────────────────────────────────── */
+  .ug-banner {
+    display: none;
+    flex-shrink: 0;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--accent);
+    padding: 7px 12px;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .ug-banner.visible { display: flex; }
+  .ug-banner-msg {
+    font-size: 12px;
+    color: var(--text-dim);
+    flex: 1;
+    min-width: 120px;
+  }
+  .ug-banner-msg b { color: var(--accent); font-weight: 600; }
+  .ug-banner-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+  .ug-banner-btn {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .ug-banner-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .ug-banner-btn.primary { background: var(--accent); color: #1a1400; border-color: var(--accent); }
+  .ug-banner-btn.primary:hover { background: #f0c860; }
+
   .editor-wrap {
     flex: 1;
     position: relative;
@@ -1377,6 +1415,16 @@
                border-radius:3px;line-height:1.6;"
         onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-dim)'"
         onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">⬇ Import UG</button>
+    </div>
+    <!-- UG paste detection banner -->
+    <div class="ug-banner" id="ugBanner">
+      <span class="ug-banner-msg" id="ugBannerMsg"><b>Ultimate Guitar tab detected</b> — convert it?</span>
+      <div class="ug-banner-actions">
+        <button class="ug-banner-btn primary" id="ugBannerPrimary" onclick="ugBannerAction('primary')"></button>
+        <button class="ug-banner-btn" id="ugBannerAppend" onclick="ugBannerAction('append')" style="display:none"></button>
+        <button class="ug-banner-btn" onclick="ugBannerAction('replace')" id="ugBannerReplace" style="display:none"></button>
+        <button class="ug-banner-btn" onclick="ugBannerDismiss()">Keep as-is</button>
+      </div>
     </div>
     <div class="editor-wrap">
       <div class="line-numbers" id="lineNumbers"></div>
@@ -7310,6 +7358,131 @@ function clearEditor() {
 
 // ─── Ultimate Guitar Tab Importer ─────────────────────────────────────────────
 
+// ─── UG Paste Detection ───────────────────────────────────────────────────────
+
+let ugPendingText = '';   // pasted text waiting to be converted
+
+function isUGFormat(text) {
+  // Strong signals: string tab lines
+  if (/^\s*[eEBGDA]\|[-\d]+/m.test(text)) return true;
+  // [Chords] section header
+  if (/^\[Chords\]/im.test(text)) return true;
+  // UG-style metadata block at top
+  if (/^Song\s*:/im.test(text) && /^Artist\s*:/im.test(text)) return true;
+  // Section headers like [Verse 1] or [Chorus] combined with chord lines above lyrics
+  if (/^\[[A-Z][^\]]+\]/m.test(text) && /^\s+[A-G][#b]?[\w\/]*(\s+[A-G][#b]?[\w\/]*){1,}/m.test(text)) return true;
+  return false;
+}
+
+function hasChordProContent(text) {
+  return /\{(title|artist|start_of_verse|start_of_chorus|start_of_bridge|key|capo)\b/i.test(text);
+}
+
+// Returns true if text is only metadata directives (no sections yet)
+function isChordProHeaderOnly(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  return lines.length > 0 && lines.every(l => /^\{(title|artist|subtitle|key|capo|tempo|time|album|year|capo|comment)\b/i.test(l.trim()) || !l.trim());
+}
+
+// Show the banner, configuring buttons based on current editor state
+function showUGBanner(pastedText) {
+  ugPendingText = pastedText;
+  const current = editor.value.trim();
+  const banner = document.getElementById('ugBanner');
+  const msg = document.getElementById('ugBannerMsg');
+  const primary = document.getElementById('ugBannerPrimary');
+  const appendBtn = document.getElementById('ugBannerAppend');
+  const replaceBtn = document.getElementById('ugBannerReplace');
+
+  if (!current) {
+    // Empty editor — just one button needed
+    msg.innerHTML = '<b>Ultimate Guitar tab detected.</b> Convert and load?';
+    primary.textContent = 'Convert & Load';
+    primary.dataset.action = 'replace';
+    appendBtn.style.display = 'none';
+    replaceBtn.style.display = 'none';
+  } else if (isChordProHeaderOnly(current)) {
+    // Editor has only metadata — merge is most useful
+    msg.innerHTML = '<b>Ultimate Guitar tab detected.</b> Merge with your existing title/artist?';
+    primary.textContent = 'Merge';
+    primary.dataset.action = 'merge';
+    appendBtn.style.display = 'none';
+    replaceBtn.textContent = 'Replace All';
+    replaceBtn.style.display = '';
+  } else {
+    // Editor has real content — offer append or replace
+    msg.innerHTML = '<b>Ultimate Guitar tab detected.</b> Add to existing content?';
+    primary.textContent = 'Append as New Song';
+    primary.dataset.action = 'append';
+    appendBtn.style.display = 'none';
+    replaceBtn.textContent = 'Replace All';
+    replaceBtn.style.display = '';
+  }
+
+  banner.classList.add('visible');
+}
+
+function hideUGBanner() {
+  document.getElementById('ugBanner').classList.remove('visible');
+  ugPendingText = '';
+}
+
+function ugBannerDismiss() {
+  // Paste the raw text as-is into the editor
+  const text = ugPendingText;
+  hideUGBanner();
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  editor.value = editor.value.slice(0, start) + text + editor.value.slice(end);
+  editor.selectionStart = editor.selectionEnd = start + text.length;
+  editor.dispatchEvent(new Event('input'));
+}
+
+function ugBannerAction(action) {
+  const realAction = action === 'primary'
+    ? document.getElementById('ugBannerPrimary').dataset.action
+    : action;
+  const converted = convertUGToChordPro(ugPendingText);
+  const current = editor.value.trim();
+  hideUGBanner();
+
+  if (realAction === 'replace') {
+    editor.value = converted;
+  } else if (realAction === 'append') {
+    editor.value = current + '\n\n---\n\n' + converted;
+  } else if (realAction === 'merge') {
+    // Keep existing ChordPro metadata, strip duplicated directives from converted output
+    const convertedLines = converted.split('\n');
+    // Find which metadata directives already exist in current content
+    const existingDirectives = new Set();
+    for (const l of current.split('\n')) {
+      const dm = l.trim().match(/^\{([a-z_]+)\s*:/i);
+      if (dm) existingDirectives.add(dm[1].toLowerCase());
+    }
+    // Remove duplicate directive lines from converted output
+    const filtered = convertedLines.filter(l => {
+      const dm = l.trim().match(/^\{([a-z_]+)\s*:/i);
+      return !(dm && existingDirectives.has(dm[1].toLowerCase()));
+    });
+    // Trim leading blank lines from filtered content
+    while (filtered.length && !filtered[0].trim()) filtered.shift();
+    editor.value = current + '\n\n' + filtered.join('\n').trimEnd();
+  }
+
+  editor.dispatchEvent(new Event('input'));
+  currentFilename = null;
+  setUnsaved(false);
+  updateCurrentFile();
+}
+
+// Wire up paste event on the editor
+editor.addEventListener('paste', e => {
+  const text = e.clipboardData?.getData('text') || '';
+  if (!text || !isUGFormat(text)) return; // not UG — let paste proceed normally
+  e.preventDefault(); // we'll handle it
+  showUGBanner(text);
+});
+
 function openImportModal() {
   document.getElementById('ug-import-input').value = '';
   document.getElementById('ug-import-err').textContent = '';
@@ -8128,7 +8301,7 @@ function hideHelp(e) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202607050752</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202607081011</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
