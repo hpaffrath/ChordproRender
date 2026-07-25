@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/abcjs@6.6.2/dist/abcjs-basic-min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vextab@4.0.5/dist/div.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/alphaTab.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1415,6 +1416,14 @@
                border-radius:3px;line-height:1.6;"
         onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-dim)'"
         onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">⬇ Import UG</button>
+      <button onclick="openGPPicker()" title="Open a Guitar Pro file (.gp, .gp3, .gp4, .gp5, .gpx)"
+        style="margin-left:6px;background:none;border:1px solid var(--border);color:var(--text-dim);
+               font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;
+               letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;padding:2px 10px;
+               border-radius:3px;line-height:1.6;"
+        onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-dim)'"
+        onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">♪ Guitar Pro</button>
+      <input type="file" id="gp-file-input" accept=".gp,.gp3,.gp4,.gp5,.gpx,.gp7" style="display:none;" onchange="loadGPFile(this)">
     </div>
     <!-- UG paste detection banner -->
     <div class="ug-banner" id="ugBanner">
@@ -1465,6 +1474,18 @@
       </div>
     </div>
     <div class="preview-scroll" id="previewScroll">
+      <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);" id="gp-title">Guitar Pro</div>
+          <div style="font-size:11px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="gp-status">Ready.</div>
+          <select id="gp-track-select" title="Instrument / track" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;max-width:220px;" onchange="onGPTrackChange()"></select>
+          <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
+          <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
+        </div>
+        <div id="gp-render-wrap" style="flex:1;min-height:0;overflow:auto;background:var(--paper);color:var(--ink);padding:12px;">
+          <div id="alphaTab"></div>
+        </div>
+      </div>
       <div class="paper" id="paper">
         <div class="empty-state">
           <div class="empty-icon">♩</div>
@@ -2105,6 +2126,27 @@ Lyrics go here  with chords above"></textarea>
   </div>
 </div>
 
+<!-- Guitar Pro save-metadata dialog -->
+<div class="saveas-overlay" id="gpSaveOverlay">
+  <div class="saveas-box" style="width:420px;max-width:95vw;">
+    <div class="saveas-title">Save Guitar Pro File</div>
+    <label style="font-size:11px;color:var(--text-dim);">Filename</label>
+    <input class="saveas-input" id="gp-save-filename" placeholder="song.gp">
+    <label style="font-size:11px;color:var(--text-dim);">Title</label>
+    <input class="saveas-input" id="gp-save-title" placeholder="Song title">
+    <label style="font-size:11px;color:var(--text-dim);">Artist</label>
+    <input class="saveas-input" id="gp-save-artist" placeholder="Artist">
+    <label style="font-size:11px;color:var(--text-dim);">Key</label>
+    <input class="saveas-input" id="gp-save-key" placeholder="e.g. G, Am">
+    <label style="font-size:11px;color:var(--text-dim);">Tags (comma-separated)</label>
+    <input class="saveas-input" id="gp-save-tags" placeholder="e.g. rock, practice">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
+      <button class="btn btn-ghost" onclick="closeGPSaveDialog()">Cancel</button>
+      <button class="btn btn-primary" id="gp-save-confirm" onclick="confirmGPSave()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── Supabase ────────────────────────────────────────────────────────────────
 
@@ -2254,6 +2296,7 @@ document.addEventListener('keydown', e => {
     else if (document.getElementById('chordDiagramOverlay')?.classList.contains('open')) closeModal('chordDiagramOverlay');
     else if (document.getElementById('versionHistoryOverlay')?.classList.contains('open')) closeVersionHistory();
     else if (document.getElementById('importUGOverlay')?.classList.contains('open')) closeImportModal();
+    else if (document.getElementById('gpSaveOverlay')?.classList.contains('open')) closeGPSaveDialog();
     else if (document.getElementById('grpCreateOverlay')?.classList.contains('open')) closeModal('grpCreateOverlay');
     else if (document.getElementById('grpJoinOverlay')?.classList.contains('open')) closeModal('grpJoinOverlay');
     else if (document.getElementById('grpManageOverlay')?.classList.contains('open')) closeModal('grpManageOverlay');
@@ -4584,6 +4627,8 @@ function buildArtistGroup(artist, songs, faded) {
 
 async function fpLoad(filename) {
   if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
+  if (isGuitarProFilename(filename)) { await openSavedGPFile(filename); return; }
+  if (typeof hideGPPreview === 'function') hideGPPreview();
   const { data, error } = await sb
     .from('songs')
     .select('content')
@@ -8292,6 +8337,268 @@ function showHelp() {
 function hideHelp(e) {
   if (!e || e.target === document.getElementById('helpModal')) {
     document.getElementById('helpModal').classList.remove('open');
+  }
+}
+
+// ─── Guitar Pro viewer (alphaTab) ────────────────────────────────────────────
+let _alphaTabApi = null;
+let _gpCurrentBytes = null;      // Uint8Array of the loaded file
+let _gpCurrentFilename = null;   // filename shown / to save under
+const GP_MARKER = 'GPBIN1:';     // stored song content prefix for binary GP data
+
+function isGuitarProFilename(fn) {
+  return /\.(gp|gp3|gp4|gp5|gpx|gp7)$/i.test(fn || '');
+}
+
+function _bytesToBase64(bytes) {
+  let s = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(s);
+}
+function _base64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function openGPPicker() {
+  document.getElementById('gp-file-input').click();
+}
+
+function showGPPreview() {
+  const gp = document.getElementById('gpPreview');
+  const paper = document.getElementById('paper');
+  if (gp) gp.style.display = 'flex';
+  if (paper) paper.style.display = 'none';
+  if (!_alphaTabApi && window.alphaTab) {
+    try {
+      _alphaTabApi = new alphaTab.AlphaTabApi(document.getElementById('alphaTab'), {
+        core: {
+          fontDirectory: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/font/',
+          engine: 'svg',
+        },
+        display: { scale: 1.0, layoutMode: 'page' },
+        player: { enablePlayer: false },
+      });
+      _alphaTabApi.renderStarted.on(() => {
+        document.getElementById('gp-status').textContent = 'Rendering…';
+      });
+      _alphaTabApi.renderFinished.on(() => {
+        document.getElementById('gp-status').textContent =
+          (_alphaTabApi.score ? (_alphaTabApi.score.title || 'Untitled') +
+            (_alphaTabApi.score.artist ? ' — ' + _alphaTabApi.score.artist : '')
+            : 'Ready.');
+      });
+      _alphaTabApi.error.on(err => {
+        document.getElementById('gp-status').textContent = 'Error: ' + (err?.message || err);
+      });
+      _alphaTabApi.scoreLoaded.on(score => {
+        populateGPTrackSelect(score);
+      });
+      _installGPAutoFit();
+    } catch (e) {
+      document.getElementById('gp-status').textContent = 'Failed to initialize alphaTab: ' + e.message;
+    }
+  } else if (!window.alphaTab) {
+    document.getElementById('gp-status').textContent = 'alphaTab library failed to load. Check your connection.';
+  }
+  _updateGPSaveBtn();
+}
+
+function hideGPPreview() {
+  const sel = document.getElementById('gp-track-select');
+  if (sel) { sel.style.display = 'none'; sel.innerHTML = ''; }
+  const gp = document.getElementById('gpPreview');
+  const paper = document.getElementById('paper');
+  if (gp) gp.style.display = 'none';
+  if (paper) paper.style.display = '';
+}
+
+function _updateGPSaveBtn() {
+  const btn = document.getElementById('gp-save-btn');
+  if (!btn) return;
+  btn.disabled = !(currentUser && _gpCurrentBytes && _gpCurrentFilename);
+}
+
+// Auto-fit the alphaTab page width to the surrounding pane.
+let _gpFitObserver = null;
+let _gpFitTimer = null;
+let _gpFitLastScale = 0;
+const GP_BASE_PAGE_WIDTH = 950; // alphaTab default page width in px
+function _applyGPFit() {
+  if (!_alphaTabApi) return;
+  const wrap = document.getElementById('gp-render-wrap');
+  if (!wrap) return;
+  const style = getComputedStyle(wrap);
+  const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+  const avail = Math.max(320, wrap.clientWidth - padX);
+  // Only scale up to fill; allow shrinking below 1 on narrow panes.
+  const scale = Math.max(0.5, Math.min(3, avail / GP_BASE_PAGE_WIDTH));
+  if (Math.abs(scale - _gpFitLastScale) < 0.02) return;
+  _gpFitLastScale = scale;
+  try {
+    const s = _alphaTabApi.settings;
+    if (s && s.display) s.display.scale = scale;
+    _alphaTabApi.updateSettings();
+    _alphaTabApi.render();
+  } catch (_) { /* no-op */ }
+}
+function _installGPAutoFit() {
+  const wrap = document.getElementById('gp-render-wrap');
+  if (!wrap || _gpFitObserver || typeof ResizeObserver === 'undefined') return;
+  _gpFitObserver = new ResizeObserver(() => {
+    if (_gpFitTimer) clearTimeout(_gpFitTimer);
+    _gpFitTimer = setTimeout(_applyGPFit, 120);
+  });
+  _gpFitObserver.observe(wrap);
+  // Initial fit once alphaTab is ready.
+  setTimeout(_applyGPFit, 0);
+}
+
+function populateGPTrackSelect(score) {
+  const sel = document.getElementById('gp-track-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const tracks = (score && score.tracks) || [];
+  if (tracks.length <= 1) { sel.style.display = 'none'; return; }
+  const optAll = document.createElement('option');
+  optAll.value = '__all__';
+  optAll.textContent = 'All instruments (' + tracks.length + ')';
+  sel.appendChild(optAll);
+  tracks.forEach((t, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    const name = (t.name && t.name.trim()) || ('Track ' + (i + 1));
+    const prog = (t.playbackInfo && typeof t.playbackInfo.program === 'number') ? (' — GM ' + t.playbackInfo.program) : '';
+    o.textContent = (i + 1) + '. ' + name + prog;
+    sel.appendChild(o);
+  });
+  // Default: render the first track only for clarity
+  sel.value = '0';
+  sel.style.display = '';
+  onGPTrackChange();
+}
+
+function onGPTrackChange() {
+  if (!_alphaTabApi || !_alphaTabApi.score) return;
+  const sel = document.getElementById('gp-track-select');
+  if (!sel) return;
+  const tracks = _alphaTabApi.score.tracks || [];
+  if (sel.value === '__all__') {
+    _alphaTabApi.renderTracks(tracks);
+  } else {
+    const idx = parseInt(sel.value, 10);
+    if (!isNaN(idx) && tracks[idx]) _alphaTabApi.renderTracks([tracks[idx]]);
+  }
+}
+
+function loadGPFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  showGPPreview();
+  if (!_alphaTabApi) return;
+  document.getElementById('gp-title').textContent = file.name;
+  document.getElementById('gp-status').textContent = 'Loading ' + file.name + '…';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const bytes = new Uint8Array(e.target.result);
+      _gpCurrentBytes = bytes;
+      _gpCurrentFilename = file.name;
+      _alphaTabApi.load(bytes);
+      _updateGPSaveBtn();
+    } catch (err) {
+      document.getElementById('gp-status').textContent = 'Could not load file: ' + err.message;
+    }
+  };
+  reader.onerror = () => {
+    document.getElementById('gp-status').textContent = 'Failed to read file.';
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = ''; // allow re-selecting the same file
+}
+
+function openGPSaveDialog() {
+  if (!currentUser) { alert('Please sign in to save files.'); return; }
+  if (!_gpCurrentBytes || !_gpCurrentFilename) return;
+  const score = _alphaTabApi && _alphaTabApi.score;
+  document.getElementById('gp-save-filename').value = _gpCurrentFilename;
+  document.getElementById('gp-save-title').value =
+    (score && score.title) ? score.title : _gpCurrentFilename.replace(/\.[^.]+$/, '');
+  document.getElementById('gp-save-artist').value = (score && score.artist) ? score.artist : '';
+  document.getElementById('gp-save-key').value = '';
+  document.getElementById('gp-save-tags').value = '';
+  document.getElementById('gpSaveOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('gp-save-title').focus(), 30);
+}
+
+function closeGPSaveDialog() {
+  document.getElementById('gpSaveOverlay').classList.remove('open');
+}
+
+async function confirmGPSave() {
+  if (!currentUser) { alert('Please sign in.'); return; }
+  if (!_gpCurrentBytes) return;
+  let filename = (document.getElementById('gp-save-filename').value || '').trim();
+  if (!filename) { alert('Filename is required.'); return; }
+  if (!isGuitarProFilename(filename)) {
+    const m = (_gpCurrentFilename || '').match(/\.(gp|gp3|gp4|gp5|gpx|gp7)$/i);
+    filename += (m ? m[0] : '.gp');
+  }
+  const title = (document.getElementById('gp-save-title').value || '').trim() || filename.replace(/\.[^.]+$/, '');
+  const artist = (document.getElementById('gp-save-artist').value || '').trim() || null;
+  const key = (document.getElementById('gp-save-key').value || '').trim() || null;
+  const tagsRaw = (document.getElementById('gp-save-tags').value || '').trim();
+  const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : null;
+  const b64 = _bytesToBase64(_gpCurrentBytes);
+  const content = GP_MARKER + b64;
+  const record = { user_id: currentUser.id, filename, title, artist, key, content };
+  if (tags) record.tags = tags;
+  const btn = document.getElementById('gp-save-confirm');
+  const prev = btn.textContent; btn.textContent = 'Saving…'; btn.disabled = true;
+  const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
+  btn.textContent = prev; btn.disabled = false;
+  if (error) { alert('Save failed: ' + error.message); return; }
+  _gpCurrentFilename = filename;
+  currentFilename = filename;
+  document.getElementById('gp-title').textContent = filename;
+  document.getElementById('gp-status').textContent = 'Saved to library as ' + filename;
+  closeGPSaveDialog();
+  if (typeof updateCurrentFile === 'function') updateCurrentFile();
+  if (typeof refreshFileList === 'function') refreshFileList();
+  if (typeof flashSaved === 'function') flashSaved();
+  _updateGPSaveBtn();
+}
+
+async function openSavedGPFile(filename) {
+  if (!currentUser) { alert('Please sign in.'); return; }
+  showGPPreview();
+  document.getElementById('gp-title').textContent = filename;
+  document.getElementById('gp-status').textContent = 'Loading ' + filename + '…';
+  const { data, error } = await sb.from('songs')
+    .select('content').eq('filename', filename).eq('user_id', currentUser.id).single();
+  if (error) { document.getElementById('gp-status').textContent = 'Load failed: ' + error.message; return; }
+  const content = data.content || '';
+  if (!content.startsWith(GP_MARKER)) {
+    document.getElementById('gp-status').textContent = 'This file is not a stored Guitar Pro file.';
+    return;
+  }
+  try {
+    const bytes = _base64ToBytes(content.slice(GP_MARKER.length));
+    _gpCurrentBytes = bytes;
+    _gpCurrentFilename = filename;
+    if (_alphaTabApi) _alphaTabApi.load(bytes);
+    currentFilename = filename;
+    if (typeof updateCurrentFile === 'function') updateCurrentFile();
+    if (typeof trackRecent === 'function') trackRecent(filename);
+    if (typeof renderFileList === 'function') renderFileList();
+    _updateGPSaveBtn();
+  } catch (e) {
+    document.getElementById('gp-status').textContent = 'Decode failed: ' + e.message;
   }
 }
 
