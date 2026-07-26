@@ -2139,7 +2139,14 @@ Lyrics go here  with chords above"></textarea>
     <label style="font-size:11px;color:var(--text-dim);">Key</label>
     <input class="saveas-input" id="gp-save-key" placeholder="e.g. G, Am">
     <label style="font-size:11px;color:var(--text-dim);">Tags (comma-separated)</label>
-    <input class="saveas-input" id="gp-save-tags" placeholder="e.g. rock, practice">
+    <div class="tag-input-wrap" id="gp-tag-wrap" onclick="document.getElementById('gp-tag-text').focus()">
+      <input class="tag-text-input" id="gp-tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);">Press Enter or comma to add · Click × to remove</div>
+    <div id="gp-tag-suggestions-wrap" style="display:none;flex-direction:column;gap:5px;">
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);">Existing tags — click to add</div>
+      <div id="gp-tag-suggestions" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
       <button class="btn btn-ghost" onclick="closeGPSaveDialog()">Cancel</button>
       <button class="btn btn-primary" id="gp-save-confirm" onclick="confirmGPSave()">Save</button>
@@ -2566,6 +2573,15 @@ document.getElementById('edit-tag-text')?.addEventListener('keydown', e => {
 
 document.getElementById('editTagsOverlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('editTagsOverlay')) closeEditTags();
+});
+
+document.getElementById('gp-tag-text')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const el = document.getElementById('gp-tag-text');
+    addGPTagPill(el.value);
+    el.value = '';
+  }
 });
 
 function fpShowAuthView() {
@@ -3866,8 +3882,16 @@ function toggleAutoScroll() {
   else startAutoScroll();
 }
 
+function getAutoScrollTarget() {
+  const gp = document.getElementById('gpPreview');
+  if (gp && gp.style.display !== 'none') {
+    return document.getElementById('gp-render-wrap');
+  }
+  return document.getElementById('previewScroll');
+}
+
 function startAutoScroll() {
-  const scroller = document.getElementById('previewScroll');
+  const scroller = getAutoScrollTarget();
   if (!scroller) return;
   autoScrollActive = true;
   autoScrollLastTime = null;
@@ -3910,13 +3934,15 @@ function stopAutoScroll() {
 
 // Pause auto-scroll if the user manually scrolls (drag/wheel/touch)
 (function() {
-  const scroller = document.getElementById('previewScroll');
-  if (!scroller) return;
-  let userScrollGuard = false;
-  ['wheel', 'touchstart', 'mousedown'].forEach(evt => {
-    scroller.addEventListener(evt, () => {
-      if (autoScrollActive) stopAutoScroll();
-    }, { passive: true });
+  const targets = ['previewScroll', 'gp-render-wrap']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  targets.forEach(el => {
+    ['wheel', 'touchstart', 'mousedown'].forEach(evt => {
+      el.addEventListener(evt, () => {
+        if (autoScrollActive) stopAutoScroll();
+      }, { passive: true });
+    });
   });
 })();
 
@@ -6040,12 +6066,17 @@ function openShareView(data) {
     const contents = data.setlist_contents || [];
     text = contents.map(s => s.content).join('\n\n---\n\n');
   }
-  // Use the existing parser/renderer
-  const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
-  pendingAbcRenders = [];
-  pendingVextabRenders = [];
-  songs.forEach(song => paper.appendChild(renderSong(song)));
-  flushAllNotationRenders();
+  // Guitar Pro binary content — render with alphaTab instead of ChordPro parser
+  if (data.item_type === 'song' && typeof text === 'string' && text.startsWith(GP_MARKER)) {
+    _renderSharedGP(paper, text.slice(GP_MARKER.length), data.title);
+  } else {
+    // Use the existing parser/renderer
+    const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
+    pendingAbcRenders = [];
+    pendingVextabRenders = [];
+    songs.forEach(song => paper.appendChild(renderSong(song)));
+    flushAllNotationRenders();
+  }
 
   // Notice: save button if logged in
   const notice = document.getElementById('sv-notice');
@@ -6063,6 +6094,109 @@ function openShareView(data) {
   history.replaceState(null, '', window.location.pathname);
 }
 
+// Render a Guitar Pro binary payload (base64 after the GP_MARKER prefix) into
+// the shared-view paper element using an isolated alphaTab instance so that
+// the main editor's _alphaTabApi (bound to #alphaTab) isn't disturbed.
+let _svAlphaTabApi = null;
+let _svGPFitObserver = null;
+function _renderSharedGP(paper, base64, title) {
+  // Build a container mimicking the main GP preview layout
+  const host = document.createElement('div');
+  host.style.cssText = 'display:flex;flex-direction:column;height:100%;min-height:60vh;';
+  const toolbar = document.createElement('div');
+  toolbar.style.cssText = 'display:flex;gap:10px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);';
+  const titleEl = document.createElement('div');
+  titleEl.textContent = title || 'Guitar Pro';
+  titleEl.style.cssText = 'font-weight:600;color:var(--text);';
+  const status = document.createElement('div');
+  status.textContent = 'Loading…';
+  const trackSel = document.createElement('select');
+  trackSel.style.cssText = 'margin-left:auto;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:12px;display:none;';
+  toolbar.appendChild(titleEl);
+  toolbar.appendChild(status);
+  toolbar.appendChild(trackSel);
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'flex:1;min-height:0;overflow:auto;background:var(--paper);color:var(--ink);padding:12px;';
+  const at = document.createElement('div');
+  wrap.appendChild(at);
+  host.appendChild(toolbar);
+  host.appendChild(wrap);
+  paper.appendChild(host);
+
+  // Tear down any previous shared-view alphaTab instance
+  try { _svAlphaTabApi?.destroy?.(); } catch (_) {}
+  _svAlphaTabApi = null;
+  try { _svGPFitObserver?.disconnect?.(); } catch (_) {}
+  _svGPFitObserver = null;
+
+  if (!window.alphaTab) { status.textContent = 'alphaTab failed to load.'; return; }
+
+  let bytes;
+  try { bytes = _base64ToBytes(base64); }
+  catch (e) { status.textContent = 'Corrupt Guitar Pro data.'; return; }
+
+  try {
+    _svAlphaTabApi = new alphaTab.AlphaTabApi(at, {
+      core: {
+        fontDirectory: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/font/',
+        engine: 'svg',
+      },
+      display: { scale: 1.0, layoutMode: 'page' },
+      player: { enablePlayer: false },
+    });
+    _svAlphaTabApi.renderStarted.on(() => { status.textContent = 'Rendering…'; });
+    _svAlphaTabApi.renderFinished.on(() => {
+      const s = _svAlphaTabApi.score;
+      status.textContent = s ? ((s.title || 'Untitled') + (s.artist ? ' — ' + s.artist : '')) : 'Ready.';
+    });
+    _svAlphaTabApi.error.on(err => { status.textContent = 'Error: ' + (err?.message || err); });
+    _svAlphaTabApi.scoreLoaded.on(score => {
+      const tracks = score?.tracks || [];
+      trackSel.innerHTML = '';
+      if (tracks.length > 1) {
+        const all = document.createElement('option');
+        all.value = 'all'; all.textContent = 'All instruments';
+        trackSel.appendChild(all);
+        tracks.forEach((t, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          const prog = (t.playbackInfo && typeof t.playbackInfo.program === 'number') ? ' (GM ' + t.playbackInfo.program + ')' : '';
+          opt.textContent = (t.name || ('Track ' + (i + 1))) + prog;
+          trackSel.appendChild(opt);
+        });
+        trackSel.style.display = '';
+        trackSel.onchange = () => {
+          const v = trackSel.value;
+          if (v === 'all') _svAlphaTabApi.renderTracks(tracks);
+          else {
+            const idx = parseInt(v, 10);
+            if (!isNaN(idx) && tracks[idx]) _svAlphaTabApi.renderTracks([tracks[idx]]);
+          }
+        };
+      }
+    });
+    _svAlphaTabApi.load(bytes);
+
+    // Auto-fit width to the wrap container
+    const applyFit = () => {
+      if (!_svAlphaTabApi) return;
+      const w = wrap.clientWidth;
+      if (!w) return;
+      const scale = Math.max(0.5, Math.min(3, w / GP_BASE_PAGE_WIDTH));
+      const s = _svAlphaTabApi.settings;
+      if (Math.abs((s.display.scale || 1) - scale) < 0.01) return;
+      s.display.scale = scale;
+      _svAlphaTabApi.updateSettings();
+      _svAlphaTabApi.render();
+    };
+    _svGPFitObserver = new ResizeObserver(() => applyFit());
+    _svGPFitObserver.observe(wrap);
+    setTimeout(applyFit, 50);
+  } catch (e) {
+    status.textContent = 'Failed to initialize alphaTab: ' + e.message;
+  }
+}
+
 async function svSaveCopy() {
   if (!currentUser || !svSharedItem) return;
   const btn = document.getElementById('sv-save-btn');
@@ -6072,7 +6206,12 @@ async function svSaveCopy() {
   if (svSharedItem.item_type === 'song') {
     const content = svSharedItem.content || '';
     const title = svSharedItem.title;
-    const filename = title.replace(/[^a-z0-9\-_ ]/gi, '').trim() + '.cho';
+    const isGP = typeof content === 'string' && content.startsWith(GP_MARKER);
+    const origFn = svSharedItem.filename || '';
+    const ext = isGP
+      ? (origFn.match(/\.(gp7|gpx|gp5|gp4|gp3|gp)$/i)?.[0] || '.gp')
+      : '.cho';
+    const filename = title.replace(/[^a-z0-9\-_ ]/gi, '').trim() + ext;
     const { error } = await sb.from('songs').insert({
       user_id: currentUser.id,
       filename,
@@ -6110,6 +6249,10 @@ async function svSaveCopy() {
 function svClose() {
   document.getElementById('shareViewOverlay').classList.remove('open');
   svSharedItem = null;
+  try { _svAlphaTabApi?.destroy?.(); } catch (_) {}
+  _svAlphaTabApi = null;
+  try { _svGPFitObserver?.disconnect?.(); } catch (_) {}
+  _svGPFitObserver = null;
 }
 
 // ─── Mobile layout ────────────────────────────────────────────────────────────
@@ -8522,7 +8665,65 @@ function loadGPFile(input) {
   input.value = ''; // allow re-selecting the same file
 }
 
-function openGPSaveDialog() {
+let gpSaveTags = [];
+
+function addGPTagPill(tag, skipArrayPush) {
+  tag = tag.trim().toLowerCase().replace(/,/g, '');
+  if (!tag) return;
+  if (!skipArrayPush) {
+    if (gpSaveTags.includes(tag)) return;
+    gpSaveTags.push(tag);
+  }
+  const wrap = document.getElementById('gp-tag-wrap');
+  const pill = document.createElement('span');
+  pill.className = 'tag-pill';
+  pill.dataset.tag = tag;
+  pill.innerHTML = `${tag}<button class="tag-pill-del" onclick="removeGPTagPill(this,'${tag}')">×</button>`;
+  wrap.insertBefore(pill, document.getElementById('gp-tag-text'));
+  refreshGPTagSuggestions();
+}
+
+function removeGPTagPill(btn, tag) {
+  gpSaveTags = gpSaveTags.filter(t => t !== tag);
+  btn.parentElement.remove();
+  refreshGPTagSuggestions();
+}
+
+function renderGPTagSuggestions(allTags) {
+  const container = document.getElementById('gp-tag-suggestions');
+  container.innerHTML = '';
+  allTags.forEach(tag => {
+    const pill = document.createElement('span');
+    const isActive = gpSaveTags.includes(tag);
+    pill.className = 'tag-pill';
+    pill.dataset.tag = tag;
+    pill.style.cursor = isActive ? 'default' : 'pointer';
+    pill.style.opacity = isActive ? '0.4' : '1';
+    pill.textContent = tag;
+    if (!isActive) {
+      pill.addEventListener('click', () => { addGPTagPill(tag); });
+    }
+    container.appendChild(pill);
+  });
+}
+
+function refreshGPTagSuggestions() {
+  const container = document.getElementById('gp-tag-suggestions');
+  if (!container) return;
+  container.querySelectorAll('[data-tag]').forEach(pill => {
+    const tag = pill.dataset.tag;
+    const isActive = gpSaveTags.includes(tag);
+    const fresh = pill.cloneNode(true);
+    fresh.style.cursor = isActive ? 'default' : 'pointer';
+    fresh.style.opacity = isActive ? '0.4' : '1';
+    if (!isActive) {
+      fresh.addEventListener('click', () => { addGPTagPill(tag); });
+    }
+    pill.replaceWith(fresh);
+  });
+}
+
+async function openGPSaveDialog() {
   if (!currentUser) { alert('Please sign in to save files.'); return; }
   if (!_gpCurrentBytes || !_gpCurrentFilename) return;
   const score = _alphaTabApi && _alphaTabApi.score;
@@ -8531,9 +8732,24 @@ function openGPSaveDialog() {
     (score && score.title) ? score.title : _gpCurrentFilename.replace(/\.[^.]+$/, '');
   document.getElementById('gp-save-artist').value = (score && score.artist) ? score.artist : '';
   document.getElementById('gp-save-key').value = '';
-  document.getElementById('gp-save-tags').value = '';
+  gpSaveTags = [];
+  const wrap = document.getElementById('gp-tag-wrap');
+  wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
+  document.getElementById('gp-tag-text').value = '';
+  document.getElementById('gp-tag-suggestions-wrap').style.display = 'none';
+  document.getElementById('gp-tag-suggestions').innerHTML = '';
   document.getElementById('gpSaveOverlay').classList.add('open');
   setTimeout(() => document.getElementById('gp-save-title').focus(), 30);
+  try {
+    const { data: allData } = await sb.from('songs').select('tags');
+    if (allData) {
+      const allTags = [...new Set(allData.flatMap(r => r.tags || []))].sort();
+      if (allTags.length) {
+        renderGPTagSuggestions(allTags);
+        document.getElementById('gp-tag-suggestions-wrap').style.display = 'flex';
+      }
+    }
+  } catch (e) {}
 }
 
 function closeGPSaveDialog() {
@@ -8552,8 +8768,10 @@ async function confirmGPSave() {
   const title = (document.getElementById('gp-save-title').value || '').trim() || filename.replace(/\.[^.]+$/, '');
   const artist = (document.getElementById('gp-save-artist').value || '').trim() || null;
   const key = (document.getElementById('gp-save-key').value || '').trim() || null;
-  const tagsRaw = (document.getElementById('gp-save-tags').value || '').trim();
-  const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : null;
+  // flush any pending typed text into a chip
+  const pending = (document.getElementById('gp-tag-text').value || '').trim();
+  if (pending) { addGPTagPill(pending); document.getElementById('gp-tag-text').value = ''; }
+  const tags = gpSaveTags.length ? [...gpSaveTags] : null;
   const b64 = _bytesToBase64(_gpCurrentBytes);
   const content = GP_MARKER + b64;
   const record = { user_id: currentUser.id, filename, title, artist, key, content };
