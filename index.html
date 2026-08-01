@@ -1462,6 +1462,12 @@
       </div>
       <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
         <span id="offline-badge" style="display:none;font-size:10px;color:#6a9e5a;border:1px solid #6a9e5a;border-radius:3px;padding:1px 5px;">✓ Offline</span>
+        <div class="autoscroll-group" id="preview-zoom-group" title="Zoom preview (Ctrl/⌘ + scroll)">
+          <button class="ctrl-btn" onclick="changePreviewZoom(-0.1)" title="Zoom out (Ctrl/⌘ −)">−</button>
+          <button class="ctrl-btn" id="preview-zoom-val" onclick="setPreviewZoom(1)" title="Reset zoom to 100%"
+            style="min-width:46px;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:12px;">100%</button>
+          <button class="ctrl-btn" onclick="changePreviewZoom(0.1)" title="Zoom in (Ctrl/⌘ +)">+</button>
+        </div>
         <div class="autoscroll-group" id="autoscroll-group">
           <button class="ctrl-btn" id="autoscroll-toggle" onclick="toggleAutoScroll()" title="Auto-scroll (Space)">▶</button>
           <button class="ctrl-btn" onclick="changeAutoScrollSpeed(-0.5)" title="Slower">−</button>
@@ -1479,6 +1485,7 @@
           <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);" id="gp-title">Guitar Pro</div>
           <div style="font-size:11px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="gp-status">Ready.</div>
           <select id="gp-track-select" title="Instrument / track" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;max-width:220px;" onchange="onGPTrackChange()"></select>
+          <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
           <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
         </div>
@@ -6115,6 +6122,12 @@ function _renderSharedGP(paper, base64, title) {
   toolbar.appendChild(titleEl);
   toolbar.appendChild(status);
   toolbar.appendChild(trackSel);
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn btn-ghost';
+  exportBtn.textContent = 'Export';
+  exportBtn.title = 'Download the Guitar Pro file';
+  exportBtn.style.marginLeft = trackSel.style.display === 'none' ? 'auto' : '';
+  toolbar.appendChild(exportBtn);
   const wrap = document.createElement('div');
   wrap.style.cssText = 'flex:1;min-height:0;overflow:auto;background:var(--paper);color:var(--ink);padding:12px;';
   const at = document.createElement('div');
@@ -6134,6 +6147,11 @@ function _renderSharedGP(paper, base64, title) {
   let bytes;
   try { bytes = _base64ToBytes(base64); }
   catch (e) { status.textContent = 'Corrupt Guitar Pro data.'; return; }
+
+  exportBtn.onclick = () => {
+    const base = (title || 'score').replace(/[\\/:*?"<>|]+/g, '_');
+    _downloadGPBytes(bytes, base);
+  };
 
   try {
     _svAlphaTabApi = new alphaTab.AlphaTabApi(at, {
@@ -7973,6 +7991,13 @@ updateLineNumbers();
 // ─── Print ────────────────────────────────────────────────────────────────────
 
 function printSongs(paperEl) {
+  // If Guitar Pro preview is active (in the main editor), print that instead.
+  if (!paperEl) {
+    const gp = document.getElementById('gpPreview');
+    if (gp && gp.style.display !== 'none' && gp.offsetParent !== null) {
+      return printGP();
+    }
+  }
   const paper = paperEl || document.getElementById('paper');
   const songs = paper.querySelectorAll('.song');
   if (!songs.length) return;
@@ -8443,9 +8468,17 @@ function printSongs(paperEl) {
     printWin.document.fonts.ready.then(() => {
       setTimeout(() => {
         printWin.focus();
+        // Close the popup once the print dialog is dismissed (printed or cancelled).
+        try {
+          printWin.addEventListener('afterprint', () => {
+            try { printWin.close(); } catch (e) {}
+          }, { once: true });
+        } catch (e) {}
         printWin.print();
-        // Close after a short delay to allow the print dialog to appear
-        setTimeout(() => printWin.close(), 1000);
+        // Fallback close in case afterprint isn't supported or fires early.
+        setTimeout(() => {
+          try { printWin.close(); } catch (e) {}
+        }, 1000);
       }, 400);
     });
   } else {
@@ -8475,6 +8508,71 @@ function printSongs(paperEl) {
 
 function showHelp() {
   document.getElementById('helpModal').classList.add('open');
+}
+
+// ─── Print Guitar Pro rendering ───────────────────────────────────────────────
+function printGP() {
+  if (!_alphaTabApi || !_alphaTabApi.score) {
+    alert('The Guitar Pro score is still loading. Please wait a moment and try again.');
+    return;
+  }
+  if (typeof _alphaTabApi.print !== 'function') {
+    alert('Printing is not available in this version of alphaTab.');
+    return;
+  }
+
+  // alphaTab's print() opens a popup window but leaves it open after the user
+  // prints or cancels. Intercept window.open so we can attach an afterprint
+  // listener to that popup and close it automatically.
+  const originalOpen = window.open;
+  let printWin = null;
+
+  window.open = function(...args) {
+    printWin = originalOpen.apply(window, args);
+    if (!printWin) {
+      alert('Please allow pop-ups for this site to enable printing.');
+      return null;
+    }
+    // Wrap the popup's print() so we can listen for afterprint before it fires.
+    const origPrint = printWin.print;
+    printWin.print = function(...printArgs) {
+      try {
+        printWin.addEventListener('afterprint', function onAfterPrint() {
+          printWin.removeEventListener('afterprint', onAfterPrint);
+          try { printWin.close(); } catch (e) {}
+        });
+      } catch (e) {}
+      return origPrint.apply(printWin, printArgs);
+    };
+    return printWin;
+  };
+
+  // Use alphaTab's built-in print renderer instead of cloning the on-screen SVGs.
+  // It re-renders the currently selected instrument(s), disables lazy loading,
+  // uses print-friendly A4 sizing, and keeps alphaTab's own music font pipeline.
+  try {
+    _alphaTabApi.print(undefined, {
+      core: {
+        fontDirectory: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/font/'
+      },
+      display: {
+        scale: 0.8,
+        stretchForce: 0.8,
+        layoutMode: 'page'
+      }
+    });
+  } catch (err) {
+    alert('Unable to open Guitar Pro print view: ' + (err && err.message ? err.message : err));
+  } finally {
+    window.open = originalOpen;
+  }
+
+  // Fallback: close the popup if it is still around after a few seconds.
+  setTimeout(() => {
+    if (printWin && !printWin.closed) {
+      try { printWin.close(); } catch (e) {}
+    }
+  }, 1500);
 }
 
 function hideHelp(e) {
@@ -8563,16 +8661,97 @@ function hideGPPreview() {
 
 function _updateGPSaveBtn() {
   const btn = document.getElementById('gp-save-btn');
-  if (!btn) return;
-  btn.disabled = !(currentUser && _gpCurrentBytes && _gpCurrentFilename);
+  if (btn) btn.disabled = !(currentUser && _gpCurrentBytes && _gpCurrentFilename);
+  const ex = document.getElementById('gp-export-btn');
+  if (ex) ex.disabled = !(_gpCurrentBytes && _gpCurrentFilename);
 }
+
+// Download raw Guitar Pro bytes as a file.
+function _downloadGPBytes(bytes, filename) {
+  if (!bytes) return;
+  const name = filename && /\.(gp|gp3|gp4|gp5|gpx|gp7)$/i.test(filename) ? filename : ((filename || 'score') + '.gp');
+  const blob = new Blob([bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function exportGPFile() {
+  if (!_gpCurrentBytes) return;
+  _downloadGPBytes(_gpCurrentBytes, _gpCurrentFilename);
+  const st = document.getElementById('gp-status');
+  if (st) st.textContent = 'Exported ' + (_gpCurrentFilename || 'file') + '.';
+}
+window.exportGPFile = exportGPFile;
 
 // Auto-fit the alphaTab page width to the surrounding pane.
 let _gpFitObserver = null;
+// ---- Preview pane zoom (works for both ChordPro paper and Guitar Pro score) ----
+let _previewZoom = 1;
+const PREVIEW_ZOOM_MIN = 0.4;
+const PREVIEW_ZOOM_MAX = 3;
+
+function _isGPPreviewActive() {
+  const gp = document.getElementById('gpPreview');
+  return !!(gp && gp.style.display !== 'none' && gp.offsetParent !== null);
+}
+
+function applyPreviewZoom() {
+  const val = document.getElementById('preview-zoom-val');
+  if (val) val.textContent = Math.round(_previewZoom * 100) + '%';
+  const paper = document.getElementById('paper');
+  if (paper) paper.style.zoom = _previewZoom === 1 ? '' : String(_previewZoom);
+  if (_isGPPreviewActive() && _alphaTabApi) _applyGPFit(true);
+  try { localStorage.setItem('previewZoom', String(_previewZoom)); } catch (_) {}
+}
+
+function setPreviewZoom(z) {
+  _previewZoom = Math.max(PREVIEW_ZOOM_MIN, Math.min(PREVIEW_ZOOM_MAX, Math.round(z * 100) / 100));
+  applyPreviewZoom();
+}
+
+function changePreviewZoom(delta) {
+  setPreviewZoom(_previewZoom + delta);
+}
+window.setPreviewZoom = setPreviewZoom;
+window.changePreviewZoom = changePreviewZoom;
+
+(function _initPreviewZoom() {
+  const start = () => {
+    try {
+      const saved = parseFloat(localStorage.getItem('previewZoom') || '');
+      if (!isNaN(saved) && saved > 0) _previewZoom = Math.max(PREVIEW_ZOOM_MIN, Math.min(PREVIEW_ZOOM_MAX, saved));
+    } catch (_) {}
+    applyPreviewZoom();
+    const scroller = document.getElementById('previewScroll');
+    if (scroller) {
+      scroller.addEventListener('wheel', (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+        setPreviewZoom(_previewZoom * Math.exp(-dy * 0.0015));
+      }, { passive: false });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); changePreviewZoom(0.1); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); changePreviewZoom(-0.1); }
+      else if (e.key === '0') { e.preventDefault(); setPreviewZoom(1); }
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
+
 let _gpFitTimer = null;
 let _gpFitLastScale = 0;
 const GP_BASE_PAGE_WIDTH = 950; // alphaTab default page width in px
-function _applyGPFit() {
+function _applyGPFit(force) {
   if (!_alphaTabApi) return;
   const wrap = document.getElementById('gp-render-wrap');
   if (!wrap) return;
@@ -8580,8 +8759,9 @@ function _applyGPFit() {
   const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
   const avail = Math.max(320, wrap.clientWidth - padX);
   // Only scale up to fill; allow shrinking below 1 on narrow panes.
-  const scale = Math.max(0.5, Math.min(3, avail / GP_BASE_PAGE_WIDTH));
-  if (Math.abs(scale - _gpFitLastScale) < 0.02) return;
+  const fit = Math.max(0.5, Math.min(3, avail / GP_BASE_PAGE_WIDTH));
+  const scale = Math.max(0.25, Math.min(5, fit * (typeof _previewZoom === 'number' ? _previewZoom : 1)));
+  if (!force && Math.abs(scale - _gpFitLastScale) < 0.02) return;
   _gpFitLastScale = scale;
   try {
     const s = _alphaTabApi.settings;
