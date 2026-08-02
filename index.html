@@ -788,6 +788,8 @@
   .fp-item-icon { font-size: 13px; opacity: 0.45; flex-shrink: 0; }
   .fp-item-name { font-size: 13px; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; min-width: 0; }
   .fp-item.active .fp-item-name { color: var(--accent); }
+  .fp-type-badge { font-size: 9px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; flex-shrink: 0; font-weight: 600; }
+
   .fp-item-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 18px; opacity: 0; transition: opacity 0.1s; line-height: 1; }
   .fp-item:hover .fp-item-del { opacity: 1; }
   .fp-item-del:hover { color: #e05a5a; background: rgba(224,90,90,0.1); }
@@ -3263,14 +3265,15 @@ function grpRenderSongList() {
   list.classList.remove('tree-view');
 
   if (grpSortMode === 'name') {
-    files.sort((a, b) => a.filename.localeCompare(b.filename));
+    files.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
   } else if (grpSortMode === 'artist') {
-    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || a.filename.localeCompare(b.filename));
+    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
   } else if (grpSortMode === 'date') {
     files.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   } else if (grpSortMode === 'key') {
     files.sort((a, b) => (a.key || 'zzz').localeCompare(b.key || 'zzz'));
   }
+
 
   if (!files.length) {
     list.innerHTML = query || grpSmartFilter.tag || grpSmartFilter.key || grpSmartFilter.artist
@@ -3284,14 +3287,15 @@ function grpRenderSongList() {
     item.className = 'fp-item';
 
     const icon = document.createElement('span');
-    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+    icon.className = 'fp-item-icon'; icon.textContent = getFileTypeInfo(row.filename).icon;
 
     const nameWrap = document.createElement('span');
     nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
     const name = document.createElement('span');
-    name.className = 'fp-item-name'; name.textContent = row.filename;
+    name.className = 'fp-item-name'; name.textContent = getSongDisplayName(row);
     nameWrap.appendChild(name);
     if (row.artist) {
+
       const artistEl = document.createElement('span');
       artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       artistEl.textContent = row.artist;
@@ -3300,8 +3304,10 @@ function grpRenderSongList() {
 
     item.appendChild(icon);
     item.appendChild(nameWrap);
+    item.appendChild(createFileTypeBadge(row.filename));
 
     if (row.key) {
+
       const keyBadge = document.createElement('span');
       keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
       keyBadge.textContent = row.key;
@@ -3348,14 +3354,15 @@ function grpRenderArtistTree(list, files) {
   }
 
   sortedArtists.forEach(artist => {
-    const songs = artistMap[artist].sort((a, b) => a.filename.localeCompare(b.filename));
+    const songs = artistMap[artist].sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(grpBuildArtistGroup(artist, songs));
   });
 
   if (noArtist.length) {
-    noArtist.sort((a, b) => a.filename.localeCompare(b.filename));
+    noArtist.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(grpBuildArtistGroup('(no artist)', noArtist, true));
   }
+
 }
 
 function grpBuildArtistGroup(artist, songs, faded) {
@@ -3391,13 +3398,15 @@ function grpBuildArtistGroup(artist, songs, faded) {
     item.style.paddingLeft = '20px';
 
     const icon = document.createElement('span');
-    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+    icon.className = 'fp-item-icon'; icon.textContent = getFileTypeInfo(row.filename).icon;
 
     const name = document.createElement('span');
-    name.className = 'fp-item-name'; name.textContent = row.filename;
+    name.className = 'fp-item-name'; name.textContent = getSongDisplayName(row);
 
     item.appendChild(icon);
     item.appendChild(name);
+    item.appendChild(createFileTypeBadge(row.filename));
+
 
     if (row.key) {
       const keyBadge = document.createElement('span');
@@ -3447,14 +3456,15 @@ function grpRenderKeyTree(list, files) {
   }
 
   sortedKeys.forEach(key => {
-    const songs = keyMap[key].sort((a, b) => a.filename.localeCompare(b.filename));
+    const songs = keyMap[key].sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(grpBuildKeyGroup(key, songs));
   });
 
   if (noKey.length) {
-    noKey.sort((a, b) => a.filename.localeCompare(b.filename));
+    noKey.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(grpBuildKeyGroup('(no key)', noKey, true));
   }
+
 }
 
 function grpBuildKeyGroup(key, songs, faded) {
@@ -3490,14 +3500,15 @@ function grpBuildKeyGroup(key, songs, faded) {
     item.style.paddingLeft = '20px';
 
     const icon = document.createElement('span');
-    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+    icon.className = 'fp-item-icon'; icon.textContent = getFileTypeInfo(row.filename).icon;
 
     const nameWrap = document.createElement('span');
     nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
     const name = document.createElement('span');
-    name.className = 'fp-item-name'; name.textContent = row.filename;
+    name.className = 'fp-item-name'; name.textContent = getSongDisplayName(row);
     nameWrap.appendChild(name);
     if (row.artist) {
+
       const artistEl = document.createElement('span');
       artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       artistEl.textContent = row.artist;
@@ -3506,8 +3517,10 @@ function grpBuildKeyGroup(key, songs, faded) {
 
     item.appendChild(icon);
     item.appendChild(nameWrap);
+    item.appendChild(createFileTypeBadge(row.filename));
 
     if (grpIsAdmin()) {
+
       const delBtn = document.createElement('button');
       delBtn.className = 'fp-item-del'; delBtn.textContent = '×'; delBtn.title = 'Remove from group';
       delBtn.addEventListener('click', e => { e.stopPropagation(); grpDeleteSong(row.id, row.filename, e); });
@@ -3536,7 +3549,8 @@ async function grpLoadSong(row) {
   currentFilename = null; // group songs don't use personal filename
   setUnsaved(false);
   resetTranspose();
-  document.getElementById('grp-current').innerHTML = `⊕ <b>${row.filename}</b>`;
+  document.getElementById('grp-current').innerHTML = `⊕ <b>${getSongDisplayName(row)}</b>`;
+
   // Store which group song is open
   currentGroupSongId = row.id;
   currentGroupSongFilename = row.filename;
@@ -4140,11 +4154,13 @@ function renderRecent() {
     icon.className = 'fp-item-icon'; icon.textContent = '↺';
     icon.style.opacity = '0.5';
     const name = document.createElement('span');
-    name.className = 'fp-item-name'; name.textContent = filename;
+    name.className = 'fp-item-name'; name.textContent = getSongDisplayName(row);
     name.style.fontSize = '11px';
     item.appendChild(icon);
     item.appendChild(name);
+    item.appendChild(createFileTypeBadge(row.filename));
     if (row.key) {
+
       const badge = document.createElement('span');
       badge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
       badge.textContent = row.key;
@@ -4348,14 +4364,15 @@ function renderFileList() {
 
   // Sort (flat modes)
   if (sortMode === 'name') {
-    files.sort((a, b) => a.filename.localeCompare(b.filename));
+    files.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
   } else if (sortMode === 'artist') {
-    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || a.filename.localeCompare(b.filename));
+    files.sort((a, b) => (a.artist || 'zzz').localeCompare(b.artist || 'zzz') || getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
   } else if (sortMode === 'date') {
     files.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   } else if (sortMode === 'key') {
     files.sort((a, b) => (a.key || 'zzz').localeCompare(b.key || 'zzz'));
   }
+
 
   if (!files.length) {
     list.innerHTML = query
@@ -4385,8 +4402,10 @@ function buildFileItem(row, container, hideArtist) {
     const name = document.createElement('span');
     name.className = 'fp-item-name';
     name.style.flex = '1';
-    name.textContent = row.filename;
+    name.textContent = getSongDisplayName(row);
     item.appendChild(name);
+
+    item.appendChild(createFileTypeBadge(row.filename));
 
     if (row.artist) {
       const artistEl = document.createElement('span');
@@ -4401,21 +4420,25 @@ function buildFileItem(row, container, hideArtist) {
       item.appendChild(badge);
     }
     item.addEventListener('click', () => toggleQuickSlSong(row.filename));
+
     container.appendChild(item);
     return;
   }
 
+  const typeInfo = getFileTypeInfo(row.filename);
+
   const icon = document.createElement('span');
   icon.className = 'fp-item-icon';
-  icon.textContent = '♩';
+  icon.textContent = typeInfo.icon;
 
   const nameWrap = document.createElement('div');
   nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
 
   const name = document.createElement('span');
   name.className = 'fp-item-name';
-  name.textContent = row.filename;
+  name.textContent = getSongDisplayName(row);
   nameWrap.appendChild(name);
+
 
   if (row.artist && !hideArtist) {
     const artist = document.createElement('span');
@@ -4454,8 +4477,10 @@ function buildFileItem(row, container, hideArtist) {
 
   item.appendChild(icon);
   item.appendChild(nameWrap);
+  item.appendChild(createFileTypeBadge(row.filename));
 
   if (row.key) {
+
     const keyBadge = document.createElement('span');
     keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
     keyBadge.textContent = row.key;
@@ -4539,14 +4564,15 @@ function renderKeyTree(list, files) {
   }
 
   sortedKeys.forEach(key => {
-    const songs = keyMap[key].sort((a, b) => a.filename.localeCompare(b.filename));
+    const songs = keyMap[key].sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(buildKeyGroup(key, songs));
   });
 
   if (noKey.length) {
-    noKey.sort((a, b) => a.filename.localeCompare(b.filename));
+    noKey.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(buildKeyGroup('(no key)', noKey, true));
   }
+
 }
 
 function buildKeyGroup(key, songs, faded) {
@@ -4610,14 +4636,15 @@ function renderArtistTree(list, files) {
   }
 
   sortedArtists.forEach(artist => {
-    const songs = artistMap[artist].sort((a, b) => a.filename.localeCompare(b.filename));
+    const songs = artistMap[artist].sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(buildArtistGroup(artist, songs));
   });
 
   if (noArtist.length) {
-    noArtist.sort((a, b) => a.filename.localeCompare(b.filename));
+    noArtist.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
     list.appendChild(buildArtistGroup('(no artist)', noArtist, true));
   }
+
 }
 
 function buildArtistGroup(artist, songs, faded) {
@@ -5272,7 +5299,8 @@ function buildTagGroup(tag, songs, faded) {
   group.className = 'tag-group';
 
   // Sort songs alphabetically within each tag
-  songs.sort((a, b) => a.filename.localeCompare(b.filename));
+  songs.sort((a, b) => getSongDisplayName(a).localeCompare(getSongDisplayName(b)));
+
 
   const header = document.createElement('div');
   header.className = 'tag-header';
@@ -5320,16 +5348,17 @@ function buildTagGroup(tag, songs, faded) {
     item.className = 'fp-item' + (song.filename === currentFilename ? ' active' : '');
 
     const icon = document.createElement('span');
-    icon.className = 'fp-item-icon'; icon.textContent = '♩';
+    icon.className = 'fp-item-icon'; icon.textContent = getFileTypeInfo(song.filename).icon;
 
     const nameWrap = document.createElement('div');
     nameWrap.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;';
 
     const nameEl = document.createElement('span');
-    nameEl.className = 'fp-item-name'; nameEl.textContent = song.filename;
+    nameEl.className = 'fp-item-name'; nameEl.textContent = getSongDisplayName(song);
     nameWrap.appendChild(nameEl);
 
     if (song.artist) {
+
       const artistEl = document.createElement('span');
       artistEl.style.cssText = 'font-size:9px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       artistEl.textContent = song.artist;
@@ -5338,8 +5367,10 @@ function buildTagGroup(tag, songs, faded) {
 
     item.appendChild(icon);
     item.appendChild(nameWrap);
+    item.appendChild(createFileTypeBadge(song.filename));
 
     if (song.key) {
+
       const keyBadge = document.createElement('span');
       keyBadge.style.cssText = 'font-size:9px;color:var(--accent);border:1px solid var(--border);border-radius:3px;padding:1px 4px;flex-shrink:0;font-weight:600;';
       keyBadge.textContent = song.key;
@@ -8590,6 +8621,34 @@ const GP_MARKER = 'GPBIN1:';     // stored song content prefix for binary GP dat
 function isGuitarProFilename(fn) {
   return /\.(gp|gp3|gp4|gp5|gpx|gp7)$/i.test(fn || '');
 }
+
+function getSongDisplayName(row) {
+  return (row.title || '').trim() || row.filename;
+}
+
+function getFileTypeInfo(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  if (/^(gp|gp3|gp4|gp5|gpx|gp7)$/.test(ext)) {
+    return { label: 'Guitar Pro', short: 'GP', icon: '♪', color: 'var(--accent)' };
+  }
+  if (/^(cho|chopro|chordpro|crd|pro)$/.test(ext)) {
+    return { label: 'ChordPro', short: 'CHO', icon: '♩', color: 'var(--text-dim)' };
+  }
+  if (ext === 'txt') {
+    return { label: 'Text', short: 'TXT', icon: '📄', color: 'var(--text-dim)' };
+  }
+  return { label: ext.toUpperCase() || 'File', short: ext.toUpperCase() || 'FILE', icon: '♩', color: 'var(--text-dim)' };
+}
+
+function createFileTypeBadge(filename) {
+  const info = getFileTypeInfo(filename);
+  const badge = document.createElement('span');
+  badge.className = 'fp-type-badge';
+  badge.textContent = info.short;
+  badge.title = info.label;
+  return badge;
+}
+
 
 function _bytesToBase64(bytes) {
   let s = '';
