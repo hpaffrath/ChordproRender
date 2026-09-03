@@ -285,6 +285,97 @@ create policy "Members can manage group setlists"
 
 
 -- ============================================================
+--  APPROVAL / ACCESS CONTROL
+-- ============================================================
+
+-- ─── APPROVED MEMBERS ─────────────────────────────────────────────────────────
+create table if not exists approved_members (
+  id         uuid        default gen_random_uuid() primary key,
+  user_id    uuid        references auth.users(id) on delete cascade not null,
+  email      text        not null,
+  approved   boolean     not null default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id),
+  unique (email)
+);
+
+drop trigger if exists approved_members_updated_at on approved_members;
+create trigger approved_members_updated_at
+  before update on approved_members
+  for each row execute procedure update_updated_at();
+
+alter table approved_members enable row level security;
+
+grant select, insert, update, delete on approved_members to authenticated;
+grant all on approved_members to service_role;
+
+drop policy if exists "Users can view their own approval status" on approved_members;
+create policy "Users can view their own approval status"
+  on approved_members for select
+  using (auth.uid() = user_id);
+
+-- Helper: check whether a given user is approved
+create or replace function is_approved_member(p_user_id uuid)
+returns boolean language sql security definer stable as $$
+  select coalesce(
+    (select approved from approved_members where user_id = p_user_id),
+    false
+  );
+$$;
+
+-- Auto-enroll new sign-ups as pending (skips users with no email)
+--  * search_path is pinned: auth triggers do not run with `public` on the path,
+--    so without this the insert fails and signup returns
+--    "Database error saving new user".
+--  * both unique constraints (user_id, email) are handled.
+--  * any unexpected failure is swallowed so signup can never be blocked.
+create or replace function handle_new_approved_member()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_email text;
+begin
+  v_email := coalesce(new.email, new.raw_user_meta_data->>'email');
+  if v_email is not null then
+    begin
+      insert into public.approved_members (user_id, email, approved)
+      values (new.id, v_email, false)
+      on conflict (user_id) do nothing;
+    exception
+      when unique_violation then
+        -- email already present under a different user_id: link it across
+        update public.approved_members
+           set user_id = new.id
+         where email = v_email;
+      when others then
+        raise warning 'approved_members enrolment failed for %: %', new.id, sqlerrm;
+    end;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_approved_member on auth.users;
+create trigger on_auth_user_created_approved_member
+  after insert on auth.users
+  for each row execute function handle_new_approved_member();
+
+-- Backfill: mark all existing users as approved (skips users without an email)
+insert into approved_members (user_id, email, approved)
+select id, email, true
+from auth.users
+where email is not null
+  and not exists (
+    select 1 from approved_members where approved_members.user_id = auth.users.id
+  )
+on conflict do nothing;
+
+
+-- ============================================================
 --  INDEXES (performance at scale)
 -- ============================================================
 
@@ -298,6 +389,8 @@ create index if not exists shared_items_expiry_idx on shared_items(expires_at);
 create index if not exists grp_members_user_idx    on group_members(user_id);
 create index if not exists grp_members_group_idx   on group_members(group_id);
 create index if not exists grp_songs_group_idx     on group_songs(group_id);
+create index if not exists approved_members_user_idx on approved_members(user_id);
+create index if not exists approved_members_email_idx  on approved_members(email);
 
 
 -- ============================================================
@@ -326,15 +419,17 @@ create index if not exists grp_songs_group_idx     on group_songs(group_id);
 -- ============================================================
 --  TABLE SUMMARY
 --
---  songs            Personal ChordPro files        RLS: user_id
---  setlists         Personal setlists               RLS: user_id
---  shared_items     Share links (90-day expiry)     RLS: owner / public read
---  groups           Collaboration groups            RLS: member / admin
---  group_members    Group membership + roles        RLS: member / admin
---  group_songs      Songs shared within a group     RLS: member r/w, admin delete
---  group_setlists   Setlists shared within a group  RLS: member
+--  songs             Personal ChordPro files        RLS: user_id
+--  setlists          Personal setlists               RLS: user_id
+--  shared_items      Share links (90-day expiry)     RLS: owner / public read
+--  groups            Collaboration groups            RLS: member / admin
+--  group_members     Group membership + roles        RLS: member / admin
+--  group_songs       Songs shared within a group     RLS: member r/w, admin delete
+--  group_setlists    Setlists shared within a group  RLS: member
+--  approved_members  App access approval list        RLS: own row / service_role
 --
 --  RLS helpers (security definer, avoids recursion):
 --    is_group_member(group_id, user_id) → boolean
 --    is_group_admin(group_id, user_id)  → boolean
+--    is_approved_member(user_id)        → boolean
 -- ============================================================
