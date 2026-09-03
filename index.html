@@ -1488,6 +1488,13 @@
           <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);" id="gp-title">Guitar Pro</div>
           <div style="font-size:11px;color:var(--text-dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="gp-status">Ready.</div>
           <select id="gp-track-select" title="Instrument / track" style="display:none;font-size:12px;padding:4px 6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;max-width:220px;" onchange="onGPTrackChange()"></select>
+          <div style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;" title="Notation / tab size inside the page">
+            <span style="font-size:11px;color:var(--text-dim);">Notes</span>
+            <button class="ctrl-btn" onclick="changeGPNoteZoom(-0.1)" title="Smaller notation">−</button>
+            <span id="gp-note-zoom-val" style="font-size:11px;min-width:34px;text-align:center;color:var(--text-dim);">100%</span>
+            <button class="ctrl-btn" onclick="changeGPNoteZoom(0.1)" title="Larger notation">+</button>
+            <button class="ctrl-btn" onclick="setGPNoteZoom(1)" title="Reset notation size">⟲</button>
+          </div>
           <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
           <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
@@ -8861,26 +8868,65 @@ window.changePreviewZoom = changePreviewZoom;
 })();
 
 let _gpFitTimer = null;
-let _gpFitLastScale = 0;
+let _gpFitLastKey = '';
+let _gpNoteZoom = 1;
 const GP_BASE_PAGE_WIDTH = 950; // alphaTab default page width in px
+
+function applyGPNoteZoom() {
+  const el = document.getElementById('gp-note-zoom-val');
+  if (el) el.textContent = Math.round(_gpNoteZoom * 100) + '%';
+  try { localStorage.setItem('gpNoteZoom', String(_gpNoteZoom)); } catch (_) {}
+  if (_alphaTabApi) _applyGPFit(true);
+}
+function setGPNoteZoom(z) {
+  _gpNoteZoom = Math.max(0.4, Math.min(3, Math.round(z * 100) / 100));
+  applyGPNoteZoom();
+}
+function changeGPNoteZoom(d) { setGPNoteZoom(_gpNoteZoom + d); }
+window.setGPNoteZoom = setGPNoteZoom;
+window.changeGPNoteZoom = changeGPNoteZoom;
+try {
+  const _sv = parseFloat(localStorage.getItem('gpNoteZoom') || '');
+  if (!isNaN(_sv) && _sv > 0) _gpNoteZoom = Math.max(0.4, Math.min(3, _sv));
+} catch (_) {}
+
+let _gpFitBusy = false;
 function _applyGPFit(force) {
-  if (!_alphaTabApi) return;
+  if (!_alphaTabApi || _gpFitBusy) return;
   const wrap = document.getElementById('gp-render-wrap');
-  if (!wrap) return;
-  const style = getComputedStyle(wrap);
-  const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
-  const avail = Math.max(320, wrap.clientWidth - padX);
-  // Only scale up to fill; allow shrinking below 1 on narrow panes.
-  const fit = Math.max(0.5, Math.min(3, avail / GP_BASE_PAGE_WIDTH));
-  const scale = Math.max(0.25, Math.min(5, fit * (typeof _previewZoom === 'number' ? _previewZoom : 1)));
-  if (!force && Math.abs(scale - _gpFitLastScale) < 0.02) return;
-  _gpFitLastScale = scale;
+  const host = document.getElementById('alphaTab');
+  if (!wrap || !host) return;
+  _gpFitBusy = true;
   try {
-    const s = _alphaTabApi.settings;
-    if (s && s.display) s.display.scale = scale;
-    _alphaTabApi.updateSettings();
-    _alphaTabApi.render();
-  } catch (_) { /* no-op */ }
+    const style = getComputedStyle(wrap);
+    const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    // Measure the pane width without the (possibly oversized) score host influencing it,
+    // otherwise zooming past 100% feeds back into the measurement and keeps growing.
+    const prevWidth = host.style.width;
+    host.style.width = '0px';
+    const avail = Math.max(320, wrap.clientWidth - padX);
+    host.style.width = prevWidth;
+    const zoom = (typeof _previewZoom === 'number' ? _previewZoom : 1);
+    // Main zoom controls the physical page width; alphaTab lays out to its host width.
+    const pageWidth = Math.max(240, Math.round(avail * zoom));
+    // Notation/tab size inside the page depends only on the pane width and the note zoom,
+    // never on the page zoom, so text stays the same size as the page grows.
+    const fit = Math.max(0.5, Math.min(2, avail / GP_BASE_PAGE_WIDTH));
+    const scale = Math.max(0.25, Math.min(5, fit * _gpNoteZoom));
+    const key = pageWidth + ':' + scale.toFixed(3);
+    if (!force && key === _gpFitLastKey) return;
+    _gpFitLastKey = key;
+    host.style.width = pageWidth + 'px';
+    host.style.maxWidth = 'none';
+    try {
+      const s = _alphaTabApi.settings;
+      if (s && s.display) s.display.scale = scale;
+      _alphaTabApi.updateSettings();
+      _alphaTabApi.render();
+    } catch (_) { /* no-op */ }
+  } finally {
+    _gpFitBusy = false;
+  }
 }
 function _installGPAutoFit() {
   const wrap = document.getElementById('gp-render-wrap');
