@@ -1491,9 +1491,9 @@
           <div style="display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:4px;padding:2px 4px;" title="Notation / tab size inside the page">
             <span style="font-size:11px;color:var(--text-dim);">Notes</span>
             <button class="ctrl-btn" onclick="changeGPNoteZoom(-0.1)" title="Smaller notation">−</button>
-            <span id="gp-note-zoom-val" style="font-size:11px;min-width:34px;text-align:center;color:var(--text-dim);">100%</span>
+            <span id="gp-note-zoom-val" onclick="setGPNoteZoom(1)" title="Reset notation size to 100%" style="font-size:11px;min-width:34px;text-align:center;color:var(--text-dim);cursor:pointer;user-select:none;">100%</span>
             <button class="ctrl-btn" onclick="changeGPNoteZoom(0.1)" title="Larger notation">+</button>
-            <button class="ctrl-btn" onclick="setGPNoteZoom(1)" title="Reset notation size">⟲</button>
+
           </div>
           <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
