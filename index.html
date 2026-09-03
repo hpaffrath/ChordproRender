@@ -770,6 +770,7 @@
   .fp-err { font-size: 10px; color: #e05a5a; text-align: center; min-height: 14px; }
   .fp-switch { font-size: 12px; color: var(--text-dim); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
   .fp-switch:hover { color: var(--text-dim); }
+  .fp-beta-note { font-size: 12px; color: var(--accent); line-height: 1.45; text-align: center; padding: 8px 10px; background: rgba(232,184,75,0.08); border: 1px solid rgba(232,184,75,0.25); border-radius: 4px; }
 
   .fp-user { padding: 7px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .fp-user-email { font-size: 12.5px; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1538,6 +1539,7 @@
       <div class="fp-form" id="fp-signup-form" style="display:none">
         <input class="fp-input" id="fp-signup-email" type="email" placeholder="Email">
         <input class="fp-input" id="fp-signup-password" type="password" placeholder="Password (6+ chars)">
+        <div class="fp-beta-note">Private beta program: this application is not available to the general public. New accounts are reviewed and approved by the owner before access is granted.</div>
         <div class="fp-err" id="fp-signup-err"></div>
         <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignUp()">Create Account</button>
         <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
@@ -1546,6 +1548,10 @@
         <input class="fp-input" id="fp-forgot-email" type="email" placeholder="Your email address">
         <div class="fp-err" id="fp-forgot-err"></div>
         <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSendReset()">Send Reset Email</button>
+        <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
+      </div>
+      <div class="fp-form" id="fp-pending-view" style="display:none">
+        <div class="fp-beta-note" id="fp-pending-msg">Your request for access has been received. You will be notified if your access is granted.</div>
         <div style="text-align:center"><span class="fp-switch" onclick="fpShowSignIn()">Back to sign in</span></div>
       </div>
     </div>
@@ -2187,13 +2193,17 @@ async function fpInit() {
 
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
+    const ok = await fpCheckApproved(session.user);
+    if (!ok) { await fpHandleUnapproved(); return; }
     currentUser = session.user;
     fpShowFilesView();
     refreshFileList();
   }
-  sb.auth.onAuthStateChange((_event, session) => {
+  sb.auth.onAuthStateChange(async (_event, session) => {
     currentUser = session?.user || null;
     if (currentUser) {
+      const ok = await fpCheckApproved(currentUser);
+      if (!ok) { await fpHandleUnapproved(); return; }
       // Don't disrupt group mode on token refresh
       if (!currentGroup) fpShowFilesView();
       refreshFileList();
@@ -2203,13 +2213,48 @@ async function fpInit() {
   });
 }
 
+// ─── Access approval gate (approved_members table) ───────────────────────────
+
+async function fpCheckApproved(user) {
+  try {
+    let { data } = await sb.from('approved_members').select('approved').eq('user_id', user.id).maybeSingle();
+    if (!data && user.email) {
+      // Fallback in case the DB trigger hasn't enrolled this user yet
+      await sb.from('approved_members')
+        .upsert({ user_id: user.id, email: user.email, approved: false }, { onConflict: 'user_id', ignoreDuplicates: true });
+      const retry = await sb.from('approved_members').select('approved').eq('user_id', user.id).maybeSingle();
+      data = retry.data;
+    }
+    return !!(data && data.approved);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function fpHandleUnapproved(msg) {
+  await sb.auth.signOut();
+  currentUser = null;
+  fpShowAuthView();
+  document.getElementById('fp-login-form').style.display = 'none';
+  document.getElementById('fp-signup-form').style.display = 'none';
+  document.getElementById('fp-forgot-form').style.display = 'none';
+  if (msg) document.getElementById('fp-pending-msg').textContent = msg;
+  document.getElementById('fp-pending-view').style.display = 'flex';
+}
+
 async function fpSignIn() {
   const email = document.getElementById('fp-email').value.trim();
   const password = document.getElementById('fp-password').value;
   document.getElementById('fp-err').textContent = '';
   if (!email || !password) { document.getElementById('fp-err').textContent = 'Please enter email and password.'; return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) document.getElementById('fp-err').textContent = error.message;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { document.getElementById('fp-err').textContent = error.message; return; }
+  if (data?.user) {
+    const ok = await fpCheckApproved(data.user);
+    if (!ok) {
+      await fpHandleUnapproved('You have not been granted access yet. This application is not available to the general public.');
+    }
+  }
 }
 
 async function fpSignUp() {
@@ -2217,9 +2262,14 @@ async function fpSignUp() {
   const password = document.getElementById('fp-signup-password').value;
   document.getElementById('fp-signup-err').textContent = '';
   if (!email || !password) { document.getElementById('fp-signup-err').textContent = 'Please enter email and password.'; return; }
-  const { error } = await sb.auth.signUp({ email, password });
-  if (error) document.getElementById('fp-signup-err').textContent = error.message;
-  else document.getElementById('fp-signup-err').textContent = 'Check your email to confirm your account.';
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) { document.getElementById('fp-signup-err').textContent = error.message; return; }
+  // Enrol as pending (the DB trigger normally does this; this is a fallback)
+  if (data?.user) {
+    await sb.from('approved_members')
+      .upsert({ user_id: data.user.id, email, approved: false }, { onConflict: 'user_id', ignoreDuplicates: true });
+  }
+  await fpHandleUnapproved('Your request for access has been received. You will be notified if your access is granted.');
 }
 
 async function fpSignOut() {
@@ -2231,16 +2281,19 @@ async function fpSignOut() {
 function fpShowSignUp() {
   document.getElementById('fp-login-form').style.display = 'none';
   document.getElementById('fp-forgot-form').style.display = 'none';
+  document.getElementById('fp-pending-view').style.display = 'none';
   document.getElementById('fp-signup-form').style.display = 'flex';
 }
 function fpShowSignIn() {
   document.getElementById('fp-signup-form').style.display = 'none';
   document.getElementById('fp-forgot-form').style.display = 'none';
+  document.getElementById('fp-pending-view').style.display = 'none';
   document.getElementById('fp-login-form').style.display = 'flex';
 }
 function fpShowForgot() {
   document.getElementById('fp-login-form').style.display = 'none';
   document.getElementById('fp-signup-form').style.display = 'none';
+  document.getElementById('fp-pending-view').style.display = 'none';
   document.getElementById('fp-forgot-form').style.display = 'flex';
   const email = document.getElementById('fp-email').value;
   if (email) document.getElementById('fp-forgot-email').value = email;
