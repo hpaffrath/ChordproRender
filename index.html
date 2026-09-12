@@ -1533,8 +1533,9 @@
       <div class="fp-auth-title">Sign In</div>
       <div class="fp-auth-sub">Save and access your ChordPro files from any device</div>
       <div class="fp-form" id="fp-login-form">
-        <input class="fp-input" id="fp-email" type="email" placeholder="Email">
-        <input class="fp-input" id="fp-password" type="password" placeholder="Password">
+        <input class="fp-input" id="fp-email" type="email" placeholder="Email" onkeydown="if(event.key==='Enter'){event.preventDefault();fpSignIn();}">
+        <input class="fp-input" id="fp-password" type="password" placeholder="Password" onkeydown="if(event.key==='Enter'){event.preventDefault();fpSignIn();}">
+
         <div class="fp-err" id="fp-err"></div>
         <button class="btn btn-primary" style="width:100%;font-size:12px;" onclick="fpSignIn()">Sign In</button>
         <div style="text-align:center;display:flex;gap:12px;justify-content:center;">
