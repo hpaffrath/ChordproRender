@@ -1483,6 +1483,16 @@
       </div>
     </div>
     <div class="preview-scroll" id="previewScroll">
+      <style>
+        #gp-render-wrap .at-cursor-bar { background: rgba(255, 196, 0, 0.16); }
+        #gp-render-wrap .at-selection div { background: rgba(64, 140, 255, 0.22); }
+        #gp-render-wrap .at-cursor-beat { background: #e0452a; width: 3px; }
+        #gp-render-wrap .at-highlight * { fill: #d8451f; stroke: #d8451f; }
+        #gpPlayerBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surface); }
+        #gpPlayerBar .gp-pill { display:flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:4px; padding:2px 6px; }
+        #gpPlayerBar .gp-lbl { font-size:11px; color:var(--text-dim); }
+        #gp-loop-btn.gp-on { background: var(--accent); color: #fff; }
+      </style>
       <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
           <div style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);" id="gp-title">Guitar Pro</div>
@@ -1498,6 +1508,21 @@
           <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
           <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
+        </div>
+        <div id="gpPlayerBar">
+          <button class="btn btn-primary" id="gp-play-btn" onclick="gpPlayPause()" title="Play / pause (Space)" disabled>▶ Play</button>
+          <button class="btn btn-ghost" id="gp-stop-btn" onclick="gpStop()" title="Stop and rewind" disabled>■ Stop</button>
+          <button class="btn btn-ghost" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" disabled>⟳ Loop</button>
+          <button class="btn btn-ghost" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" disabled>Metronome</button>
+          <div class="gp-pill" title="Playback speed">
+            <span class="gp-lbl">Speed</span>
+            <button class="ctrl-btn" onclick="gpChangeSpeed(-0.1)">−</button>
+            <span id="gp-speed-val" onclick="gpSetSpeed(1)" title="Reset speed to 100%" style="font-size:11px;min-width:38px;text-align:center;color:var(--text-dim);cursor:pointer;user-select:none;">100%</span>
+            <button class="ctrl-btn" onclick="gpChangeSpeed(0.1)">+</button>
+          </div>
+          <div class="gp-lbl" id="gp-loop-info" style="flex:1;min-width:140px;">Drag across the score to select bars to loop.</div>
+          <button class="btn btn-ghost" id="gp-clear-sel-btn" onclick="gpClearSelection()" title="Clear the selected bars" disabled>Clear selection</button>
+          <span class="gp-lbl" id="gp-player-status"></span>
         </div>
         <div id="gp-render-wrap" style="flex:1;min-height:0;overflow:auto;background:var(--paper);color:var(--ink);padding:12px;">
           <div id="alphaTab"></div>
@@ -8743,7 +8768,16 @@ function showGPPreview() {
           engine: 'svg',
         },
         display: { scale: 1.0, layoutMode: 'page' },
-        player: { enablePlayer: false },
+        player: {
+          enablePlayer: true,
+          enableCursor: true,
+          enableAnimatedBeatCursor: true,
+          enableUserInteraction: true,
+          soundFont: GP_SOUNDFONT_URL,
+          scrollElement: document.getElementById('gp-render-wrap'),
+          scrollMode: 'continuous',
+          scrollOffsetY: -30,
+        },
       });
       _alphaTabApi.renderStarted.on(() => {
         document.getElementById('gp-status').textContent = 'Rendering…';
@@ -8759,7 +8793,9 @@ function showGPPreview() {
       });
       _alphaTabApi.scoreLoaded.on(score => {
         populateGPTrackSelect(score);
+        gpClearSelection();
       });
+      _installGPPlayerEvents();
       _installGPAutoFit();
     } catch (e) {
       document.getElementById('gp-status').textContent = 'Failed to initialize alphaTab: ' + e.message;
@@ -8940,6 +8976,143 @@ function _installGPAutoFit() {
   // Initial fit once alphaTab is ready.
   setTimeout(_applyGPFit, 0);
 }
+
+// ─── Guitar Pro playback (alphaSynth): cursor, selection, looping ────────────
+const GP_SOUNDFONT_URL = 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/soundfont/sonivox.sf2';
+let _gpPlayerReady = false;
+let _gpLooping = false;
+let _gpSpeed = 1;
+let _gpMetronome = false;
+let _gpRange = null;
+
+function _gpEl(id) { return document.getElementById(id); }
+
+function _gpUpdatePlayerButtons() {
+  const on = !!(_alphaTabApi && _gpPlayerReady);
+  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn'].forEach(id => {
+    const b = _gpEl(id); if (b) b.disabled = !on;
+  });
+  const clear = _gpEl('gp-clear-sel-btn');
+  if (clear) clear.disabled = !(on && _gpRange);
+  const loop = _gpEl('gp-loop-btn');
+  if (loop) loop.classList.toggle('gp-on', _gpLooping);
+  const metro = _gpEl('gp-metro-btn');
+  if (metro) metro.classList.toggle('gp-on', _gpMetronome);
+}
+
+function _gpBarNumberForTick(tick) {
+  const score = _alphaTabApi && _alphaTabApi.score;
+  if (!score || !score.masterBars || !score.masterBars.length) return null;
+  let found = 1;
+  for (let i = 0; i < score.masterBars.length; i++) {
+    const mb = score.masterBars[i];
+    const start = typeof mb.start === 'number' ? mb.start : 0;
+    if (start <= tick) found = i + 1; else break;
+  }
+  return found;
+}
+
+function _gpUpdateLoopInfo() {
+  const info = _gpEl('gp-loop-info');
+  if (!info) return;
+  if (!_gpRange) {
+    info.textContent = 'Drag across the score to select bars to loop.';
+  } else {
+    const a = _gpBarNumberForTick(_gpRange.startTick);
+    const b = _gpBarNumberForTick(Math.max(_gpRange.startTick, _gpRange.endTick - 1));
+    info.textContent = (a && b)
+      ? (a === b ? ('Selected bar ' + a) : ('Selected bars ' + a + '–' + b)) + (_gpLooping ? ' (looping)' : '')
+      : 'Selection active' + (_gpLooping ? ' (looping)' : '');
+  }
+  _gpUpdatePlayerButtons();
+}
+
+function _installGPPlayerEvents() {
+  if (!_alphaTabApi) return;
+  const st = _gpEl('gp-player-status');
+  try {
+    _alphaTabApi.soundFontLoad.on(e => {
+      if (st && e && e.total) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        st.textContent = pct < 100 ? ('Loading sounds ' + pct + '%') : '';
+      }
+    });
+    _alphaTabApi.playerReady.on(() => {
+      _gpPlayerReady = true;
+      if (st) st.textContent = '';
+      try {
+        _alphaTabApi.playbackSpeed = _gpSpeed;
+        _alphaTabApi.isLooping = _gpLooping;
+        _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0;
+      } catch (_) {}
+      _gpUpdatePlayerButtons();
+    });
+    _alphaTabApi.playerStateChanged.on(e => {
+      const btn = _gpEl('gp-play-btn');
+      const playing = e && e.state === 1;
+      if (btn) btn.textContent = playing ? '❚❚ Pause' : '▶ Play';
+    });
+    _alphaTabApi.playbackRangeChanged.on(e => {
+      _gpRange = (e && e.playbackRange) ? e.playbackRange : null;
+      _gpUpdateLoopInfo();
+    });
+  } catch (_) {}
+  _gpUpdatePlayerButtons();
+}
+
+function gpPlayPause() {
+  if (!_alphaTabApi) return;
+  try { _alphaTabApi.playPause(); }
+  catch (e) { const st = _gpEl('gp-player-status'); if (st) st.textContent = 'Playback unavailable.'; }
+}
+function gpStop() {
+  if (!_alphaTabApi) return;
+  try { _alphaTabApi.stop(); } catch (_) {}
+}
+function gpToggleLoop() {
+  if (!_alphaTabApi) return;
+  _gpLooping = !_gpLooping;
+  try { _alphaTabApi.isLooping = _gpLooping; } catch (_) {}
+  _gpUpdateLoopInfo();
+}
+function gpToggleMetronome() {
+  if (!_alphaTabApi) return;
+  _gpMetronome = !_gpMetronome;
+  try { _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0; } catch (_) {}
+  _gpUpdatePlayerButtons();
+}
+function gpSetSpeed(v) {
+  _gpSpeed = Math.max(0.25, Math.min(2, Math.round(v * 100) / 100));
+  const el = _gpEl('gp-speed-val');
+  if (el) el.textContent = Math.round(_gpSpeed * 100) + '%';
+  if (_alphaTabApi) { try { _alphaTabApi.playbackSpeed = _gpSpeed; } catch (_) {} }
+}
+function gpChangeSpeed(d) { gpSetSpeed(_gpSpeed + d); }
+function gpClearSelection() {
+  _gpRange = null;
+  if (_alphaTabApi) { try { _alphaTabApi.playbackRange = null; } catch (_) {} }
+  _gpUpdateLoopInfo();
+}
+window.gpPlayPause = gpPlayPause;
+window.gpStop = gpStop;
+window.gpToggleLoop = gpToggleLoop;
+window.gpToggleMetronome = gpToggleMetronome;
+window.gpSetSpeed = gpSetSpeed;
+window.gpChangeSpeed = gpChangeSpeed;
+window.gpClearSelection = gpClearSelection;
+
+// Space toggles playback while the Guitar Pro view is active and no field is focused.
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space') return;
+  if (!_isGPPreviewActive() || !_alphaTabApi || !_gpPlayerReady) return;
+  const t = e.target;
+  const tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) return;
+  e.preventDefault();
+  gpPlayPause();
+});
+
+
 
 function populateGPTrackSelect(score) {
   const sel = document.getElementById('gp-track-select');
