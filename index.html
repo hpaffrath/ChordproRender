@@ -1491,7 +1491,7 @@
         #gpPlayerBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surface); }
         #gpPlayerBar .gp-pill { display:flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:4px; padding:2px 6px; }
         #gpPlayerBar .gp-lbl { font-size:11px; color:var(--text-dim); }
-        #gp-loop-btn.gp-on { background: var(--accent); color: #fff; }
+        #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; }
       </style>
       <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
@@ -1521,6 +1521,10 @@
             <button class="ctrl-btn" onclick="gpChangeSpeed(0.1)">+</button>
           </div>
           <div class="gp-lbl" id="gp-loop-info" style="flex:1;min-width:140px;">Drag across the score to select bars to loop.</div>
+          <div style="position:relative;">
+            <button class="btn btn-ghost" id="gp-mix-btn" onclick="gpToggleMixPanel()" title="Mute / solo tracks" disabled>🎚 Tracks</button>
+            <div id="gp-mix-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:6px;min-width:230px;max-height:260px;overflow:auto;"></div>
+          </div>
           <button class="btn btn-ghost" id="gp-clear-sel-btn" onclick="gpClearSelection()" title="Clear the selected bars" disabled>Clear selection</button>
           <span class="gp-lbl" id="gp-player-status"></span>
         </div>
@@ -8989,7 +8993,7 @@ function _gpEl(id) { return document.getElementById(id); }
 
 function _gpUpdatePlayerButtons() {
   const on = !!(_alphaTabApi && _gpPlayerReady);
-  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn'].forEach(id => {
+  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn', 'gp-mix-btn'].forEach(id => {
     const b = _gpEl(id); if (b) b.disabled = !on;
   });
   const clear = _gpEl('gp-clear-sel-btn');
@@ -9119,6 +9123,7 @@ function populateGPTrackSelect(score) {
   if (!sel) return;
   sel.innerHTML = '';
   const tracks = (score && score.tracks) || [];
+  gpBuildMixPanel();
   if (tracks.length <= 1) { sel.style.display = 'none'; return; }
   const optAll = document.createElement('option');
   optAll.value = '__all__';
@@ -9137,6 +9142,80 @@ function populateGPTrackSelect(score) {
   sel.style.display = '';
   onGPTrackChange();
 }
+
+// ---- Track mute / solo mixer ----
+let _gpMuted = {};   // trackIndex -> bool
+let _gpSoloed = {};  // trackIndex -> bool
+
+function gpBuildMixPanel() {
+  const panel = _gpEl('gp-mix-panel');
+  if (!panel || !_alphaTabApi || !_alphaTabApi.score) return;
+  const tracks = _alphaTabApi.score.tracks || [];
+  _gpMuted = {}; _gpSoloed = {};
+  panel.innerHTML = '';
+  if (!tracks.length) { panel.innerHTML = '<div class="gp-lbl" style="padding:6px;">No tracks.</div>'; return; }
+  tracks.forEach((t, i) => {
+    const name = (t.name && t.name.trim()) || ('Track ' + (i + 1));
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 4px;font-size:12px;';
+    row.innerHTML =
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + name.replace(/"/g, '&quot;') + '">' + (i + 1) + '. ' + name + '</span>' +
+      '<button class="ctrl-btn" data-mix="m" data-idx="' + i + '" title="Mute" style="min-width:26px;">M</button>' +
+      '<button class="ctrl-btn" data-mix="s" data-idx="' + i + '" title="Solo" style="min-width:26px;">S</button>';
+    panel.appendChild(row);
+  });
+  panel.querySelectorAll('button[data-mix]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (btn.getAttribute('data-mix') === 'm') gpToggleMute(idx); else gpToggleSolo(idx);
+    });
+  });
+  _gpRefreshMixButtons();
+}
+
+function _gpRefreshMixButtons() {
+  const panel = _gpEl('gp-mix-panel');
+  if (!panel) return;
+  panel.querySelectorAll('button[data-mix]').forEach(btn => {
+    const idx = parseInt(btn.getAttribute('data-idx'), 10);
+    const on = btn.getAttribute('data-mix') === 'm' ? !!_gpMuted[idx] : !!_gpSoloed[idx];
+    btn.classList.toggle('gp-on', on);
+  });
+}
+
+function gpToggleMute(idx) {
+  if (!_alphaTabApi || !_alphaTabApi.score) return;
+  const t = _alphaTabApi.score.tracks[idx];
+  if (!t) return;
+  _gpMuted[idx] = !_gpMuted[idx];
+  try { _alphaTabApi.changeTrackMute([t], _gpMuted[idx]); } catch (_) {}
+  _gpRefreshMixButtons();
+}
+
+function gpToggleSolo(idx) {
+  if (!_alphaTabApi || !_alphaTabApi.score) return;
+  const t = _alphaTabApi.score.tracks[idx];
+  if (!t) return;
+  _gpSoloed[idx] = !_gpSoloed[idx];
+  try { _alphaTabApi.changeTrackSolo([t], _gpSoloed[idx]); } catch (_) {}
+  _gpRefreshMixButtons();
+}
+
+function gpToggleMixPanel() {
+  const panel = _gpEl('gp-mix-panel');
+  if (!panel) return;
+  panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+}
+window.gpToggleMixPanel = gpToggleMixPanel;
+
+// Close the mix panel when clicking elsewhere
+document.addEventListener('click', (e) => {
+  const panel = _gpEl('gp-mix-panel');
+  const btn = _gpEl('gp-mix-btn');
+  if (!panel || panel.style.display === 'none' || !panel.style.display) return;
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  panel.style.display = 'none';
+});
 
 function onGPTrackChange() {
   if (!_alphaTabApi || !_alphaTabApi.score) return;
