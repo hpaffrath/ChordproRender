@@ -1479,11 +1479,17 @@
             onchange="setAutoScrollSpeed(parseFloat(this.value))" onkeydown="if(event.key==='Enter')this.blur()">
           <button class="ctrl-btn" onclick="changeAutoScrollSpeed(0.5)" title="Faster">+</button>
         </div>
+        <div style="position:relative;">
+          <button class="ctrl-btn" id="notes-btn" onclick="toggleNotesPanel()" title="Rehearsal notes for this song">📝 Notes</button>
+          <div id="notes-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:80;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:8px;width:320px;max-height:420px;overflow:auto;font-size:12px;"></div>
+        </div>
         <button class="ctrl-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Full screen (F11)">⛶</button>
       </div>
     </div>
     <div class="preview-scroll" id="previewScroll">
       <style>
+        .rn-marker { position:absolute; z-index:5; background:#ffe27a; color:#3a2a00; border:1px solid #d4b23a; border-radius:3px; font:600 10px/1.2 sans-serif; padding:1px 4px; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-shadow:0 1px 3px rgba(0,0,0,.25); pointer-events:auto; cursor:default; }
+        .rn-banner { background:#fff6c7; color:#3a2a00; border-left:4px solid #e0b300; border-radius:4px; padding:6px 10px; margin:0 0 10px; font-size:13px; }
         #gp-render-wrap .at-cursor-bar { background: rgba(255, 196, 0, 0.16); }
         #gp-render-wrap .at-selection div { background: rgba(64, 140, 255, 0.22); }
         #gp-render-wrap .at-cursor-beat { background: #e0452a; width: 3px; }
@@ -1514,6 +1520,7 @@
           <button class="btn btn-ghost" id="gp-stop-btn" onclick="gpStop()" title="Stop and rewind" disabled>■ Stop</button>
           <button class="btn btn-ghost" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" disabled>⟳ Loop</button>
           <button class="btn btn-ghost" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" disabled>Metronome</button>
+          <button class="btn btn-ghost" id="gp-countin-btn" onclick="gpToggleCountIn()" title="Play one bar of clicks before the music starts" disabled>Count-in</button>
           <div class="gp-pill" title="Playback speed">
             <span class="gp-lbl">Speed</span>
             <button class="ctrl-btn" onclick="gpChangeSpeed(-0.1)">−</button>
@@ -1522,8 +1529,12 @@
           </div>
           <div class="gp-lbl" id="gp-loop-info" style="flex:1;min-width:140px;">Drag across the score to select bars to loop.</div>
           <div style="position:relative;">
-            <button class="btn btn-ghost" id="gp-mix-btn" onclick="gpToggleMixPanel()" title="Mute / solo tracks" disabled>🎚 Tracks</button>
-            <div id="gp-mix-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:6px;min-width:230px;max-height:260px;overflow:auto;"></div>
+            <button class="btn btn-ghost" id="gp-mix-btn" onclick="gpToggleMixPanel()" title="Mute / solo / volume per track" disabled>🎚 Tracks</button>
+            <div id="gp-mix-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:6px;min-width:340px;max-height:300px;overflow:auto;"></div>
+          </div>
+          <div style="position:relative;">
+            <button class="btn btn-ghost" id="gp-tune-btn" onclick="gpToggleTunePanel()" title="Track tunings and reference tones" disabled>🎸 Tuning</button>
+            <div id="gp-tune-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:8px;min-width:320px;max-height:340px;overflow:auto;"></div>
           </div>
           <button class="btn btn-ghost" id="gp-clear-sel-btn" onclick="gpClearSelection()" title="Clear the selected bars" disabled>Clear selection</button>
           <span class="gp-lbl" id="gp-player-status"></span>
@@ -6204,6 +6215,7 @@ function openShareView(data) {
     pendingVextabRenders = [];
     songs.forEach(song => paper.appendChild(renderSong(song)));
     flushAllNotationRenders();
+  try { rnRenderChordProBanner(); } catch (_) {}
   }
 
   // Notice: save button if logged in
@@ -8787,6 +8799,7 @@ function showGPPreview() {
         document.getElementById('gp-status').textContent = 'Rendering…';
       });
       _alphaTabApi.renderFinished.on(() => {
+        setTimeout(() => { try { rnRenderGPMarkers(); } catch (_) {} }, 50);
         document.getElementById('gp-status').textContent =
           (_alphaTabApi.score ? (_alphaTabApi.score.title || 'Untitled') +
             (_alphaTabApi.score.artist ? ' — ' + _alphaTabApi.score.artist : '')
@@ -8987,13 +9000,14 @@ let _gpPlayerReady = false;
 let _gpLooping = false;
 let _gpSpeed = 1;
 let _gpMetronome = false;
+let _gpCountIn = (function () { try { return localStorage.getItem('gpCountIn') === '1'; } catch (_) { return false; } })();
 let _gpRange = null;
 
 function _gpEl(id) { return document.getElementById(id); }
 
 function _gpUpdatePlayerButtons() {
   const on = !!(_alphaTabApi && _gpPlayerReady);
-  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn', 'gp-mix-btn'].forEach(id => {
+  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn', 'gp-countin-btn', 'gp-mix-btn'].forEach(id => {
     const b = _gpEl(id); if (b) b.disabled = !on;
   });
   const clear = _gpEl('gp-clear-sel-btn');
@@ -9002,6 +9016,8 @@ function _gpUpdatePlayerButtons() {
   if (loop) loop.classList.toggle('gp-on', _gpLooping);
   const metro = _gpEl('gp-metro-btn');
   if (metro) metro.classList.toggle('gp-on', _gpMetronome);
+  const ci = _gpEl('gp-countin-btn');
+  if (ci) ci.classList.toggle('gp-on', _gpCountIn);
 }
 
 function _gpBarNumberForTick(tick) {
@@ -9048,6 +9064,7 @@ function _installGPPlayerEvents() {
         _alphaTabApi.playbackSpeed = _gpSpeed;
         _alphaTabApi.isLooping = _gpLooping;
         _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0;
+        _alphaTabApi.countInVolume = _gpCountIn ? 1 : 0;
       } catch (_) {}
       _gpUpdatePlayerButtons();
     });
@@ -9085,6 +9102,19 @@ function gpToggleMetronome() {
   try { _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0; } catch (_) {}
   _gpUpdatePlayerButtons();
 }
+// One bar of clicks before playback starts (alphaTab count-in).
+function gpToggleCountIn() {
+  if (!_alphaTabApi) return;
+  _gpCountIn = !_gpCountIn;
+  try { _alphaTabApi.countInVolume = _gpCountIn ? 1 : 0; } catch (_) {}
+  try { localStorage.setItem('gpCountIn', _gpCountIn ? '1' : '0'); } catch (_) {}
+  const st = _gpEl('gp-player-status');
+  if (st) {
+    st.textContent = _gpCountIn ? 'Count-in on (1 bar)' : 'Count-in off';
+    setTimeout(() => { if (st.textContent.indexOf('Count-in') === 0) st.textContent = ''; }, 2000);
+  }
+  _gpUpdatePlayerButtons();
+}
 function gpSetSpeed(v) {
   _gpSpeed = Math.max(0.25, Math.min(2, Math.round(v * 100) / 100));
   const el = _gpEl('gp-speed-val');
@@ -9101,6 +9131,7 @@ window.gpPlayPause = gpPlayPause;
 window.gpStop = gpStop;
 window.gpToggleLoop = gpToggleLoop;
 window.gpToggleMetronome = gpToggleMetronome;
+window.gpToggleCountIn = gpToggleCountIn;
 window.gpSetSpeed = gpSetSpeed;
 window.gpChangeSpeed = gpChangeSpeed;
 window.gpClearSelection = gpClearSelection;
@@ -9124,6 +9155,7 @@ function populateGPTrackSelect(score) {
   sel.innerHTML = '';
   const tracks = (score && score.tracks) || [];
   gpBuildMixPanel();
+  gpBuildTunePanel();
   if (tracks.length <= 1) { sel.style.display = 'none'; return; }
   const optAll = document.createElement('option');
   optAll.value = '__all__';
@@ -9146,12 +9178,13 @@ function populateGPTrackSelect(score) {
 // ---- Track mute / solo mixer ----
 let _gpMuted = {};   // trackIndex -> bool
 let _gpSoloed = {};  // trackIndex -> bool
+let _gpVolume = {};  // trackIndex -> percent (0-150), 100 = file default
 
 function gpBuildMixPanel() {
   const panel = _gpEl('gp-mix-panel');
   if (!panel || !_alphaTabApi || !_alphaTabApi.score) return;
   const tracks = _alphaTabApi.score.tracks || [];
-  _gpMuted = {}; _gpSoloed = {};
+  _gpMuted = {}; _gpSoloed = {}; _gpVolume = {};
   panel.innerHTML = '';
   if (!tracks.length) { panel.innerHTML = '<div class="gp-lbl" style="padding:6px;">No tracks.</div>'; return; }
   tracks.forEach((t, i) => {
@@ -9161,7 +9194,9 @@ function gpBuildMixPanel() {
     row.innerHTML =
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + name.replace(/"/g, '&quot;') + '">' + (i + 1) + '. ' + name + '</span>' +
       '<button class="ctrl-btn" data-mix="m" data-idx="' + i + '" title="Mute" style="min-width:26px;">M</button>' +
-      '<button class="ctrl-btn" data-mix="s" data-idx="' + i + '" title="Solo" style="min-width:26px;">S</button>';
+      '<button class="ctrl-btn" data-mix="s" data-idx="' + i + '" title="Solo" style="min-width:26px;">S</button>' +
+      '<input type="range" data-vol="' + i + '" min="0" max="150" step="5" value="100" title="Volume (double-click to reset)" style="width:80px;accent-color:var(--accent);">' +
+      '<span data-volval="' + i + '" style="font-size:10px;min-width:32px;text-align:right;color:var(--text-dim);">100%</span>';
     panel.appendChild(row);
   });
   panel.querySelectorAll('button[data-mix]').forEach(btn => {
@@ -9170,8 +9205,24 @@ function gpBuildMixPanel() {
       if (btn.getAttribute('data-mix') === 'm') gpToggleMute(idx); else gpToggleSolo(idx);
     });
   });
+  panel.querySelectorAll('input[data-vol]').forEach(sl => {
+    const idx = parseInt(sl.getAttribute('data-vol'), 10);
+    sl.addEventListener('input', () => gpSetTrackVolume(idx, parseInt(sl.value, 10)));
+    sl.addEventListener('dblclick', () => { sl.value = 100; gpSetTrackVolume(idx, 100); });
+  });
   _gpRefreshMixButtons();
 }
+
+function gpSetTrackVolume(idx, pct) {
+  if (!_alphaTabApi || !_alphaTabApi.score) return;
+  const t = _alphaTabApi.score.tracks[idx];
+  if (!t) return;
+  _gpVolume[idx] = pct;
+  try { _alphaTabApi.changeTrackVolume([t], pct / 100); } catch (_) {}
+  const lbl = _gpEl('gp-mix-panel')?.querySelector('span[data-volval="' + idx + '"]');
+  if (lbl) lbl.textContent = pct + '%';
+}
+window.gpSetTrackVolume = gpSetTrackVolume;
 
 function _gpRefreshMixButtons() {
   const panel = _gpEl('gp-mix-panel');
@@ -9214,6 +9265,261 @@ document.addEventListener('click', (e) => {
   const btn = _gpEl('gp-mix-btn');
   if (!panel || panel.style.display === 'none' || !panel.style.display) return;
   if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  panel.style.display = 'none';
+});
+
+// ---- Track tuning display + reference tones ----
+const _GP_NOTE_NAMES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+function _gpMidiName(m) { return _GP_NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+function _gpStaffTuning(staff) {
+  if (!staff) return [];
+  const t = (staff.stringTuning && staff.stringTuning.tunings) || staff.tuning || [];
+  return Array.from(t);
+}
+// Identify common tunings. `tun` is ordered high string -> low string (alphaTab order).
+function _gpTuningName(tun) {
+  const n = tun.length;
+  const std = { 6: [64,59,55,50,45,40], 7: [64,59,55,50,45,40,35], 8: [64,59,55,50,45,40,35,30], 4: [43,38,33,28], 5: [43,38,33,28,23] };
+  const base = std[n];
+  if (!base) return n + '-string';
+  const diff = tun.map((v, i) => v - base[i]);
+  const all = d => diff.every(x => x === d);
+  const bass = n <= 5 ? ' (bass)' : '';
+  if (all(0)) return 'Standard' + bass;
+  if (all(-1)) return 'Half-Step Down (Eb)' + bass;
+  if (all(-2)) return 'Whole-Step Down (D)' + bass;
+  if (all(-3)) return 'C# Standard' + bass;
+  if (all(-4)) return 'C Standard' + bass;
+  if (all(1)) return 'Half-Step Up (F)' + bass;
+  const upper = diff.slice(0, n - 1), low = diff[n - 1];
+  if (upper.every(x => x === upper[0]) && low === upper[0] - 2) {
+    const names = { 0: 'Drop D', '-1': 'Drop C#', '-2': 'Drop C', '-3': 'Drop B', '-4': 'Drop A#' };
+    if (names[upper[0]]) return names[upper[0]] + bass;
+  }
+  if (n === 6) {
+    const key = tun.join(',');
+    const open = {
+      '62,57,54,50,45,38': 'Open D', '64,59,56,52,47,40': 'Open E', '62,59,55,50,43,38': 'Open G',
+      '64,60,55,48,43,36': 'Open C', '62,57,55,50,45,38': 'DADGAD', '62,59,55,50,45,38': 'Double Drop D',
+      '64,57,52,49,45,40': 'Open A',
+    };
+    if (open[key]) return open[key];
+  }
+  return 'Custom';
+}
+let _gpAudioCtx = null;
+function gpPlayRefTone(midi) {
+  try {
+    if (!_gpAudioCtx) _gpAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _gpAudioCtx; if (ctx.state === 'suspended') ctx.resume();
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    const now = ctx.currentTime, dur = 2.2;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, now);
+    out.gain.exponentialRampToValueAtTime(0.35, now + 0.01);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    out.connect(ctx.destination);
+    [[1, 1], [2, 0.4], [3, 0.2], [4, 0.1]].forEach(([h, a]) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = h === 1 ? 'triangle' : 'sine'; o.frequency.value = f * h; g.gain.value = a;
+      o.connect(g); g.connect(out); o.start(now); o.stop(now + dur);
+    });
+  } catch (e) { console.warn('Reference tone failed', e); }
+}
+window.gpPlayRefTone = gpPlayRefTone;
+function gpBuildTunePanel() {
+  const panel = _gpEl('gp-tune-panel'); const btn = _gpEl('gp-tune-btn');
+  if (!panel || !_alphaTabApi || !_alphaTabApi.score) return;
+  const tracks = _alphaTabApi.score.tracks || [];
+  panel.innerHTML = '';
+  let any = false;
+  tracks.forEach((t, i) => {
+    const staff = t.staves && t.staves[0];
+    if (!staff || staff.isPercussion) return;
+    const tun = _gpStaffTuning(staff);
+    if (!tun.length) return;
+    any = true;
+    const name = (t.name && t.name.trim()) || ('Track ' + (i + 1));
+    const tname = (staff.stringTuning && staff.stringTuning.name && staff.stringTuning.name.trim()) || _gpTuningName(tun);
+    const capo = staff.capo ? ' · Capo ' + staff.capo : '';
+    const box = document.createElement('div');
+    box.style.cssText = 'padding:4px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:6px;';
+    const head = document.createElement('div');
+    head.style.cssText = 'font-size:12px;margin-bottom:4px;';
+    head.innerHTML = '<b></b> <span style="color:var(--accent);"></span><span style="color:var(--text-dim);"></span>';
+    head.children[0].textContent = (i + 1) + '. ' + name;
+    head.children[1].textContent = '— ' + tname;
+    head.children[2].textContent = capo;
+    box.appendChild(head);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;';
+    // Show low string first (left) like a guitarist reads a tuning
+    tun.slice().reverse().forEach(m => {
+      const b = document.createElement('button');
+      b.className = 'ctrl-btn';
+      b.style.cssText = 'min-width:38px;font-size:11px;';
+      b.textContent = _gpMidiName(m);
+      b.title = 'Play reference tone ' + _gpMidiName(m);
+      b.addEventListener('click', () => gpPlayRefTone(m));
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+    panel.appendChild(box);
+  });
+  if (!any) panel.innerHTML = '<div class="gp-lbl" style="padding:6px;">No stringed tracks.</div>';
+  const hint = document.createElement('div');
+  hint.className = 'gp-lbl'; hint.style.cssText = 'padding:2px;font-size:10px;';
+  hint.textContent = 'Click a string to hear its reference pitch (low string on the left).';
+  panel.appendChild(hint);
+  if (btn) btn.disabled = false;
+}
+function gpToggleTunePanel() {
+  const panel = _gpEl('gp-tune-panel');
+  if (!panel) return;
+  panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+}
+window.gpToggleTunePanel = gpToggleTunePanel;
+document.addEventListener('click', (e) => {
+  const panel = _gpEl('gp-tune-panel'); const btn = _gpEl('gp-tune-btn');
+  if (!panel || panel.style.display === 'none' || !panel.style.display) return;
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  panel.style.display = 'none';
+});
+
+// ============= Rehearsal notes / annotations =============
+let _rnNotes = [];      // notes for the current song
+let _rnKey = null;      // filename the notes belong to
+function _rnCurrentKey() {
+  if (_isGPPreviewActive && _isGPPreviewActive()) return _gpCurrentFilename || null;
+  return currentFilename || null;
+}
+function _rnEsc(t) { return String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+async function rnLoad(force) {
+  const key = _rnCurrentKey();
+  if (!force && key === _rnKey) return _rnNotes;
+  _rnKey = key; _rnNotes = [];
+  if (!key || !currentUser) return _rnNotes;
+  const { data, error } = await sb.from('song_notes').select('*')
+    .eq('user_id', currentUser.id).eq('filename', key)
+    .order('bar_index', { ascending: true, nullsFirst: true }).order('created_at');
+  if (!error && data) _rnNotes = data;
+  return _rnNotes;
+}
+function _rnSelectedBar() {
+  try {
+    if (!_gpRange || !_alphaTabApi || !_alphaTabApi.score) return null;
+    const tick = _gpRange.startTick;
+    const mbs = _alphaTabApi.score.masterBars;
+    for (let i = mbs.length - 1; i >= 0; i--) if (mbs[i].start <= tick) return i + 1;
+  } catch (_) {}
+  return null;
+}
+async function toggleNotesPanel() {
+  const panel = document.getElementById('notes-panel');
+  if (!panel) return;
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="gp-lbl">Loading…</div>';
+  await rnLoad(true);
+  rnRenderPanel();
+}
+window.toggleNotesPanel = toggleNotesPanel;
+function rnRenderPanel() {
+  const panel = document.getElementById('notes-panel');
+  if (!panel || panel.style.display !== 'block') return;
+  const key = _rnCurrentKey();
+  if (!currentUser) { panel.innerHTML = '<div>Sign in to add rehearsal notes.</div>'; return; }
+  if (!key) { panel.innerHTML = '<div>Save this song to your library first, then you can add notes to it.</div>'; return; }
+  const isGP = _isGPPreviewActive && _isGPPreviewActive();
+  const selBar = isGP ? _rnSelectedBar() : null;
+  let html = '<div style="font-weight:600;margin-bottom:6px;">Rehearsal notes</div>';
+  if (!_rnNotes.length) html += '<div class="gp-lbl" style="margin-bottom:6px;">No notes yet.</div>';
+  _rnNotes.forEach(n => {
+    html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:4px;border-bottom:1px solid var(--border);">' +
+      '<span style="min-width:48px;color:var(--accent);font-size:11px;">' + (n.bar_index ? 'Bar ' + n.bar_index : 'Song') + '</span>' +
+      '<span style="flex:1;white-space:pre-wrap;">' + _rnEsc(n.note) + '</span>' +
+      '<button class="ctrl-btn" data-rn-del="' + n.id + '" title="Delete note">✕</button></div>';
+  });
+  html += '<textarea id="rn-text" rows="2" placeholder="e.g. Double chorus on outro" style="width:100%;box-sizing:border-box;margin-top:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;font:inherit;"></textarea>';
+  html += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">';
+  if (isGP) html += '<label class="gp-lbl">Bar <input id="rn-bar" type="number" min="1" placeholder="all" value="' + (selBar || '') + '" style="width:56px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 4px;"></label>';
+  html += '<button class="btn btn-primary" id="rn-add" style="margin-left:auto;">Add note</button></div>';
+  if (isGP) html += '<div class="gp-lbl" style="font-size:10px;margin-top:4px;">Tip: drag-select bars in the score first and the bar number fills in. Leave blank for a whole-song note.</div>';
+  panel.innerHTML = html;
+  panel.querySelector('#rn-add').addEventListener('click', rnAdd);
+  panel.querySelectorAll('[data-rn-del]').forEach(b => b.addEventListener('click', () => rnDelete(b.getAttribute('data-rn-del'))));
+}
+async function rnAdd() {
+  const txt = (document.getElementById('rn-text')?.value || '').trim();
+  if (!txt) return;
+  const barEl = document.getElementById('rn-bar');
+  const bar = barEl && barEl.value ? parseInt(barEl.value, 10) : null;
+  const key = _rnCurrentKey();
+  const { error } = await sb.from('song_notes').insert({ user_id: currentUser.id, filename: key, bar_index: bar || null, note: txt });
+  if (error) { alert('Could not save note: ' + error.message + '\n\nMake sure the latest schema_full.sql has been run.'); return; }
+  await rnLoad(true); rnRenderPanel(); rnRefreshViews();
+}
+async function rnDelete(id) {
+  await sb.from('song_notes').delete().eq('id', id);
+  await rnLoad(true); rnRenderPanel(); rnRefreshViews();
+}
+function rnRefreshViews() {
+  try { rnRenderChordProBanner(); } catch (_) {}
+  try { rnRenderGPMarkers(); } catch (_) {}
+}
+async function rnRenderChordProBanner() {
+  const paper = document.getElementById('paper');
+  if (!paper) return;
+  paper.querySelectorAll('.rn-banner').forEach(e => e.remove());
+  if (_isGPPreviewActive && _isGPPreviewActive()) return;
+  await rnLoad(false);
+  if (_rnKey !== currentFilename || !_rnNotes.length) return;
+  const box = document.createElement('div');
+  box.className = 'rn-banner';
+  box.innerHTML = '<b>📝 Notes:</b> ' + _rnNotes.map(n => _rnEsc(n.note)).join(' &nbsp;·&nbsp; ');
+  paper.insertBefore(box, paper.firstChild);
+}
+async function rnRenderGPMarkers() {
+  const host = document.getElementById('alphaTab');
+  if (!host) return;
+  host.querySelectorAll('.rn-marker, .rn-banner').forEach(e => e.remove());
+  if (!(_isGPPreviewActive && _isGPPreviewActive()) || !_alphaTabApi) return;
+  await rnLoad(false);
+  if (!_rnNotes.length) return;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const song = _rnNotes.filter(n => !n.bar_index);
+  if (song.length) {
+    const b = document.createElement('div');
+    b.className = 'rn-banner';
+    b.style.cssText = 'position:relative;z-index:5;';
+    b.innerHTML = '<b>📝 Notes:</b> ' + song.map(n => _rnEsc(n.note)).join(' &nbsp;·&nbsp; ');
+    host.insertBefore(b, host.firstChild);
+  }
+  const lookup = _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
+  if (!lookup || !lookup.staffSystems) return;
+  const barPos = {};
+  lookup.staffSystems.forEach(sys => (sys.bars || []).forEach(mb => {
+    const idx = mb.index + 1;
+    if (!barPos[idx]) barPos[idx] = mb.visualBounds || mb.realBounds;
+  }));
+  const offsets = {};
+  _rnNotes.filter(n => n.bar_index).forEach(n => {
+    const r = barPos[n.bar_index]; if (!r) return;
+    const k = n.bar_index; offsets[k] = (offsets[k] || 0);
+    const m = document.createElement('div');
+    m.className = 'rn-marker';
+    m.textContent = '📝 ' + n.note;
+    m.title = 'Bar ' + n.bar_index + ': ' + n.note;
+    m.style.left = r.x + 'px';
+    m.style.top = Math.max(0, r.y - 16 - offsets[k] * 16) + 'px';
+    offsets[k]++;
+    host.appendChild(m);
+  });
+}
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('notes-panel'); const btn = document.getElementById('notes-btn');
+  if (!panel || panel.style.display !== 'block') return;
+  if (panel.contains(e.target) || (btn && btn.contains(e.target)) || !document.body.contains(e.target)) return;
   panel.style.display = 'none';
 });
 
