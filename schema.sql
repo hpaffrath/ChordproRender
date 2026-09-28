@@ -1,5 +1,5 @@
 -- ============================================================
---  ChordPro Editor — Complete Database Schema v3
+--  ChordPro Editor — Complete Database Schema v4
 --
 --  Changes from v2:
 --    - songs: artist, key columns consolidated
@@ -375,6 +375,34 @@ where email is not null
 on conflict do nothing;
 
 
+-- ─── SONG NOTES (rehearsal notes / annotations) ─────────────────────────────
+create table if not exists song_notes (
+  id          uuid        default gen_random_uuid() primary key,
+  user_id     uuid        references auth.users(id) on delete cascade not null,
+  filename    text        not null,
+  bar_index   integer,                 -- 1-based bar for Guitar Pro files; null = whole song
+  note        text        not null,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
+);
+
+drop trigger if exists song_notes_updated_at on song_notes;
+create trigger song_notes_updated_at
+  before update on song_notes
+  for each row execute procedure update_updated_at();
+
+grant select, insert, update, delete on song_notes to authenticated;
+grant all on song_notes to service_role;
+
+alter table song_notes enable row level security;
+
+drop policy if exists "Users can manage their own song notes" on song_notes;
+create policy "Users can manage their own song notes"
+  on song_notes for all
+  using  (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+
 -- ============================================================
 --  INDEXES (performance at scale)
 -- ============================================================
@@ -391,6 +419,7 @@ create index if not exists grp_members_group_idx   on group_members(group_id);
 create index if not exists grp_songs_group_idx     on group_songs(group_id);
 create index if not exists approved_members_user_idx on approved_members(user_id);
 create index if not exists approved_members_email_idx  on approved_members(email);
+create index if not exists song_notes_user_file_idx on song_notes(user_id, filename);
 
 
 -- ============================================================
@@ -427,6 +456,7 @@ create index if not exists approved_members_email_idx  on approved_members(email
 --  group_songs       Songs shared within a group     RLS: member r/w, admin delete
 --  group_setlists    Setlists shared within a group  RLS: member
 --  approved_members  App access approval list        RLS: own row / service_role
+--  song_notes        Rehearsal notes per song / bar  RLS: user_id
 --
 --  RLS helpers (security definer, avoids recursion):
 --    is_group_member(group_id, user_id) → boolean
