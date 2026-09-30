@@ -1497,7 +1497,9 @@
         #gpPlayerBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surface); }
         #gpPlayerBar .gp-pill { display:flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:4px; padding:2px 6px; }
         #gpPlayerBar .gp-lbl { font-size:11px; color:var(--text-dim); }
-        #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; }
+        #gpPlayerBar .gp-icon-btn { display:inline-flex; align-items:center; justify-content:center; min-width:34px; padding-left:8px; padding-right:8px; }
+        #gpPlayerBar .gp-ic { width:15px; height:15px; display:block; }
+        #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-countin-btn.gp-on, #gp-tune-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; }
       </style>
       <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
@@ -1516,11 +1518,11 @@
           <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
         </div>
         <div id="gpPlayerBar">
-          <button class="btn btn-primary" id="gp-play-btn" onclick="gpPlayPause()" title="Play / pause (Space)" disabled>▶ Play</button>
-          <button class="btn btn-ghost" id="gp-stop-btn" onclick="gpStop()" title="Stop and rewind" disabled>■ Stop</button>
-          <button class="btn btn-ghost" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" disabled>⟳ Loop</button>
-          <button class="btn btn-ghost" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" disabled>Metronome</button>
-          <button class="btn btn-ghost" id="gp-countin-btn" onclick="gpToggleCountIn()" title="Play one bar of clicks before the music starts" disabled>Count-in</button>
+          <button class="btn btn-primary gp-icon-btn" id="gp-play-btn" onclick="gpPlayPause()" title="Play / pause (Space)" aria-label="Play or pause" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-stop-btn" onclick="gpStop()" title="Stop and rewind" aria-label="Stop" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" aria-label="Loop" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" aria-label="Metronome" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 3.5h4.8l3.1 16H6.5l3.1-16z"/><path d="M12 13.5 16 5.6"/><circle cx="16" cy="5.4" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-countin-btn" onclick="gpToggleCountIn()" title="Play one bar of clicks before the music starts" aria-label="Count-in" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10.4 9.7 12 8.5v7"/></svg></button>
           <div class="gp-pill" title="Playback speed">
             <span class="gp-lbl">Speed</span>
             <button class="ctrl-btn" onclick="gpChangeSpeed(-0.1)">−</button>
@@ -1533,7 +1535,7 @@
             <div id="gp-mix-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:6px;min-width:340px;max-height:300px;overflow:auto;"></div>
           </div>
           <div style="position:relative;">
-            <button class="btn btn-ghost" id="gp-tune-btn" onclick="gpToggleTunePanel()" title="Track tunings and reference tones" disabled>🎸 Tuning</button>
+            <button class="btn btn-ghost gp-icon-btn" id="gp-tune-btn" onclick="gpToggleTunePanel()" title="Track tunings and reference tones" aria-label="Tuning" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v6a4 4 0 0 0 8 0V3"/><path d="M12 13v6"/><path d="M9 21h6"/></svg></button>
             <div id="gp-tune-panel" style="display:none;position:absolute;right:0;top:calc(100% + 4px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:8px;min-width:320px;max-height:340px;overflow:auto;"></div>
           </div>
           <button class="btn btn-ghost" id="gp-clear-sel-btn" onclick="gpClearSelection()" title="Clear the selected bars" disabled>Clear selection</button>
@@ -8776,6 +8778,11 @@ function showGPPreview() {
   const paper = document.getElementById('paper');
   if (gp) gp.style.display = 'flex';
   if (paper) paper.style.display = 'none';
+  // Hide the ChordPro source editor pane while a Guitar Pro file is open
+  const ep = document.getElementById('editorPane');
+  const dh = document.getElementById('dragHandle');
+  if (ep) ep.style.display = 'none';
+  if (dh) dh.style.display = 'none';
   if (!_alphaTabApi && window.alphaTab) {
     try {
       _alphaTabApi = new alphaTab.AlphaTabApi(document.getElementById('alphaTab'), {
@@ -8830,6 +8837,11 @@ function hideGPPreview() {
   const paper = document.getElementById('paper');
   if (gp) gp.style.display = 'none';
   if (paper) paper.style.display = '';
+  // Restore the ChordPro source editor pane
+  const ep = document.getElementById('editorPane');
+  const dh = document.getElementById('dragHandle');
+  if (ep) ep.style.display = '';
+  if (dh) dh.style.display = '';
 }
 
 function _updateGPSaveBtn() {
@@ -9004,6 +9016,8 @@ let _gpCountIn = (function () { try { return localStorage.getItem('gpCountIn') =
 let _gpRange = null;
 
 function _gpEl(id) { return document.getElementById(id); }
+const GP_IC_PLAY = '<svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>';
+const GP_IC_PAUSE = '<svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
 
 function _gpUpdatePlayerButtons() {
   const on = !!(_alphaTabApi && _gpPlayerReady);
@@ -9071,7 +9085,7 @@ function _installGPPlayerEvents() {
     _alphaTabApi.playerStateChanged.on(e => {
       const btn = _gpEl('gp-play-btn');
       const playing = e && e.state === 1;
-      if (btn) btn.textContent = playing ? '❚❚ Pause' : '▶ Play';
+      if (btn) btn.innerHTML = playing ? GP_IC_PAUSE : GP_IC_PLAY;
     });
     _alphaTabApi.playbackRangeChanged.on(e => {
       _gpRange = (e && e.playbackRange) ? e.playbackRange : null;
@@ -9374,9 +9388,11 @@ function gpBuildTunePanel() {
   if (btn) btn.disabled = false;
 }
 function gpToggleTunePanel() {
-  const panel = _gpEl('gp-tune-panel');
+  const panel = _gpEl('gp-tune-panel'); const btn = _gpEl('gp-tune-btn');
   if (!panel) return;
-  panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+  const open = (panel.style.display === 'none' || !panel.style.display);
+  panel.style.display = open ? 'block' : 'none';
+  if (btn) btn.classList.toggle('gp-on', open);
 }
 window.gpToggleTunePanel = gpToggleTunePanel;
 document.addEventListener('click', (e) => {
@@ -9384,6 +9400,7 @@ document.addEventListener('click', (e) => {
   if (!panel || panel.style.display === 'none' || !panel.style.display) return;
   if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
   panel.style.display = 'none';
+  if (btn) btn.classList.remove('gp-on');
 });
 
 // ============= Rehearsal notes / annotations =============
