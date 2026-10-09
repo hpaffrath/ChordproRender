@@ -1513,12 +1513,14 @@
             <button class="ctrl-btn" onclick="changeGPNoteZoom(0.1)" title="Larger notation">+</button>
 
           </div>
+          <button class="btn btn-ghost" id="gp-key-btn" onclick="openGPSaveDialog()" title="Song key — click to edit the song details" disabled>Key: —</button>
           <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
           <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
         </div>
         <div id="gpPlayerBar">
           <button class="btn btn-primary gp-icon-btn" id="gp-play-btn" onclick="gpPlayPause()" title="Play / pause (Space)" aria-label="Play or pause" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-rewind-btn" onclick="gpRewind()" title="Rewind to start (or start of loop)" aria-label="Rewind" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="6" width="2" height="12"/><path d="M19 6v12l-10-6z"/></svg></button>
           <button class="btn btn-ghost gp-icon-btn" id="gp-stop-btn" onclick="gpStop()" title="Stop and rewind" aria-label="Stop" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1"/></svg></button>
           <button class="btn btn-ghost gp-icon-btn" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" aria-label="Loop" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>
           <button class="btn btn-ghost gp-icon-btn" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" aria-label="Metronome" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 3.5h4.8l3.1 16H6.5l3.1-16z"/><path d="M12 13.5 16 5.6"/><circle cx="16" cy="5.4" r="1.5" fill="currentColor" stroke="none"/></svg></button>
@@ -1528,6 +1530,13 @@
             <button class="ctrl-btn" onclick="gpChangeSpeed(-0.1)">−</button>
             <span id="gp-speed-val" onclick="gpSetSpeed(1)" title="Reset speed to 100%" style="font-size:11px;min-width:38px;text-align:center;color:var(--text-dim);cursor:pointer;user-select:none;">100%</span>
             <button class="ctrl-btn" onclick="gpChangeSpeed(0.1)">+</button>
+          </div>
+          <div class="gp-pill" title="Sound quality">
+            <span class="gp-lbl">Sound</span>
+            <select id="gp-sound-sel" onchange="gpSetSoundQuality(this.value)" style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:1px 4px;">
+              <option value="standard">Standard (1.4 MB)</option>
+              <option value="hq">Studio HQ (32 MB)</option>
+            </select>
           </div>
           <div class="gp-lbl" id="gp-loop-info" style="flex:1;min-width:140px;">Drag across the score to select bars to loop.</div>
           <div style="position:relative;">
@@ -2116,6 +2125,7 @@
   <div class="ctx-item" onclick="ctxHistory()">⟲ Version History</div>
   <div class="ctx-item" onclick="ctxRename()">✎ Rename</div>
   <div class="ctx-item" onclick="ctxTags()">Tags</div>
+  <div class="ctx-item" id="ctx-gp-details" style="display:none;" onclick="ctxGPDetails()">♪ Key &amp; Details</div>
   <div class="ctx-item" onclick="ctxShare()">↗ Share</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item ctx-danger" onclick="ctxDelete()">× Delete</div>
@@ -2194,7 +2204,7 @@ Lyrics go here  with chords above"></textarea>
 <!-- Guitar Pro save-metadata dialog -->
 <div class="saveas-overlay" id="gpSaveOverlay">
   <div class="saveas-box" style="width:420px;max-width:95vw;">
-    <div class="saveas-title">Save Guitar Pro File</div>
+    <div class="saveas-title" id="gp-save-dlg-title">Save Guitar Pro File</div>
     <label style="font-size:11px;color:var(--text-dim);">Filename</label>
     <input class="saveas-input" id="gp-save-filename" placeholder="song.gp">
     <label style="font-size:11px;color:var(--text-dim);">Title</label>
@@ -2203,6 +2213,11 @@ Lyrics go here  with chords above"></textarea>
     <input class="saveas-input" id="gp-save-artist" placeholder="Artist">
     <label style="font-size:11px;color:var(--text-dim);">Key</label>
     <input class="saveas-input" id="gp-save-key" placeholder="e.g. G, Am">
+    <div id="gp-key-detect-wrap" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--text-dim);">
+      <span>Detected from the file:</span>
+      <button type="button" class="btn btn-ghost" id="gp-key-detect-btn" style="font-size:11px;padding:3px 8px;" onclick="gpUseDetectedKey()">—</button>
+      <span id="gp-key-detect-note" style="font-size:11px;opacity:.8;"></span>
+    </div>
     <label style="font-size:11px;color:var(--text-dim);">Tags (comma-separated)</label>
     <div class="tag-input-wrap" id="gp-tag-wrap" onclick="document.getElementById('gp-tag-text').focus()">
       <input class="tag-text-input" id="gp-tag-text" placeholder="Type a tag, press Enter…" autocomplete="off">
@@ -5014,6 +5029,8 @@ let ctxRow = null; // the file row the context menu was opened on
 function openFileContextMenu(e, row) {
   ctxRow = row;
   const menu = document.getElementById('fileContextMenu');
+  const gpItem = document.getElementById('ctx-gp-details');
+  if (gpItem) gpItem.style.display = (row && isGuitarProFilename(row.filename)) ? '' : 'none';
   menu.style.display = 'block';
   // Position near cursor, keeping within viewport
   const x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
@@ -5037,6 +5054,13 @@ function ctxHistory() { if (ctxRow) showVersionHistory(ctxRow.filename); }
 function ctxRename()  { if (ctxRow) fpRename(ctxRow.filename); }
 function ctxTags()    { if (ctxRow) fpEditTagsForFile(ctxRow.filename); }
 function ctxShare()   { if (ctxRow) shareSong(ctxRow.filename); }
+async function ctxGPDetails() {
+  if (!ctxRow) return;
+  const fn = ctxRow.filename;
+  closeFileContextMenu();
+  if (_gpCurrentFilename !== fn || !_gpCurrentBytes) await openSavedGPFile(fn);
+  openGPSaveDialog();
+}
 function ctxDelete()  { if (ctxRow) { const r = ctxRow; closeFileContextMenu(); fpDelete(r.filename, { stopPropagation: () => {} }); } }
 
 function fpNew() {
@@ -8818,6 +8842,8 @@ function showGPPreview() {
       _alphaTabApi.scoreLoaded.on(score => {
         populateGPTrackSelect(score);
         gpClearSelection();
+        try { _gpDetected = gpDetectKey(score); } catch (_) { _gpDetected = null; }
+        _updateGPKeyBtn();
       });
       _installGPPlayerEvents();
       _installGPAutoFit();
@@ -8844,7 +8870,163 @@ function hideGPPreview() {
   if (dh) dh.style.display = '';
 }
 
+// ─── Guitar Pro key detection ────────────────────────────────────────────────
+let _gpDetected = null;   // { key, source }
+let _gpSavedMeta = null;  // { filename, title, artist, key, tags } when the open file is in the library
+const _GP_MAJ = { '-7':'Cb','-6':'Gb','-5':'Db','-4':'Ab','-3':'Eb','-2':'Bb','-1':'F','0':'C','1':'G','2':'D','3':'A','4':'E','5':'B','6':'F#','7':'C#' };
+const _GP_MIN = { '-7':'Abm','-6':'Ebm','-5':'Bbm','-4':'Fm','-3':'Cm','-2':'Gm','-1':'Dm','0':'Am','1':'Em','2':'Bm','3':'F#m','4':'C#m','5':'G#m','6':'D#m','7':'A#m' };
+const _PC_SHARP = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const _PC_MAP = { C:0,'B#':0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,Fb:4,F:5,'E#':5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11 };
+// Krumhansl-Kessler key profiles
+const _KK_MAJ = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+const _KK_MIN = [6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+
+function _gpParseChordRoot(name) {
+  const m = String(name || '').trim().match(/^([A-G])([#b]?)(.*)$/);
+  if (!m) return null;
+  const pc = _PC_MAP[m[1] + m[2]];
+  if (pc === undefined) return null;
+  const rest = m[3] || '';
+  const minor = /^(m(?!aj)|min|-)/.test(rest);
+  return { pc, minor };
+}
+
+function _gpCorr(a, b) {
+  const n = a.length; let ma = 0, mb = 0;
+  for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+  ma /= n; mb /= n;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; num += x * y; da += x * x; db += y * y; }
+  return (da && db) ? num / Math.sqrt(da * db) : 0;
+}
+
+function _gpKeyName(pc, minor, sigHint) {
+  // Prefer flat spelling for flat-side keys
+  const flatNames = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const sharpNames = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  let names;
+  if (minor) names = [0,2,5,7,10,3].includes(pc) ? flatNames : sharpNames; // Cm Dm Fm Gm Bbm Ebm
+  else names = [5,10,3,8,1,6].includes(pc) ? flatNames : sharpNames;      // F Bb Eb Ab Db Gb
+  if (sigHint !== undefined && sigHint < 0) names = flatNames;
+  return names[pc] + (minor ? 'm' : '');
+}
+
+function gpDetectKey(score) {
+  if (!score) return null;
+  const mbs = score.masterBars || [];
+  const mb0 = mbs[0];
+  const sig = mb0 ? Number(mb0.keySignature) || 0 : 0;
+  const isMinor = mb0 ? Number(mb0.keySignatureType) === 1 : false;
+
+  // Gather pitch classes (weighted by duration) and chord names from all non-percussion tracks
+  const hist = new Array(12).fill(0);
+  const chordNames = [];
+  let firstBass = null, lastBass = null;
+  for (const t of (score.tracks || [])) {
+    if (t.isPercussion || (t.staves || []).some(s => s.isPercussion)) continue;
+    const chordMap = t.chords;
+    for (const st of (t.staves || [])) {
+      if (st.isPercussion) continue;
+      for (const bar of (st.bars || [])) {
+        for (const v of (bar.voices || [])) {
+          for (const bt of (v.beats || [])) {
+            if (bt.chordId && chordMap) {
+              const c = (chordMap.get ? chordMap.get(bt.chordId) : chordMap[bt.chordId]);
+              if (c && c.name) chordNames.push(c.name);
+            }
+            const notes = bt.notes || [];
+            if (!notes.length || bt.isRest) continue;
+            const w = Math.max(1, Number(bt.playbackDuration) || 1);
+            let low = null;
+            for (const n of notes) {
+              const p = Number(n.realValue);
+              if (!isFinite(p) || p <= 0) continue;
+              if (n.isDead || n.isGhost) continue;
+              hist[((p % 12) + 12) % 12] += w;
+              if (low === null || p < low) low = p;
+            }
+            if (low !== null) { if (firstBass === null) firstBass = low % 12; lastBass = low % 12; }
+          }
+        }
+      }
+    }
+  }
+
+  // 1. Explicit key signature set by the tab author (anything other than the C-major default)
+  if (sig !== 0 || isMinor) {
+    const major = _GP_MAJ[String(sig)], minor = _GP_MIN[String(sig)];
+    if (major) {
+      // If the author left it as major, check whether the notes actually point to the relative minor
+      let key = isMinor ? minor : major;
+      const total = hist.reduce((a, b) => a + b, 0);
+      if (!isMinor && total > 0) {
+        const majPc = _PC_MAP[major], minPc = (majPc + 9) % 12;
+        const cMaj = _gpCorr(hist, _KK_MAJ.map((_, i) => _KK_MAJ[(i - majPc + 12) % 12]));
+        const cMin = _gpCorr(hist, _KK_MIN.map((_, i) => _KK_MIN[(i - minPc + 12) % 12]));
+        if (cMin > cMaj + 0.03) key = minor;
+      }
+      return { key, source: 'key signature' };
+    }
+  }
+
+  // 2. Chord names written in the file — songs usually start and end on the home chord
+  if (chordNames.length >= 3) {
+    const roots = chordNames.map(_gpParseChordRoot).filter(Boolean);
+    if (roots.length >= 3) {
+      const score24 = new Array(24).fill(0);
+      roots.forEach(r => { score24[r.pc + (r.minor ? 12 : 0)] += 1; });
+      const first = roots[0], last = roots[roots.length - 1];
+      score24[first.pc + (first.minor ? 12 : 0)] += 2;
+      score24[last.pc + (last.minor ? 12 : 0)] += 3;
+      let best = 0; for (let i = 1; i < 24; i++) if (score24[i] > score24[best]) best = i;
+      return { key: _gpKeyName(best % 12, best >= 12), source: 'chord names' };
+    }
+  }
+
+  // 3. Note analysis
+  const total = hist.reduce((a, b) => a + b, 0);
+  if (total > 0) {
+    let bestKey = null, bestScore = -2;
+    for (let tonic = 0; tonic < 12; tonic++) {
+      for (const minor of [false, true]) {
+        const prof = minor ? _KK_MIN : _KK_MAJ;
+        const rotated = prof.map((_, i) => prof[(i - tonic + 12) % 12]);
+        let c = _gpCorr(hist, rotated);
+        if (lastBass === tonic) c += 0.04;
+        if (firstBass === tonic) c += 0.02;
+        if (c > bestScore) { bestScore = c; bestKey = { tonic, minor }; }
+      }
+    }
+    if (bestKey) return { key: _gpKeyName(bestKey.tonic, bestKey.minor), source: 'note analysis' };
+  }
+  return null;
+}
+
+function _updateGPKeyBtn() {
+  const btn = document.getElementById('gp-key-btn');
+  if (!btn) return;
+  const saved = _gpSavedMeta && _gpSavedMeta.filename === _gpCurrentFilename ? _gpSavedMeta.key : null;
+  if (saved) {
+    btn.textContent = 'Key: ' + saved;
+    btn.title = 'Saved key' + (_gpDetected && _gpDetected.key !== saved ? ' (detected: ' + _gpDetected.key + ')' : '') + ' — click to edit the song details';
+  } else if (_gpDetected) {
+    btn.textContent = 'Key: ' + _gpDetected.key + '?';
+    btn.title = 'Detected from ' + _gpDetected.source + ' — not saved yet. Click to confirm and save.';
+  } else {
+    btn.textContent = 'Key: —';
+    btn.title = 'Click to set the key';
+  }
+  btn.disabled = !(_gpCurrentBytes && _gpCurrentFilename && currentUser);
+}
+
+function gpUseDetectedKey() {
+  if (!_gpDetected) return;
+  document.getElementById('gp-save-key').value = _gpDetected.key;
+}
+window.gpUseDetectedKey = gpUseDetectedKey;
+
 function _updateGPSaveBtn() {
+  _updateGPKeyBtn();
   const btn = document.getElementById('gp-save-btn');
   if (btn) btn.disabled = !(currentUser && _gpCurrentBytes && _gpCurrentFilename);
   const ex = document.getElementById('gp-export-btn');
@@ -9007,7 +9189,31 @@ function _installGPAutoFit() {
 }
 
 // ─── Guitar Pro playback (alphaSynth): cursor, selection, looping ────────────
-const GP_SOUNDFONT_URL = 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/soundfont/sonivox.sf2';
+const GP_SOUNDFONTS = {
+  standard: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.5.0/dist/soundfont/sonivox.sf2',
+  hq: 'https://cdn.jsdelivr.net/npm/@misterscan/sesi@1.8.6/sf2/GeneralUser-GS.sf2'
+};
+let _gpSoundQuality = (function () { try { return localStorage.getItem('gpSoundQuality') === 'hq' ? 'hq' : 'standard'; } catch (_) { return 'standard'; } })();
+var GP_SOUNDFONT_URL = GP_SOUNDFONTS[_gpSoundQuality];
+function _gpSyncSoundSel() { const s = document.getElementById('gp-sound-sel'); if (s) s.value = _gpSoundQuality; }
+document.addEventListener('DOMContentLoaded', _gpSyncSoundSel);
+function gpSetSoundQuality(q) {
+  q = q === 'hq' ? 'hq' : 'standard';
+  if (q === _gpSoundQuality) return;
+  _gpSoundQuality = q;
+  GP_SOUNDFONT_URL = GP_SOUNDFONTS[q];
+  try { localStorage.setItem('gpSoundQuality', q); } catch (_) {}
+  if (_alphaTabApi) {
+    try { _alphaTabApi.stop(); } catch (_) {}
+    try { _alphaTabApi.settings.player.soundFont = GP_SOUNDFONT_URL; } catch (_) {}
+    _gpPlayerReady = false;
+    _gpUpdatePlayerButtons();
+    const st = document.getElementById('gp-player-status');
+    if (st) st.textContent = 'Loading sounds 0%';
+    try { _alphaTabApi.soundFontLoaded.on(function h() { _gpPlayerReady = true; if (st) st.textContent = ''; _gpUpdatePlayerButtons(); try { _alphaTabApi.soundFontLoaded.off(h); } catch (_) {} }); } catch (_) {}
+    try { _alphaTabApi.loadSoundFontFromUrl(GP_SOUNDFONT_URL, false); } catch (e) { console.warn('SoundFont load failed', e); }
+  }
+}
 let _gpPlayerReady = false;
 let _gpLooping = false;
 let _gpSpeed = 1;
@@ -9021,7 +9227,7 @@ const GP_IC_PAUSE = '<svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" 
 
 function _gpUpdatePlayerButtons() {
   const on = !!(_alphaTabApi && _gpPlayerReady);
-  ['gp-play-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn', 'gp-countin-btn', 'gp-mix-btn'].forEach(id => {
+  ['gp-play-btn', 'gp-rewind-btn', 'gp-stop-btn', 'gp-loop-btn', 'gp-metro-btn', 'gp-countin-btn', 'gp-mix-btn'].forEach(id => {
     const b = _gpEl(id); if (b) b.disabled = !on;
   });
   const clear = _gpEl('gp-clear-sel-btn');
@@ -9099,6 +9305,29 @@ function gpPlayPause() {
   if (!_alphaTabApi) return;
   try { _alphaTabApi.playPause(); }
   catch (e) { const st = _gpEl('gp-player-status'); if (st) st.textContent = 'Playback unavailable.'; }
+}
+function gpRewind() {
+  if (!_alphaTabApi) return;
+  try { _alphaTabApi.tickPosition = (_gpRange && typeof _gpRange.startTick === 'number') ? _gpRange.startTick : 0; } catch (_) {}
+}
+function gpJumpToBar(bar) {
+  if (!_alphaTabApi) return;
+  const score = _alphaTabApi.score;
+  let tick = 0;
+  if (bar && score && score.masterBars && score.masterBars[bar - 1]) tick = score.masterBars[bar - 1].start || 0;
+  try { _alphaTabApi.tickPosition = tick; } catch (_) {}
+  try {
+    const bounds = _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
+    const wrap = document.getElementById('gp-render-wrap');
+    const host = document.getElementById('alphaTab');
+    let mb = null;
+    if (bounds && bounds.staffSystems) bounds.staffSystems.forEach(sys => (sys.bars || []).forEach(b => { if (!mb && b.index === (bar || 1) - 1) mb = b; }));
+    if (mb && wrap && host) {
+      const rb = mb.realBounds || mb.visualBounds;
+      const off = host.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop;
+      wrap.scrollTo({ top: Math.max(0, off + rb.y - 40), behavior: 'smooth' });
+    } else if (wrap && !bar) wrap.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (_) {}
 }
 function gpStop() {
   if (!_alphaTabApi) return;
@@ -9455,6 +9684,7 @@ function rnRenderPanel() {
     html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:4px;border-bottom:1px solid var(--border);">' +
       '<span style="min-width:48px;color:var(--accent);font-size:11px;">' + (n.bar_index ? 'Bar ' + n.bar_index : 'Song') + '</span>' +
       '<span style="flex:1;white-space:pre-wrap;">' + _rnEsc(n.note) + '</span>' +
+      (isGP ? '<button class="ctrl-btn" data-rn-jump="' + (n.bar_index || 0) + '" title="' + (n.bar_index ? 'Jump to bar ' + n.bar_index : 'Jump to start') + '">🔖</button>' : '') +
       '<button class="ctrl-btn" data-rn-del="' + n.id + '" title="Delete note">✕</button></div>';
   });
   html += '<textarea id="rn-text" rows="2" placeholder="e.g. Double chorus on outro" style="width:100%;box-sizing:border-box;margin-top:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;font:inherit;"></textarea>';
@@ -9464,6 +9694,7 @@ function rnRenderPanel() {
   if (isGP) html += '<div class="gp-lbl" style="font-size:10px;margin-top:4px;">Tip: drag-select bars in the score first and the bar number fills in. Leave blank for a whole-song note.</div>';
   panel.innerHTML = html;
   panel.querySelector('#rn-add').addEventListener('click', rnAdd);
+  panel.querySelectorAll('[data-rn-jump]').forEach(b => b.addEventListener('click', () => gpJumpToBar(parseInt(b.getAttribute('data-rn-jump'), 10) || 0)));
   panel.querySelectorAll('[data-rn-del]').forEach(b => b.addEventListener('click', () => rnDelete(b.getAttribute('data-rn-del'))));
 }
 async function rnAdd() {
@@ -9566,6 +9797,8 @@ function loadGPFile(input) {
       const bytes = new Uint8Array(e.target.result);
       _gpCurrentBytes = bytes;
       _gpCurrentFilename = file.name;
+      _gpSavedMeta = null;
+      _gpDetected = null;
       _alphaTabApi.load(bytes);
       _updateGPSaveBtn();
     } catch (err) {
@@ -9641,14 +9874,27 @@ async function openGPSaveDialog() {
   if (!currentUser) { alert('Please sign in to save files.'); return; }
   if (!_gpCurrentBytes || !_gpCurrentFilename) return;
   const score = _alphaTabApi && _alphaTabApi.score;
+  const saved = (_gpSavedMeta && _gpSavedMeta.filename === _gpCurrentFilename) ? _gpSavedMeta : null;
+  if (!_gpDetected && score) { try { _gpDetected = gpDetectKey(score); } catch (_) {} }
+  document.getElementById('gp-save-dlg-title').textContent = saved ? 'Song Details' : 'Save Guitar Pro File';
+  document.getElementById('gp-save-confirm').textContent = saved ? 'Update Song' : 'Save';
   document.getElementById('gp-save-filename').value = _gpCurrentFilename;
-  document.getElementById('gp-save-title').value =
-    (score && score.title) ? score.title : _gpCurrentFilename.replace(/\.[^.]+$/, '');
-  document.getElementById('gp-save-artist').value = (score && score.artist) ? score.artist : '';
-  document.getElementById('gp-save-key').value = '';
+  document.getElementById('gp-save-title').value = (saved && saved.title) ? saved.title :
+    ((score && score.title) ? score.title : _gpCurrentFilename.replace(/\.[^.]+$/, ''));
+  document.getElementById('gp-save-artist').value = (saved && saved.artist) ? saved.artist :
+    ((score && score.artist) ? score.artist : '');
+  document.getElementById('gp-save-key').value = (saved && saved.key) ? saved.key :
+    (_gpDetected ? _gpDetected.key : '');
+  const dw = document.getElementById('gp-key-detect-wrap');
+  if (_gpDetected) {
+    dw.style.display = 'flex';
+    document.getElementById('gp-key-detect-btn').textContent = _gpDetected.key;
+    document.getElementById('gp-key-detect-note').textContent = '(from ' + _gpDetected.source + ' — click to use)';
+  } else dw.style.display = 'none';
   gpSaveTags = [];
   const wrap = document.getElementById('gp-tag-wrap');
   wrap.querySelectorAll('.tag-pill').forEach(p => p.remove());
+  if (saved && Array.isArray(saved.tags)) saved.tags.forEach(t => addGPTagPill(t));
   document.getElementById('gp-tag-text').value = '';
   document.getElementById('gp-tag-suggestions-wrap').style.display = 'none';
   document.getElementById('gp-tag-suggestions').innerHTML = '';
@@ -9689,13 +9935,14 @@ async function confirmGPSave() {
   const b64 = _bytesToBase64(_gpCurrentBytes);
   const content = GP_MARKER + b64;
   const record = { user_id: currentUser.id, filename, title, artist, key, content };
-  if (tags) record.tags = tags;
+  record.tags = tags;
   const btn = document.getElementById('gp-save-confirm');
   const prev = btn.textContent; btn.textContent = 'Saving…'; btn.disabled = true;
   const { error } = await sb.from('songs').upsert(record, { onConflict: 'user_id,filename' });
   btn.textContent = prev; btn.disabled = false;
   if (error) { alert('Save failed: ' + error.message); return; }
   _gpCurrentFilename = filename;
+  _gpSavedMeta = { filename, title, artist, key, tags: tags || [] };
   currentFilename = filename;
   document.getElementById('gp-title').textContent = filename;
   document.getElementById('gp-status').textContent = 'Saved to library as ' + filename;
@@ -9712,7 +9959,7 @@ async function openSavedGPFile(filename) {
   document.getElementById('gp-title').textContent = filename;
   document.getElementById('gp-status').textContent = 'Loading ' + filename + '…';
   const { data, error } = await sb.from('songs')
-    .select('content').eq('filename', filename).eq('user_id', currentUser.id).single();
+    .select('content,title,artist,key,tags').eq('filename', filename).eq('user_id', currentUser.id).single();
   if (error) { document.getElementById('gp-status').textContent = 'Load failed: ' + error.message; return; }
   const content = data.content || '';
   if (!content.startsWith(GP_MARKER)) {
@@ -9723,6 +9970,8 @@ async function openSavedGPFile(filename) {
     const bytes = _base64ToBytes(content.slice(GP_MARKER.length));
     _gpCurrentBytes = bytes;
     _gpCurrentFilename = filename;
+    _gpDetected = null;
+    _gpSavedMeta = { filename, title: data.title, artist: data.artist, key: data.key, tags: data.tags || [] };
     if (_alphaTabApi) _alphaTabApi.load(bytes);
     currentFilename = filename;
     if (typeof updateCurrentFile === 'function') updateCurrentFile();
