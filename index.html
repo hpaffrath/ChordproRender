@@ -1531,13 +1531,6 @@
             <span id="gp-speed-val" onclick="gpSetSpeed(1)" title="Reset speed to 100%" style="font-size:11px;min-width:38px;text-align:center;color:var(--text-dim);cursor:pointer;user-select:none;">100%</span>
             <button class="ctrl-btn" onclick="gpChangeSpeed(0.1)">+</button>
           </div>
-          <div class="gp-pill" title="Sound quality">
-            <span class="gp-lbl">Sound</span>
-            <select id="gp-sound-sel" onchange="gpSetSoundQuality(this.value)" style="font-size:11px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:1px 4px;">
-              <option value="standard">Standard (1.4 MB)</option>
-              <option value="hq">Studio HQ (32 MB)</option>
-            </select>
-          </div>
           <div class="gp-lbl" id="gp-loop-info" style="flex:1;min-width:140px;">Drag across the score to select bars to loop.</div>
           <div style="position:relative;">
             <button class="btn btn-ghost" id="gp-mix-btn" onclick="gpToggleMixPanel()" title="Mute / solo / volume per track" disabled>🎚 Tracks</button>
@@ -1917,12 +1910,19 @@
 </div>
 <!-- Settings modal -->
 <div class="saveas-overlay" id="settingsOverlay">
-  <div class="saveas-box" style="max-width:420px;">
+  <div class="saveas-box" style="max-width:420px;max-height:90vh;overflow-y:auto;">
     <div class="saveas-title">Settings</div>
 
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);margin-bottom:6px;">Account</div>
     <div style="font-size:13px;color:var(--text-dim);margin-bottom:10px;" id="settings-email-display"></div>
 
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);">Guitar Pro Playback Sound</div>
+      <select id="gp-sound-sel" class="saveas-input" onchange="gpSetSoundQuality(this.value)">
+        <option value="standard">Standard (1.4 MB, fast)</option>
+        <option value="hq">Studio HQ (32 MB, richer sound)</option>
+      </select>
+    </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-dim);">Change Password</div>
       <input class="saveas-input" id="s-cp-new" type="password" placeholder="New password (6+ chars)">
@@ -2263,6 +2263,7 @@ async function fpInit() {
     currentUser = session.user;
     fpShowFilesView();
     refreshFileList();
+    loadUserSettings();
   }
   sb.auth.onAuthStateChange(async (_event, session) => {
     currentUser = session?.user || null;
@@ -2272,10 +2273,32 @@ async function fpInit() {
       // Don't disrupt group mode on token refresh
       if (!currentGroup) fpShowFilesView();
       refreshFileList();
+      if (_event === 'SIGNED_IN') loadUserSettings();
     } else {
       fpShowAuthView();
     }
   });
+}
+
+
+// ─── User settings (key/value, user_settings table, RLS: own rows only) ─────
+async function saveUserSetting(key, value) {
+  if (!currentUser || typeof sb === 'undefined') return;
+  try {
+    const { error } = await sb.from('user_settings').upsert(
+      { user_id: currentUser.id, key: key, value: value },
+      { onConflict: 'user_id,key' });
+    if (error) console.warn('Saving setting failed', error.message);
+  } catch (e) { console.warn('Saving setting failed', e); }
+}
+async function loadUserSettings() {
+  if (!currentUser || typeof sb === 'undefined') return;
+  try {
+    const { data, error } = await sb.from('user_settings').select('key,value').eq('user_id', currentUser.id);
+    if (error || !data) return;
+    const m = {}; data.forEach(r => { m[r.key] = r.value; });
+    if (m.gp_sound_quality === 'hq' || m.gp_sound_quality === 'standard') gpSetSoundQuality(m.gp_sound_quality, true);
+  } catch (_) {}
 }
 
 // ─── Access approval gate (approved_members table) ───────────────────────────
@@ -9197,12 +9220,14 @@ let _gpSoundQuality = (function () { try { return localStorage.getItem('gpSoundQ
 var GP_SOUNDFONT_URL = GP_SOUNDFONTS[_gpSoundQuality];
 function _gpSyncSoundSel() { const s = document.getElementById('gp-sound-sel'); if (s) s.value = _gpSoundQuality; }
 document.addEventListener('DOMContentLoaded', _gpSyncSoundSel);
-function gpSetSoundQuality(q) {
+function gpSetSoundQuality(q, fromDb) {
   q = q === 'hq' ? 'hq' : 'standard';
   if (q === _gpSoundQuality) return;
   _gpSoundQuality = q;
   GP_SOUNDFONT_URL = GP_SOUNDFONTS[q];
   try { localStorage.setItem('gpSoundQuality', q); } catch (_) {}
+  _gpSyncSoundSel();
+  if (!fromDb) saveUserSetting('gp_sound_quality', q);
   if (_alphaTabApi) {
     try { _alphaTabApi.stop(); } catch (_) {}
     try { _alphaTabApi.settings.player.soundFont = GP_SOUNDFONT_URL; } catch (_) {}
