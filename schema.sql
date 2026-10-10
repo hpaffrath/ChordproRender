@@ -1,5 +1,5 @@
 -- ============================================================
---  ChordPro Editor — Complete Database Schema v4
+--  ChordPro Editor — Complete Database Schema v5
 --
 --  Changes from v2:
 --    - songs: artist, key columns consolidated
@@ -403,6 +403,33 @@ create policy "Users can manage their own song notes"
   with check (auth.uid() = user_id);
 
 
+-- ─── USER SETTINGS (per-user key/value preferences) ────────────────────────
+create table if not exists user_settings (
+  user_id     uuid        references auth.users(id) on delete cascade not null,
+  key         text        not null check (char_length(key) between 1 and 100),
+  value       text        check (value is null or char_length(value) <= 10000),
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now(),
+  primary key (user_id, key)
+);
+
+drop trigger if exists user_settings_updated_at on user_settings;
+create trigger user_settings_updated_at
+  before update on user_settings
+  for each row execute procedure update_updated_at();
+
+grant select, insert, update, delete on user_settings to authenticated;
+grant all on user_settings to service_role;
+
+alter table user_settings enable row level security;
+
+drop policy if exists "Users can manage their own settings" on user_settings;
+create policy "Users can manage their own settings"
+  on user_settings for all to authenticated
+  using  (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+
 -- ============================================================
 --  INDEXES (performance at scale)
 -- ============================================================
@@ -457,6 +484,7 @@ create index if not exists song_notes_user_file_idx on song_notes(user_id, filen
 --  group_setlists    Setlists shared within a group  RLS: member
 --  approved_members  App access approval list        RLS: own row / service_role
 --  song_notes        Rehearsal notes per song / bar  RLS: user_id
+--  user_settings     Per-user key/value preferences  RLS: user_id
 --
 --  RLS helpers (security definer, avoids recursion):
 --    is_group_member(group_id, user_id) → boolean
