@@ -1,55 +1,82 @@
-# ChordPro / Guitar Pro Editor — Deployment & Setup Guide
+# ChordPro & Guitar Pro Editor — Full Deployment Guide
 
-This guide walks you through setting up the database, configuring the application credentials, and hosting the single-file HTML app.
-
----
-
-## 1. Database Architecture & Requirements
-
-The editor is a client-side Single Page Application (SPA) built with `@supabase/supabase-js`. It connects directly from the browser to the backend without an intermediary server.
-
-### What is Required
-1. **PostgreSQL Database** (uses PostgreSQL-specific JSONB, triggers, functions, and Row Level Security).
-2. **Supabase Auth (GoTrue)** (manages user signups, passwords, and JSON Web Tokens).
-3. **PostgREST** (provides secure REST API endpoints directly over HTTPS).
-4. **Row Level Security (RLS)** (secures user data at the database level so users only access their own songs and groups).
-
-### Can MySQL Be Used?
-**Not directly.** 
-- Browsers cannot connect directly to MySQL over TCP.
-- Hardcoding MySQL database credentials into client-side HTML is insecure.
-- MySQL lacks native PostgreSQL Row Level Security (RLS) and stored-procedure syntax.
-- *To use MySQL*, you would need to build a custom backend API (in PHP, Python, or Node.js) with custom authentication and rewrite all database queries in the HTML file.
-
-### Best Database Options
-- **Option A (Recommended & Free):** [Supabase Cloud](https://supabase.com) (free tier includes 500 MB database, auth, and 50,000 monthly active users).
-- **Option B (Self-Hosted on your own VPS):** [Supabase via Docker Compose](https://supabase.com/docs/guides/self-hosting/docker) on Hetzner, DigitalOcean, Linode, or any private server.
+This document provides complete, step-by-step instructions to deploy the entire ChordPro and Guitar Pro Editor from scratch using a free **Supabase Cloud** backend and static web hosting.
 
 ---
 
-## 2. Setting Up the Database
+## Architecture Overview
 
-Follow these steps once you have a Supabase project created (cloud or self-hosted):
+The system consists of two primary components:
+1. **Frontend Client (`chordpro-editor.html`):** A self-contained, single-file HTML/CSS/JavaScript application. It renders chord charts and Guitar Pro tabs (via alphaTab CDN), runs playback via Web Audio/SoundFonts, and connects directly to the database via `@supabase/supabase-js`.
+2. **Backend Services (Supabase Cloud):**
+   - **PostgreSQL Database:** Stores personal songs, rehearsal notes, user settings, group collaborations, and shared links.
+   - **GoTrue Auth:** Handles user registration, email/password login, and JSON Web Token (JWT) issuance.
+   - **Row Level Security (RLS):** Enforces data boundaries so users can only access their own songs and groups they belong to.
+   - **PostgREST API:** Automatically exposes secure REST endpoints over HTTPS.
 
-### Step 1: Execute the Schema Script
-1. Navigate to your Supabase project dashboard.
-2. Open the **SQL Editor** from the left-hand navigation.
-3. Open the `schema_full.sql` file from this project and copy its entire contents.
-4. Paste the script into the SQL Editor and click **Run**.
+---
 
-This script automatically provisions:
-- Core tables: `songs`, `song_notes`, `user_settings`, `approved_members`
-- Group collaboration tables: `groups`, `group_members`, `group_songs`, `group_setlists`
-- Sharing tables: `shared_items`
-- Performance indexes, updated-at triggers, and secure Row Level Security (RLS) policies.
+## Phase 1: Provisioning the Supabase Cloud Backend
 
-### Step 2: Approve Your Admin User
-The app includes a private beta access gate (`approved_members` table). Unapproved accounts cannot log in.
+### 1.1 Create a Supabase Account & Project
+1. Visit [supabase.com](https://supabase.com) and click **Start your project** (or sign in with GitHub).
+2. Click **New Project** and select your organization.
+3. Configure your project:
+   - **Name:** e.g., `chordpro-editor`
+   - **Database Password:** Generate and securely save a strong password.
+   - **Region:** Choose the region closest to you or your target users (e.g., `ap-southeast-2` for Sydney).
+   - **Pricing Plan:** Select the **Free Tier**.
+4. Click **Create new project**. Provisioning typically takes 1–2 minutes.
 
-1. Launch the app and use **Create Account** to register your email, or create the user in the Supabase Dashboard under **Authentication → Users**.
-2. Go to the **SQL Editor** or **Table Editor** in Supabase.
-3. In the `approved_members` table, find your email and update `approved` to `true`:
-   ```sql
-   UPDATE public.approved_members
-   SET approved = true
-   WHERE email = 'your-email@example.com';
+---
+
+### 1.2 Configure Authentication Settings
+1. In your Supabase project dashboard, navigate to **Authentication** in the left sidebar.
+2. Select **Providers** → **Email**:
+   - Ensure **Enable Email provider** is switched **ON**.
+   - **Confirm email:**
+     - *Recommended for private beta testing:* Turn **OFF** "Confirm email" if you want users to register and immediately appear in the database without waiting for an email verification loop.
+     - *For production:* Leave it **ON** to ensure valid email addresses.
+3. Click **Save**.
+
+---
+
+### 1.3 Deploy the Database Schema
+1. In your project dashboard, navigate to the **SQL Editor** (icon with `>_` in the left sidebar).
+2. Click **New query**.
+3. Open `schema_full.sql` from your project files and copy its entire contents.
+4. Paste the SQL code into the editor pane.
+5. Click **Run** (or press `Ctrl+Enter` / `Cmd+Enter`).
+6. Confirm the console reports `Success. No rows returned`.
+
+#### What Was Created:
+- **`songs` table:** Stores ChordPro text files and Guitar Pro binary payloads (`GPBIN1:<base64>`), metadata (artist, key, tags), and owner IDs.
+- **`song_notes` table:** Stores bar-level or song-level rehearsal markers and notes.
+- **`user_settings` table:** Key-value store for cross-device preferences (soundfont quality, UI toggles).
+- **`approved_members` table:** Private beta gate table preventing unauthorized sign-ins.
+- **`groups`, `group_members`, `group_songs`, `group_setlists` tables:** Multi-user band collaboration features.
+- **`shared_items` table:** Read-only public sharing tokens for songs and setlists.
+- **Security & Triggers:** Automatic timestamp updates, auto-enrollment trigger on user signup, and strict Row Level Security (RLS) policies.
+
+---
+
+### 1.4 Retrieve API Credentials
+1. Go to **Project Settings** (gear icon at the bottom of the left sidebar).
+2. Select **API** under Configuration.
+3. Locate the **Project API keys** and **Project URL** sections and copy:
+   - **Project URL:** e.g., `https://abcdefghijklm.supabase.co`
+   - **anon / public key:** String starting with `ey...` or `sb_publishable_...` (Safe for client-side use).
+   *(Do NOT copy or use the `service_role` key in the HTML file).*
+
+---
+
+## Phase 2: Configuring the Application Code
+
+1. Open `chordpro-editor.html` in any text or code editor.
+2. Locate the Supabase configuration block around lines **2244–2245**:
+
+```javascript
+// ─── Supabase ────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = 'https://enrpbyewclsuitcnhhep.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_9UjCm2Ggo9Dqo_hvhK_0iA_CpntKhQ0';
