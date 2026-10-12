@@ -1371,6 +1371,8 @@
     .drag-handle { display: block !important; }
   }
 
+#gp-countin-btn{position:relative}
+#gp-countin-btn[data-mode="2"]::after{content:'\21BB';position:absolute;right:1px;bottom:-1px;font-size:11px;line-height:1;font-weight:700}
 </style>
 </head>
 <body>
@@ -1499,7 +1501,8 @@
         #gpPlayerBar .gp-lbl { font-size:11px; color:var(--text-dim); }
         #gpPlayerBar .gp-icon-btn { display:inline-flex; align-items:center; justify-content:center; min-width:34px; padding-left:8px; padding-right:8px; }
         #gpPlayerBar .gp-ic { width:15px; height:15px; display:block; }
-        #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-countin-btn.gp-on, #gp-tune-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; }
+        #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-countin-btn.gp-on, #gp-tune-btn.gp-on, #gp-reverb-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 8px rgba(64,140,255,.45); }
+        #gpPlayerBar .gp-icon-btn.gp-on svg { opacity: 1; }
       </style>
       <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
@@ -1525,6 +1528,7 @@
           <button class="btn btn-ghost gp-icon-btn" id="gp-loop-btn" onclick="gpToggleLoop()" title="Loop the selected bars" aria-label="Loop" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>
           <button class="btn btn-ghost gp-icon-btn" id="gp-metro-btn" onclick="gpToggleMetronome()" title="Metronome click" aria-label="Metronome" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 3.5h4.8l3.1 16H6.5l3.1-16z"/><path d="M12 13.5 16 5.6"/><circle cx="16" cy="5.4" r="1.5" fill="currentColor" stroke="none"/></svg></button>
           <button class="btn btn-ghost gp-icon-btn" id="gp-countin-btn" onclick="gpToggleCountIn()" title="Play one bar of clicks before the music starts" aria-label="Count-in" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10.4 9.7 12 8.5v7"/></svg></button>
+          <button class="btn btn-ghost gp-icon-btn" id="gp-reverb-btn" onclick="gpToggleReverb()" title="Reverb (room ambience)" aria-label="Reverb"><svg class="gp-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M13 8.5a5 5 0 0 1 0 7"/><path d="M16.5 5.5a9 9 0 0 1 0 13"/><path d="M20 3a13 13 0 0 1 0 18" opacity=".6"/></svg></button>
           <div class="gp-pill" title="Playback speed">
             <span class="gp-lbl">Speed</span>
             <button class="ctrl-btn" onclick="gpChangeSpeed(-0.1)">−</button>
@@ -2298,6 +2302,10 @@ async function loadUserSettings() {
     if (error || !data) return;
     const m = {}; data.forEach(r => { m[r.key] = r.value; });
     if (m.gp_sound_quality === 'hq' || m.gp_sound_quality === 'standard') gpSetSoundQuality(m.gp_sound_quality, true);
+    if (m.show_example_btn === 'true' || m.show_example_btn === 'false') {
+      localStorage.setItem('showExampleBtn', m.show_example_btn);
+      applyInterfacePrefs();
+    }
   } catch (_) {}
 }
 
@@ -2475,10 +2483,8 @@ function applyInterfacePrefs() {
 function settingsToggleExample(checked) {
   localStorage.setItem('showExampleBtn', checked ? 'true' : 'false');
   applyInterfacePrefs();
-  // Persist to user metadata if logged in so it follows them across devices
-  if (currentUser) {
-    sb.auth.updateUser({ data: { show_example_btn: checked } });
-  }
+  // Persist to the user_settings key/value table so it follows them across devices
+  saveUserSetting('show_example_btn', checked ? 'true' : 'false');
 }
 
 function showSettings() {
@@ -2490,12 +2496,6 @@ function showSettings() {
     document.getElementById('settings-email-display').textContent = currentUser.email;
     const name = currentUser.user_metadata?.display_name || '';
     document.getElementById('s-display-name').value = name;
-    // Sync interface prefs from user metadata (cross-device)
-    const metaPref = currentUser.user_metadata?.show_example_btn;
-    if (metaPref !== undefined) {
-      localStorage.setItem('showExampleBtn', metaPref ? 'true' : 'false');
-      applyInterfacePrefs();
-    }
   }
   // Populate checkbox from current local state
   const showExample = localStorage.getItem('showExampleBtn') !== 'false';
@@ -9239,11 +9239,57 @@ function gpSetSoundQuality(q, fromDb) {
     try { _alphaTabApi.loadSoundFontFromUrl(GP_SOUNDFONT_URL, false); } catch (e) { console.warn('SoundFont load failed', e); }
   }
 }
+let _gpReverb = (function () { try { return localStorage.getItem('gpReverb') === '1'; } catch (_) { return false; } })();
+// Reverb: audio routed to the speakers by the player passes through a dry/wet convolver bus.
+(function () {
+  const orig = AudioNode.prototype.connect;
+  const buses = new WeakMap();
+  function impulse(ctx) {
+    const len = Math.floor(ctx.sampleRate * 1.8), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8); }
+    return buf;
+  }
+  function bus(ctx) {
+    let b = buses.get(ctx); if (b) return b;
+    const input = ctx.createGain(), dry = ctx.createGain(), conv = ctx.createConvolver(), wet = ctx.createGain();
+    conv.buffer = impulse(ctx);
+    wet.gain.value = _gpReverb ? 0.35 : 0;
+    orig.call(input, dry); orig.call(dry, ctx.destination);
+    orig.call(input, conv); orig.call(conv, wet); orig.call(wet, ctx.destination);
+    b = { input, wet }; buses.set(ctx, b); return b;
+  }
+  AudioNode.prototype.connect = function (dest) {
+    try {
+      if (typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode && this.context === dest.context && this.__gpBus !== true && window.__gpReverbHook) {
+        return orig.apply(this, [bus(dest.context).input].concat([].slice.call(arguments, 1)));
+      }
+    } catch (_) {}
+    return orig.apply(this, arguments);
+  };
+  window.__gpReverbHook = true;
+  window.__gpReverbApply = function () {
+    // update all existing buses via a WeakMap-free path: store contexts
+    (window.__gpCtxs || []).forEach(c => { const b = buses.get(c); if (b) b.wet.gain.setTargetAtTime(_gpReverb ? 0.35 : 0, c.currentTime, 0.05); });
+  };
+  const origBus = bus;
+  window.__gpCtxs = [];
+  const _bus = bus;
+  bus = function (ctx) { if (window.__gpCtxs.indexOf(ctx) < 0) window.__gpCtxs.push(ctx); return _bus(ctx); };
+})();
+function gpToggleReverb() {
+  _gpReverb = !_gpReverb;
+  try { localStorage.setItem('gpReverb', _gpReverb ? '1' : '0'); } catch (_) {}
+  try { window.__gpReverbApply(); } catch (_) {}
+  const b = _gpEl('gp-reverb-btn'); if (b) b.classList.toggle('gp-on', _gpReverb);
+}
+window.gpToggleReverb = gpToggleReverb;
 let _gpPlayerReady = false;
 let _gpLooping = false;
 let _gpSpeed = 1;
 let _gpMetronome = false;
-let _gpCountIn = (function () { try { return localStorage.getItem('gpCountIn') === '1'; } catch (_) { return false; } })();
+// Count-in modes: 0 = off, 1 = first play only, 2 = before every loop repeat
+let _gpCountInMode = (function () { try { const m = localStorage.getItem('gpCountInMode'); if (m !== null) return +m || 0; return localStorage.getItem('gpCountIn') === '1' ? 1 : 0; } catch (_) { return 0; } })();
+let _gpCountIn = _gpCountInMode > 0;
 let _gpRange = null;
 
 function _gpEl(id) { return document.getElementById(id); }
@@ -9262,7 +9308,9 @@ function _gpUpdatePlayerButtons() {
   const metro = _gpEl('gp-metro-btn');
   if (metro) metro.classList.toggle('gp-on', _gpMetronome);
   const ci = _gpEl('gp-countin-btn');
-  if (ci) ci.classList.toggle('gp-on', _gpCountIn);
+  if (ci) { ci.classList.toggle('gp-on', _gpCountIn); ci.dataset.mode = String(_gpCountInMode); }
+  const rv = _gpEl('gp-reverb-btn');
+  if (rv) rv.classList.toggle('gp-on', _gpReverb);
 }
 
 function _gpBarNumberForTick(tick) {
@@ -9307,11 +9355,20 @@ function _installGPPlayerEvents() {
       if (st) st.textContent = '';
       try {
         _alphaTabApi.playbackSpeed = _gpSpeed;
-        _alphaTabApi.isLooping = _gpLooping;
+        _alphaTabApi.isLooping = _gpLooping && !_gpManualLoop();
         _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0;
         _alphaTabApi.countInVolume = _gpCountIn ? 1 : 0;
       } catch (_) {}
       _gpUpdatePlayerButtons();
+    });
+    _alphaTabApi.playerFinished.on(() => {
+      // Mode 2: loop manually so each repeat gets its own count-in
+      if (_gpManualLoop() && _gpLooping) {
+        setTimeout(() => {
+          try { _alphaTabApi.countInVolume = (_gpCountInMode === 2) ? 1 : 0; _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0; } catch (_) {}
+          try { _alphaTabApi.tickPosition = (_gpRange && typeof _gpRange.startTick === 'number') ? _gpRange.startTick : 0; _alphaTabApi.play(); } catch (_) {}
+        }, 50);
+      }
     });
     _alphaTabApi.playerStateChanged.on(e => {
       const btn = _gpEl('gp-play-btn');
@@ -9326,8 +9383,10 @@ function _installGPPlayerEvents() {
   _gpUpdatePlayerButtons();
 }
 
+function _gpManualLoop() { return _gpCountInMode === 2 || _gpMetronome; }
 function gpPlayPause() {
   if (!_alphaTabApi) return;
+  try { _alphaTabApi.countInVolume = _gpCountIn ? 1 : 0; } catch (_) {}
   try { _alphaTabApi.playPause(); }
   catch (e) { const st = _gpEl('gp-player-status'); if (st) st.textContent = 'Playback unavailable.'; }
 }
@@ -9361,24 +9420,26 @@ function gpStop() {
 function gpToggleLoop() {
   if (!_alphaTabApi) return;
   _gpLooping = !_gpLooping;
-  try { _alphaTabApi.isLooping = _gpLooping; } catch (_) {}
+  try { _alphaTabApi.isLooping = _gpLooping && !_gpManualLoop(); } catch (_) {}
   _gpUpdateLoopInfo();
 }
 function gpToggleMetronome() {
   if (!_alphaTabApi) return;
   _gpMetronome = !_gpMetronome;
-  try { _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0; } catch (_) {}
+  try { _alphaTabApi.metronomeVolume = _gpMetronome ? 1 : 0; _alphaTabApi.isLooping = _gpLooping && !_gpManualLoop(); } catch (_) {}
   _gpUpdatePlayerButtons();
 }
 // One bar of clicks before playback starts (alphaTab count-in).
 function gpToggleCountIn() {
   if (!_alphaTabApi) return;
-  _gpCountIn = !_gpCountIn;
+  _gpCountInMode = _gpLooping ? (_gpCountInMode + 1) % 3 : (_gpCountInMode === 0 ? 1 : 0);
+  _gpCountIn = _gpCountInMode > 0;
   try { _alphaTabApi.countInVolume = _gpCountIn ? 1 : 0; } catch (_) {}
-  try { localStorage.setItem('gpCountIn', _gpCountIn ? '1' : '0'); } catch (_) {}
+  try { _alphaTabApi.isLooping = _gpLooping && !_gpManualLoop(); } catch (_) {}
+  try { localStorage.setItem('gpCountInMode', String(_gpCountInMode)); } catch (_) {}
   const st = _gpEl('gp-player-status');
   if (st) {
-    st.textContent = _gpCountIn ? 'Count-in on (1 bar)' : 'Count-in off';
+    st.textContent = ['Count-in off', 'Count-in: first play only', 'Count-in: every loop repeat'][_gpCountInMode];
     setTimeout(() => { if (st.textContent.indexOf('Count-in') === 0) st.textContent = ''; }, 2000);
   }
   _gpUpdatePlayerButtons();
