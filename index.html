@@ -1519,7 +1519,7 @@
           <button class="btn btn-ghost" id="gp-key-btn" onclick="openGPSaveDialog()" title="Song key — click to edit the song details" disabled>Key: —</button>
           <button class="btn btn-ghost" id="gp-export-btn" onclick="exportGPFile()" title="Download the Guitar Pro file" disabled>Export</button>
           <button class="btn btn-primary" id="gp-save-btn" onclick="openGPSaveDialog()" disabled>Save to Library</button>
-          <button class="btn btn-ghost" onclick="hideGPPreview()">Close</button>
+          <button class="btn btn-ghost" onclick="slRunnerStop();hideGPPreview();updatePerfNav([])">Close</button>
         </div>
         <div id="gpPlayerBar">
           <button class="btn btn-primary gp-icon-btn" id="gp-play-btn" onclick="gpPlayPause()" title="Play / pause (Space)" aria-label="Play or pause" disabled><svg class="gp-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
@@ -3792,10 +3792,14 @@ async function refreshGroupSetlists() {
     const count = document.createElement('span');
     count.style.cssText = 'font-size:10px;color:var(--text-faint);flex-shrink:0;';
     count.textContent = (sl.song_filenames||[]).length;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'sl-item-del'; editBtn.textContent = '✎'; editBtn.title = 'Edit setlist';
+    editBtn.style.fontSize = '14px';
+    editBtn.addEventListener('click', e => { e.stopPropagation(); grpSlEdit(sl.id); });
     const delBtn = document.createElement('button');
     delBtn.className = 'sl-item-del'; delBtn.textContent = '×'; delBtn.title = 'Delete setlist';
     delBtn.addEventListener('click', e => { e.stopPropagation(); grpSlDelete(sl.id, e); });
-    item.appendChild(icon); item.appendChild(name); item.appendChild(count); item.appendChild(delBtn);
+    item.appendChild(icon); item.appendChild(name); item.appendChild(count); item.appendChild(editBtn); item.appendChild(delBtn);
     item.addEventListener('click', () => {
       grpSelectedSetlistId = sl.id;
       document.querySelectorAll('#grp-sl-list .sl-item').forEach(i => i.classList.remove('active'));
@@ -3813,19 +3817,16 @@ async function grpSlLoad() {
     const { data, error } = await sb.from('group_setlists')
       .select('name, song_filenames').eq('id', grpSelectedSetlistId).single();
     if (error) { alert('Error: ' + error.message); return; }
-    const contents = [];
+    const items = [];
     for (const entry of (data.song_filenames || [])) {
       const { filename: fn, offset } = slDecodeEntry(entry);
       if (!fn) continue;
       const { data: sd } = await sb.from('group_songs').select('content')
         .eq('group_id', currentGroup.id).eq('filename', fn).maybeSingle();
-      if (sd) {
-        const content = offset ? transposeText(sd.content.trim(), offset) : sd.content.trim();
-        contents.push(content);
-      }
+      if (sd?.content) items.push(slMakeItem(fn, sd.content, offset));
     }
-    document.getElementById('editor').value = contents.join('\n\n---\n\n');
-    document.getElementById('editor').dispatchEvent(new Event('input'));
+    if (!items.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
+    slRunnerStart(items);
     currentGroupSongId = null; currentGroupSongFilename = null;
     currentFilename = null; setUnsaved(false); resetTranspose();
     document.getElementById('grp-sl-current').innerHTML = `☰ <b>${data.name}</b>`;
@@ -3840,6 +3841,7 @@ async function grpSlNew() {
   const { data } = await sb.from('group_songs').select('filename, title')
     .eq('group_id', currentGroup.id).order('filename');
   allSongs = data || [];
+  window._slEditId = null;
   document.getElementById('sl-name-input').value = '';
   document.getElementById('sl-builder-title').textContent = 'New Group Setlist';
   document.getElementById('sl-builder-err').textContent = '';
@@ -3880,7 +3882,52 @@ let perfActive = false;
 let perfHideTimer = null;
 
 // Called from updatePreview when multiple songs are loaded
+// ── Mixed setlist runner (ChordPro + Guitar Pro) ──
+let _slRunner = null; // { items:[{filename,content,isGP}], idx }
+function slMakeItem(filename, raw, offset) {
+  const isGP = (raw || '').startsWith(GP_MARKER);
+  const content = isGP ? raw : (offset ? transposeText(raw.trim(), offset) : raw.trim());
+  return { filename, content, isGP };
+}
+function slRunnerStart(items) {
+  if (!items.some(i => i.isGP)) {
+    // ChordPro-only: keep the classic all-songs-in-one-page view
+    _slRunner = null;
+    hideGPPreview();
+    document.getElementById('editor').value = items.map(i => i.content).join('\n\n---\n\n');
+    document.getElementById('editor').dispatchEvent(new Event('input'));
+    return;
+  }
+  _slRunner = { items, idx: 0 };
+  slRunnerShow(0);
+}
+function slRunnerStop() { _slRunner = null; }
+function slRunnerShow(idx) {
+  const r = _slRunner; if (!r || idx < 0 || idx >= r.items.length) return;
+  if (autoScrollActive) stopAutoScroll();
+  try { if (_alphaTabApi && _alphaTabApi.playerState === 1) _alphaTabApi.stop(); } catch (_) {}
+  r.idx = idx;
+  const it = r.items[idx];
+  if (it.isGP) {
+    showGPPreview();
+    document.getElementById('gp-title').textContent = it.filename;
+    try {
+      const bytes = _base64ToBytes(it.content.slice(GP_MARKER.length));
+      _gpCurrentBytes = bytes; _gpCurrentFilename = it.filename; _gpDetected = null; _gpSavedMeta = null;
+      if (_alphaTabApi) _alphaTabApi.load(bytes);
+      if (typeof _updateGPSaveBtn === 'function') _updateGPSaveBtn();
+    } catch (e) { document.getElementById('gp-status').textContent = 'Decode failed: ' + e.message; }
+  } else {
+    hideGPPreview();
+    document.getElementById('editor').value = it.content;
+    document.getElementById('editor').dispatchEvent(new Event('input'));
+    const sc = document.getElementById('previewScroll'); if (sc) sc.scrollTop = 0;
+  }
+  updatePerfNav(r.items);
+}
+
 function updatePerfNav(songs) {
+  if (_slRunner) { songs = _slRunner.items; perfCurrentIdx = _slRunner.idx; }
   perfSongs = songs;
   const nav = document.getElementById('perf-nav');
   if (!nav) return;
@@ -3894,13 +3941,17 @@ function updatePerfNav(songs) {
 
 function updatePerfPos() {
   const pos = document.getElementById('perf-pos');
-  if (pos) pos.textContent = `${perfCurrentIdx + 1} / ${perfSongs.length}`;
+  if (pos) {
+    const it = _slRunner && _slRunner.items[perfCurrentIdx];
+    pos.textContent = `${perfCurrentIdx + 1} / ${perfSongs.length}` + (it ? ` · ${it.filename.replace(/\.[^.]+$/, '')} [${it.isGP ? 'GP' : 'CHO'}]` : '');
+  }
   document.getElementById('perf-prev').disabled = perfCurrentIdx === 0;
   document.getElementById('perf-next').disabled = perfCurrentIdx === perfSongs.length - 1;
 }
 
 function perfShowSong(idx) {
   if (idx < 0 || idx >= perfSongs.length) return;
+  if (_slRunner) { slRunnerShow(idx); return; }
   if (autoScrollActive) stopAutoScroll();
   perfCurrentIdx = idx;
   // Scroll to the correct song div in the paper
@@ -4827,6 +4878,7 @@ function buildArtistGroup(artist, songs, faded) {
 }
 
 async function fpLoad(filename) {
+  slRunnerStop();
   if (hasUnsavedChanges && !confirm('You have unsaved changes. Load anyway?')) return;
   if (isGuitarProFilename(filename)) { await openSavedGPFile(filename); return; }
   if (typeof hideGPPreview === 'function') hideGPPreview();
@@ -5683,6 +5735,13 @@ async function refreshSetlists() {
     item.addEventListener('mouseenter', () => shareBtn.style.opacity = '1');
     item.addEventListener('mouseleave', () => shareBtn.style.opacity = '0');
 
+    const editBtn = document.createElement('button');
+    editBtn.className = 'sl-item-del';
+    editBtn.title = 'Edit setlist';
+    editBtn.textContent = '✎';
+    editBtn.style.fontSize = '14px';
+    editBtn.addEventListener('click', e => { e.stopPropagation(); slEdit(sl.id); });
+
     const delBtn = document.createElement('button');
     delBtn.className = 'sl-item-del';
     delBtn.title = 'Delete';
@@ -5692,6 +5751,7 @@ async function refreshSetlists() {
     item.appendChild(icon);
     item.appendChild(nameEl);
     item.appendChild(countEl);
+    item.appendChild(editBtn);
     item.appendChild(shareBtn);
     item.appendChild(delBtn);
 
@@ -5712,18 +5772,14 @@ async function slLoad() {
     const { data, error } = await sb.from('setlists').select('name, song_filenames').eq('id', selectedSetlistId).single();
     if (error) { alert('Error: ' + error.message); return; }
     const entries = (data.song_filenames || []).map(slDecodeEntry);
-    const contents = [];
+    const items = [];
     for (const { filename: fn, offset } of entries) {
       if (!fn) continue;
       const { data: sd } = await sb.from('songs').select('content').eq('filename', fn).maybeSingle();
-      if (sd?.content) {
-        const content = offset ? transposeText(sd.content.trim(), offset) : sd.content.trim();
-        contents.push(content);
-      }
+      if (sd?.content) items.push(slMakeItem(fn, sd.content, offset));
     }
-    if (!contents.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
-    document.getElementById('editor').value = contents.join('\n\n---\n\n');
-    document.getElementById('editor').dispatchEvent(new Event('input'));
+    if (!items.length) { alert('No songs could be loaded. They may have been deleted or renamed.'); return; }
+    slRunnerStart(items);
     currentFilename = null;
     setUnsaved(false);
     updateCurrentFile();
@@ -5751,6 +5807,7 @@ async function slNew() {
   const { data } = await sb.from('songs').select('filename, title').order('filename');
   allSongs = data || [];
 
+  window._slEditId = null; window._grpSetlistMode = false;
   document.getElementById('sl-name-input').value = '';
   document.getElementById('sl-builder-title').textContent = 'New Setlist';
   document.getElementById('sl-builder-err').textContent = '';
@@ -5775,14 +5832,18 @@ function renderSlPicker(filenames) {
     return;
   }
   slSelectedSongs.forEach((fn, i) => {
+    const dec = slDecodeEntry(fn);
+    const song = allSongs.find(s => s.filename === dec.filename);
+    const label = (song?.title || dec.filename) + (dec.offset ? ` (${dec.offset > 0 ? '+' : ''}${dec.offset})` : '');
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;padding:5px 10px;gap:8px;cursor:default;';
     row.innerHTML = `
       <span style="font-size:12px;color:var(--text-dim);min-width:16px;text-align:right;">${i + 1}</span>
-      <span style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fn}</span>
+      <span style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
       <button onclick="slMoveSong(${i},-1)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:1px 3px;" title="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
       <button onclick="slMoveSong(${i},1)" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:1px 3px;" title="Move down" ${i === slSelectedSongs.length - 1 ? 'disabled' : ''}>↓</button>
       <button onclick="slRemoveSong('${fn.replace(/'/g, "\\'")}')" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:1px 4px;" title="Remove">×</button>`;
+    row.children[1].textContent = label;
     row.addEventListener('mouseenter', () => row.style.background = 'var(--surface2)');
     row.addEventListener('mouseleave', () => row.style.background = '');
     el.appendChild(row);
@@ -5797,9 +5858,10 @@ function renderSlAvailableFiltered() {
   const el = document.getElementById('sl-available-songs');
   const query = (document.getElementById('sl-search')?.value || '').toLowerCase();
   el.innerHTML = '';
+  const chosen = new Set(slSelectedSongs.map(e => slDecodeEntry(e).filename));
   const filtered = allSongs
     .map(s => s.filename)
-    .filter(fn => !slSelectedSongs.includes(fn) && (!query || fn.toLowerCase().includes(query)));
+    .filter(fn => !chosen.has(fn) && (!query || fn.toLowerCase().includes(query)));
   if (!filtered.length) {
     el.innerHTML = `<div style="padding:16px 12px;font-size:13px;color:var(--text-dim);text-align:center;">${query ? 'No matches' : 'All songs added'}</div>`;
     return;
@@ -5845,28 +5907,64 @@ async function slSave() {
   const name = document.getElementById('sl-name-input').value.trim();
   const errEl = document.getElementById('sl-builder-err');
   if (!name) { errEl.textContent = 'Please enter a setlist name.'; return; }
+  const editId = window._slEditId;
 
   // Save as group setlist if in group setlist mode
   if (window._grpSetlistMode && currentGroup) {
-    const { error } = await sb.from('group_setlists').insert({
-      group_id: currentGroup.id, name,
-      song_filenames: slSelectedSongs, created_by: currentUser.id,
-    });
+    const { error } = editId
+      ? await sb.from('group_setlists').update({ name, song_filenames: slSelectedSongs }).eq('id', editId)
+      : await sb.from('group_setlists').insert({
+          group_id: currentGroup.id, name,
+          song_filenames: slSelectedSongs, created_by: currentUser.id,
+        });
     if (error) { errEl.textContent = error.message; return; }
     window._grpSetlistMode = false;
+    window._slEditId = null;
     closeSlBuilder();
     refreshGroupSetlists();
     return;
   }
 
-  const { error } = await sb.from('setlists').insert({
-    user_id: currentUser.id,
-    name,
-    song_filenames: slSelectedSongs,
-  });
+  const { error } = editId
+    ? await sb.from('setlists').update({ name, song_filenames: slSelectedSongs }).eq('id', editId)
+    : await sb.from('setlists').insert({ user_id: currentUser.id, name, song_filenames: slSelectedSongs });
   if (error) { errEl.textContent = error.message; return; }
+  if (editId && currentSetlistId === editId) {
+    currentSetlistName = name;
+    document.getElementById('sl-current').innerHTML = `☰ <b>${name}</b>`;
+  }
+  window._slEditId = null;
   closeSlBuilder();
   refreshSetlists();
+}
+
+async function slOpenEditor({ table, id, songsQuery, title, group }) {
+  const [{ data: sl, error }, { data: songs }] = await Promise.all([
+    sb.from(table).select('name, song_filenames').eq('id', id).single(),
+    songsQuery,
+  ]);
+  if (error) { alert('Error: ' + error.message); return; }
+  allSongs = songs || [];
+  window._slEditId = id;
+  window._grpSetlistMode = !!group;
+  document.getElementById('sl-name-input').value = sl.name || '';
+  document.getElementById('sl-builder-title').textContent = title;
+  document.getElementById('sl-builder-err').textContent = '';
+  const searchEl = document.getElementById('sl-search');
+  if (searchEl) searchEl.value = '';
+  renderSlPicker(sl.song_filenames || []);
+  renderSlAvailableFiltered();
+  document.getElementById('slBuilderOverlay').classList.add('open');
+}
+
+function slEdit(id) {
+  slOpenEditor({ table: 'setlists', id, title: 'Edit Setlist',
+    songsQuery: sb.from('songs').select('filename, title').order('filename') });
+}
+
+function grpSlEdit(id) {
+  slOpenEditor({ table: 'group_setlists', id, title: 'Edit Group Setlist', group: true,
+    songsQuery: sb.from('group_songs').select('filename, title').eq('group_id', currentGroup.id).order('filename') });
 }
 
 function closeSlBuilder() {
@@ -9871,6 +9969,7 @@ function onGPTrackChange() {
 }
 
 function loadGPFile(input) {
+  slRunnerStop();
   const file = input.files && input.files[0];
   if (!file) return;
   showGPPreview();
