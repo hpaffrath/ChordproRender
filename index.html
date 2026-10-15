@@ -1503,6 +1503,14 @@
         #gpPlayerBar .gp-ic { width:15px; height:15px; display:block; }
         #gp-loop-btn.gp-on, #gp-metro-btn.gp-on, #gp-countin-btn.gp-on, #gp-tune-btn.gp-on, #gp-reverb-btn.gp-on, #gp-mix-panel .gp-on { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 8px rgba(64,140,255,.45); }
         #gpPlayerBar .gp-icon-btn.gp-on svg { opacity: 1; }
+        .gp-tap-sel { position:absolute; background:rgba(64,140,255,.22); border:1px solid rgba(64,140,255,.6); pointer-events:none; z-index:5; border-radius:2px; }
+        .gp-tap-anchor { background:rgba(255,170,40,.28); border-color:rgba(255,150,0,.8); }
+        .gp-handle { position:absolute; width:0; z-index:50; touch-action:none; }
+        .gp-handle .gp-hline { position:absolute; left:-1px; top:0; bottom:0; width:3px; background:rgba(255,140,0,.95); border-radius:2px; pointer-events:none; }
+        .gp-handle .gp-hgrip { position:absolute; left:-20px; width:40px; height:40px; border-radius:50%; background:#ff8c00; color:#fff; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:bold; touch-action:none; cursor:ew-resize; user-select:none; -webkit-user-select:none; }
+        .gp-handle.gp-start .gp-hgrip { top:2px; left:-46px; width:46px; height:46px; border-radius:23px 0 0 23px; }
+        .gp-handle.gp-end .gp-hgrip { bottom:2px; left:0; width:46px; height:46px; border-radius:0 23px 23px 0; }
+        .gp-handle.gp-dragging .gp-hgrip { transform:scale(1.15); background:#e67300; }
       </style>
       <div id="gpPreview" style="display:none;flex-direction:column;height:100%;">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);">
@@ -9427,7 +9435,7 @@ function _gpUpdateLoopInfo() {
   const info = _gpEl('gp-loop-info');
   if (!info) return;
   if (!_gpRange) {
-    info.textContent = 'Drag across the score to select bars to loop.';
+    info.textContent = (matchMedia('(pointer: coarse)').matches ? 'Long-press a bar, then drag the orange grips to set the loop.' : 'Drag across the score to select bars to loop.');
   } else {
     const a = _gpBarNumberForTick(_gpRange.startTick);
     const b = _gpBarNumberForTick(Math.max(_gpRange.startTick, _gpRange.endTick - 1));
@@ -9473,10 +9481,15 @@ function _installGPPlayerEvents() {
       const playing = e && e.state === 1;
       if (btn) btn.innerHTML = playing ? GP_IC_PAUSE : GP_IC_PLAY;
     });
+    _gpInstallTapSelect();
     _alphaTabApi.playbackRangeChanged.on(e => {
+      if (_gpTapOwn || _gpDragging || Date.now() - _gpLongPressAt < 1500) return;
+      // A selection made some other way (mouse drag / alphaTab tap) replaces the touch grips
+      if (_gpTouchSel) _gpDrawTapSel(null);
       _gpRange = (e && e.playbackRange) ? e.playbackRange : null;
       _gpUpdateLoopInfo();
     });
+    try { _alphaTabApi.postRenderFinished.on(() => { if (_gpTouchSel && !_gpDragging) setTimeout(_gpDrawTouchSel, 30); }); } catch (_) {}
   } catch (_) {}
   _gpUpdatePlayerButtons();
 }
@@ -9549,7 +9562,194 @@ function gpSetSpeed(v) {
   if (_alphaTabApi) { try { _alphaTabApi.playbackSpeed = _gpSpeed; } catch (_) {} }
 }
 function gpChangeSpeed(d) { gpSetSpeed(_gpSpeed + d); }
+// ---- Touch (iPad/iPhone) selection: double-tap a bar, then drag the start/end grips beat-by-beat ----
+let _gpLongPressAt = 0, _gpDragging = false;
+let _gpTapAnchor = null, _gpTapOwn = false, _gpTapDown = null, _gpLastTap = null, _gpTouchSel = null;
+function _gpBarBoundsList() {
+  const lk = _alphaTabApi && _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
+  const out = [];
+  if (lk && lk.staffSystems) lk.staffSystems.forEach(sys => (sys.bars || []).forEach(b => out.push(b)));
+  return out;
+}
+function _gpBarAt(x, y) {
+  const list = _gpBarBoundsList();
+  for (const b of list) { const r = b.realBounds || b.visualBounds; if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return b.index; }
+  return null;
+}
+// Flat list of beat columns: { tick, end, x, w, sys, mb }
+function _gpBeatCols() {
+  const lk = _alphaTabApi && _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
+  const out = [];
+  if (!lk || !lk.staffSystems) return out;
+  lk.staffSystems.forEach((sys, si) => (sys.bars || []).forEach(mb => {
+    const mr = mb.realBounds || mb.visualBounds; if (!mr) return;
+    const bar = (mb.bars || [])[0]; if (!bar || !bar.beats) return;
+    const beats = bar.beats.slice().sort((a, b) => a.realBounds.x - b.realBounds.x);
+    beats.forEach((bb, i) => {
+      const bt = bb.beat; if (!bt) return;
+      const tick = (typeof bt.absolutePlaybackStart === 'number') ? bt.absolutePlaybackStart : bt.absoluteDisplayStart;
+      const dur = bt.playbackDuration || bt.displayDuration || 0;
+      const x = bb.realBounds.x;
+      const nx = beats[i + 1] ? beats[i + 1].realBounds.x : (mr.x + mr.w);
+      out.push({ tick, end: tick + dur, x, w: Math.max(4, nx - x), si, mr, sr: sys.realBounds || sys.visualBounds });
+    });
+  }));
+  out.sort((a, b) => a.tick - b.tick);
+  return out;
+}
+function _gpDrawTapSel(a, b, anchorOnly) {
+  const host = document.getElementById('alphaTab');
+  if (!host) return;
+  host.querySelectorAll('.gp-tap-sel, .gp-handle').forEach(n => n.remove());
+  if (a == null) { _gpTouchSel = null; return; }
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  _gpBarBoundsList().forEach(m => {
+    if (m.index < lo || m.index > hi) return;
+    const r = m.realBounds || m.visualBounds; if (!r) return;
+    const d = document.createElement('div');
+    d.className = 'gp-tap-sel' + (anchorOnly ? ' gp-tap-anchor' : '');
+    d.style.cssText = 'left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px;';
+    host.appendChild(d);
+  });
+}
+function _gpDrawTouchSel() {
+  const host = document.getElementById('alphaTab');
+  if (!host) return;
+  host.querySelectorAll('.gp-tap-sel, .gp-handle').forEach(n => n.remove());
+  if (!_gpTouchSel) return;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const cols = _gpBeatCols().filter(c => c.tick >= _gpTouchSel.startTick && c.tick < _gpTouchSel.endTick);
+  if (!cols.length) return;
+  cols.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'gp-tap-sel';
+    d.style.cssText = 'left:' + c.x + 'px;top:' + c.mr.y + 'px;width:' + c.w + 'px;height:' + c.mr.h + 'px;border-radius:0;border-width:1px 0;';
+    host.appendChild(d);
+  });
+  const first = cols[0], last = cols[cols.length - 1];
+  _gpMakeHandle(host, 'start', first.x, first.mr.y, first.mr.h);
+  _gpMakeHandle(host, 'end', last.x + last.w, last.mr.y, last.mr.h);
+}
+function _gpMakeHandle(host, kind, x, y, h) {
+  const el = document.createElement('div');
+  el.className = 'gp-handle gp-' + kind;
+  el.style.cssText = 'left:' + x + 'px;top:' + y + 'px;height:' + h + 'px;';
+  el.innerHTML = '<div class="gp-hline"></div><div class="gp-hgrip" aria-label="Drag loop ' + kind + '">' + (kind === 'start' ? '◀' : '▶') + '</div>';
+  const grip = el.querySelector('.gp-hgrip');
+  const stop = e => { e.stopPropagation(); };
+  grip.addEventListener('pointerdown', e => {
+    e.stopPropagation(); e.preventDefault();
+    _gpDragging = true;
+    try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+    el.classList.add('gp-dragging');
+    const cols = _gpBeatCols();
+    const move = ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      if (!_gpTouchSel) return;
+      const hr = host.getBoundingClientRect();
+      const px = ev.clientX - hr.left, py = ev.clientY - hr.top;
+      // choose staff system nearest finger vertically
+      let best = null, bd = Infinity;
+      cols.forEach(c => {
+        const sy = c.mr.y + c.mr.h / 2;
+        const edge = kind === 'start' ? c.x : c.x + c.w;
+        const d = Math.abs(edge - px) + Math.abs(sy - py) * 3;
+        if (d < bd) { bd = d; best = c; }
+      });
+      if (!best) return;
+      const s = Object.assign({}, _gpTouchSel);
+      if (kind === 'start') { if (best.tick >= s.endTick) return; s.startTick = best.tick; }
+      else { if (best.end <= s.startTick) return; s.endTick = best.end; }
+      if (s.startTick === _gpTouchSel.startTick && s.endTick === _gpTouchSel.endTick) return;
+      _gpApplyTouchRange(s.startTick, s.endTick, kind === 'start');
+      // keep dragging element alive: redraw others, reposition self
+      host.querySelectorAll('.gp-tap-sel, .gp-handle').forEach(n => { if (n !== el) n.remove(); });
+      const inRange = cols.filter(c => c.tick >= s.startTick && c.tick < s.endTick);
+      inRange.forEach(c => {
+        const d = document.createElement('div');
+        d.className = 'gp-tap-sel';
+        d.style.cssText = 'left:' + c.x + 'px;top:' + c.mr.y + 'px;width:' + c.w + 'px;height:' + c.mr.h + 'px;border-radius:0;border-width:1px 0;';
+        host.appendChild(d);
+      });
+      const f = inRange[0], l = inRange[inRange.length - 1];
+      if (kind === 'start') { el.style.left = f.x + 'px'; el.style.top = f.mr.y + 'px'; el.style.height = f.mr.h + 'px'; _gpMakeHandle(host, 'end', l.x + l.w, l.mr.y, l.mr.h); }
+      else { el.style.left = (l.x + l.w) + 'px'; el.style.top = l.mr.y + 'px'; el.style.height = l.mr.h + 'px'; _gpMakeHandle(host, 'start', f.x, f.mr.y, f.mr.h); }
+    };
+    const blockScroll = ev => { ev.preventDefault(); };
+    const up = ev => {
+      el.classList.remove('gp-dragging');
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('touchmove', blockScroll, {capture:true});
+      _gpDragging = false;
+      _gpDrawTouchSel();
+    };
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    window.addEventListener('touchmove', blockScroll, {capture:true, passive:false});
+  });
+  ['click', 'mousedown', 'touchstart', 'dblclick'].forEach(t => grip.addEventListener(t, stop));
+  host.appendChild(el);
+}
+function _gpApplyTouchRange(startTick, endTick, seek) {
+  _gpTouchSel = { startTick, endTick };
+  _gpTapOwn = true;
+  const range = { startTick, endTick };
+  try { _alphaTabApi.playbackRange = range; } catch (_) {}
+  _gpRange = range;
+  if (seek) { try { _alphaTabApi.tickPosition = startTick; } catch (_) {} }
+  _gpTapOwn = false;
+  _gpUpdateLoopInfo();
+}
+function _gpSetBarRange(a, b) {
+  const mbs = _alphaTabApi.score.masterBars;
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  const last = mbs[hi];
+  let end = (mbs[hi + 1] && mbs[hi + 1].start) || 0;
+  if (!end) { try { end = last.start + last.calculateDuration(); } catch (_) { end = last.start + 3840; } }
+  _gpApplyTouchRange(mbs[lo].start || 0, end, true);
+}
+function _gpInstallTapSelect() {
+  const wrap = document.getElementById('gp-render-wrap');
+  if (!wrap || wrap._gpTapInstalled) return;
+  wrap._gpTapInstalled = true;
+  let lpTimer = null;
+  const lpCancel = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } _gpTapDown = null; };
+  wrap.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' || (e.target.closest && e.target.closest('.gp-handle'))) return;
+    lpCancel();
+    const d = { x: e.clientX, y: e.clientY };
+    _gpTapDown = d;
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      if (_gpTapDown !== d || !_alphaTabApi || !_alphaTabApi.score) return;
+      const host = document.getElementById('alphaTab');
+      const hr = host.getBoundingClientRect();
+      const bar = _gpBarAt(d.x - hr.left, d.y - hr.top);
+      _gpTapDown = null;
+      _gpLongPressAt = Date.now();
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
+      if (bar == null) { gpClearSelection(); return; }
+      _gpSetBarRange(bar, bar);
+      _gpDrawTouchSel();
+    }, 500);
+  }, true);
+  wrap.addEventListener('pointermove', e => {
+    if (!_gpTapDown || e.pointerType === 'mouse') return;
+    if (Math.abs(e.clientX - _gpTapDown.x) > 10 || Math.abs(e.clientY - _gpTapDown.y) > 10) lpCancel();
+  }, true);
+  wrap.addEventListener('pointerup', lpCancel, true);
+  wrap.addEventListener('pointercancel', lpCancel, true);
+  wrap.addEventListener('contextmenu', e => { if (e.pointerType !== 'mouse') e.preventDefault(); });
+  wrap.style.webkitTouchCallout = 'none';
+  // Stop iOS double-tap zoom inside the score
+  wrap.addEventListener('dblclick', e => { e.preventDefault(); });
+}
 function gpClearSelection() {
+  _gpTapAnchor = null; _gpTouchSel = null; _gpDrawTapSel(null);
   _gpRange = null;
   if (_alphaTabApi) { try { _alphaTabApi.playbackRange = null; } catch (_) {} }
   _gpUpdateLoopInfo();
@@ -10174,7 +10374,7 @@ async function openSavedGPFile(filename) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202607081011</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202610151420</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
