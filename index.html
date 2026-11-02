@@ -9484,8 +9484,15 @@ function _installGPPlayerEvents() {
     _gpInstallTapSelect();
     _alphaTabApi.playbackRangeChanged.on(e => {
       if (_gpTapOwn || _gpDragging || Date.now() - _gpLongPressAt < 1500) return;
-      // A selection made some other way (mouse drag / alphaTab tap) replaces the touch grips
-      if (_gpTouchSel) _gpDrawTapSel(null);
+      const pr = e && e.playbackRange;
+      if (_gpTouchSel) {
+        // Keep touch grips unless a genuinely different range was chosen (e.g. mouse drag)
+        if (!pr || (pr.startTick === _gpTouchSel.startTick && pr.endTick === _gpTouchSel.endTick)) {
+          if (!pr) { try { _alphaTabApi.playbackRange = { startTick: _gpTouchSel.startTick, endTick: _gpTouchSel.endTick }; } catch (_) {} }
+          return;
+        }
+        _gpDrawTapSel(null);
+      }
       _gpRange = (e && e.playbackRange) ? e.playbackRange : null;
       _gpUpdateLoopInfo();
     });
@@ -9573,8 +9580,16 @@ function _gpBarBoundsList() {
 }
 function _gpBarAt(x, y) {
   const list = _gpBarBoundsList();
-  for (const b of list) { const r = b.realBounds || b.visualBounds; if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return b.index; }
-  return null;
+  let best = null, bd = Infinity;
+  for (const b of list) {
+    const r = b.realBounds || b.visualBounds; if (!r) continue;
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return b.index;
+    const dx = x < r.x ? r.x - x : (x > r.x + r.w ? x - r.x - r.w : 0);
+    const dy = y < r.y ? r.y - y : (y > r.y + r.h ? y - r.y - r.h : 0);
+    const d = dx + dy * 2;
+    if (d < bd) { bd = d; best = b.index; }
+  }
+  return bd <= 60 ? best : null;
 }
 // Flat list of beat columns: { tick, end, x, w, sys, mb }
 function _gpBeatCols() {
@@ -9644,6 +9659,7 @@ function _gpMakeHandle(host, kind, x, y, h) {
     try { grip.setPointerCapture(e.pointerId); } catch (_) {}
     el.classList.add('gp-dragging');
     const cols = _gpBeatCols();
+    const other = host.querySelector('.gp-handle.gp-' + (kind === 'start' ? 'end' : 'start'));
     const move = ev => {
       ev.stopPropagation(); ev.preventDefault();
       if (!_gpTouchSel) return;
@@ -9664,7 +9680,7 @@ function _gpMakeHandle(host, kind, x, y, h) {
       if (s.startTick === _gpTouchSel.startTick && s.endTick === _gpTouchSel.endTick) return;
       _gpApplyTouchRange(s.startTick, s.endTick, kind === 'start');
       // keep dragging element alive: redraw others, reposition self
-      host.querySelectorAll('.gp-tap-sel, .gp-handle').forEach(n => { if (n !== el) n.remove(); });
+      host.querySelectorAll('.gp-tap-sel').forEach(n => n.remove());
       const inRange = cols.filter(c => c.tick >= s.startTick && c.tick < s.endTick);
       inRange.forEach(c => {
         const d = document.createElement('div');
@@ -9673,8 +9689,9 @@ function _gpMakeHandle(host, kind, x, y, h) {
         host.appendChild(d);
       });
       const f = inRange[0], l = inRange[inRange.length - 1];
-      if (kind === 'start') { el.style.left = f.x + 'px'; el.style.top = f.mr.y + 'px'; el.style.height = f.mr.h + 'px'; _gpMakeHandle(host, 'end', l.x + l.w, l.mr.y, l.mr.h); }
-      else { el.style.left = (l.x + l.w) + 'px'; el.style.top = l.mr.y + 'px'; el.style.height = l.mr.h + 'px'; _gpMakeHandle(host, 'start', f.x, f.mr.y, f.mr.h); }
+      const pos = (n, x, c) => { if (n) { n.style.left = x + 'px'; n.style.top = c.mr.y + 'px'; n.style.height = c.mr.h + 'px'; } };
+      if (kind === 'start') { pos(el, f.x, f); pos(other, l.x + l.w, l); }
+      else { pos(el, l.x + l.w, l); pos(other, f.x, f); }
     };
     const blockScroll = ev => { ev.preventDefault(); };
     const up = ev => {
@@ -9732,14 +9749,14 @@ function _gpInstallTapSelect() {
       _gpTapDown = null;
       _gpLongPressAt = Date.now();
       try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
-      if (bar == null) { gpClearSelection(); return; }
+      if (bar == null) return; // missed tap: keep any existing loop
       _gpSetBarRange(bar, bar);
       _gpDrawTouchSel();
     }, 500);
   }, true);
   wrap.addEventListener('pointermove', e => {
     if (!_gpTapDown || e.pointerType === 'mouse') return;
-    if (Math.abs(e.clientX - _gpTapDown.x) > 10 || Math.abs(e.clientY - _gpTapDown.y) > 10) lpCancel();
+    if (Math.abs(e.clientX - _gpTapDown.x) > 28 || Math.abs(e.clientY - _gpTapDown.y) > 28) lpCancel();
   }, true);
   wrap.addEventListener('pointerup', lpCancel, true);
   wrap.addEventListener('pointercancel', lpCancel, true);
