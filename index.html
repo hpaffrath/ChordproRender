@@ -1491,7 +1491,19 @@
     <div class="preview-scroll" id="previewScroll">
       <style>
         .rn-marker { position:absolute; z-index:5; background:#ffe27a; color:#3a2a00; border:1px solid #d4b23a; border-radius:3px; font:600 10px/1.2 sans-serif; padding:1px 4px; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-shadow:0 1px 3px rgba(0,0,0,.25); pointer-events:auto; cursor:default; }
-        .rn-banner { background:#fff6c7; color:#3a2a00; border-left:4px solid #e0b300; border-radius:4px; padding:6px 10px; margin:0 0 10px; font-size:13px; }
+        .rn-banner { background:#fff6c7; color:#3a2a00; border-left:4px solid #e0b300; border-radius:4px; padding:6px 10px; margin:0 0 10px; font-size:13px; position:relative; }
+        .rn-banner .rn-item { white-space:pre-wrap; margin-top:4px; padding-top:4px; border-top:1px dashed rgba(224,179,0,.5); }
+        .rn-banner .rn-item:first-of-type { border-top:none; padding-top:0; }
+        .rn-banner.rn-collapsed { display:inline-block; padding:3px 10px 3px 6px; }
+        .rn-collapse { float:right; margin-left:8px; background:transparent; border:1px solid #d4b23a; color:#3a2a00; border-radius:3px; cursor:pointer; font-size:11px; line-height:1; padding:2px 5px; }
+        .rn-banner.rn-collapsed .rn-collapse { float:none; margin:0 6px 0 0; }
+        .rn-banner a, .rn-tip a { color:#0a58ca; text-decoration:underline; word-break:break-all; }
+        .rn-text { white-space:pre-wrap; word-break:break-word; }
+        .rn-text a { color:var(--accent); text-decoration:underline; word-break:break-all; }
+        .rn-badge { display:inline-block; background:rgba(224,179,0,.22); border:1px solid rgba(212,178,58,.7); border-radius:10px; padding:0 7px; font-size:11px; font-weight:600; margin:1px 2px; white-space:nowrap; }
+        .rn-badge.rn-b-alert { background:#ffd9d4; border-color:#e0452a; color:#8a1a08; }
+        .rn-badge.rn-b-tone { background:#dbe8ff; border-color:#5b8de0; color:#16336b; }
+        .rn-tip { position:fixed; z-index:9999; max-width:320px; background:#fff6c7; color:#3a2a00; border:1px solid #d4b23a; border-radius:6px; padding:8px 10px; font-size:13px; white-space:pre-wrap; box-shadow:0 4px 16px rgba(0,0,0,.3); }
         #gp-render-wrap .at-cursor-bar { background: rgba(255, 196, 0, 0.16); }
         #gp-render-wrap .at-selection div { background: rgba(64, 140, 255, 0.22); }
         #gp-render-wrap .at-cursor-beat { background: #e0452a; width: 3px; }
@@ -10074,6 +10086,74 @@ async function toggleNotesPanel() {
   rnRenderPanel();
 }
 window.toggleNotesPanel = toggleNotesPanel;
+// ---- Rehearsal note formatter (line breaks, links, ChordPro-style directives, **bold**) ----
+const _RN_DIR = {
+  tempo: ['⏱', v => v + (/bpm/i.test(v) ? '' : ' BPM')], bpm: ['⏱', v => v + (/bpm/i.test(v) ? '' : ' BPM')],
+  tuning: ['🎯', v => v], capo: ['🎸', v => 'Capo ' + v], key: ['🔑', v => v], time: ['⏳', v => v],
+  bars: ['📏', v => v + ' bars'], count: ['📏', v => 'Count ' + v], tag: ['🏷', v => v],
+  type: ['', v => v]
+};
+const _RN_TYPES = { alert: ['⚠️', 'rn-b-alert'], warning: ['⚠️', 'rn-b-alert'], tone: ['🎛', 'rn-b-tone'], gear: ['🎛', 'rn-b-tone'], info: ['ℹ️', ''] };
+function _rnSafeUrl(u) { return /^https?:\/\/[^\s"<>]+$/i.test(u) ? u : null; }
+function _rnInline(t) {
+  // t is raw text without directives; escape then add links + bold
+  let h = _rnEsc(t);
+  h = h.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g, u => '<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + u + '</a>');
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  return h;
+}
+function rnFormat(text) {
+  const src = String(text || '');
+  let out = '', last = 0;
+  const re = /\{\s*([a-z]+)\s*:\s*([^}]*)\}/gi;
+  let m;
+  while ((m = re.exec(src))) {
+    const k = m[1].toLowerCase(), v = m[2].trim();
+    out += _rnInline(src.slice(last, m.index));
+    last = re.lastIndex;
+    if (k === 'link' || k === 'url') {
+      const sp = v.search(/\s/);
+      const url = _rnSafeUrl(sp < 0 ? v : v.slice(0, sp));
+      const label = sp < 0 ? v : v.slice(sp + 1).trim();
+      out += url ? '🔗 <a href="' + _rnEsc(url) + '" target="_blank" rel="noopener noreferrer">' + _rnEsc(label || url) + '</a>' : _rnEsc(m[0]);
+    } else if (k === 'type') {
+      const t = _RN_TYPES[v.toLowerCase()] || ['🏷', ''];
+      out += '<span class="rn-badge ' + t[1] + '">' + t[0] + ' ' + _rnEsc(v) + '</span>';
+    } else if (_RN_DIR[k]) {
+      out += '<span class="rn-badge">' + _RN_DIR[k][0] + ' ' + _rnEsc(_RN_DIR[k][1](v)) + '</span>';
+    } else {
+      out += _rnEsc(m[0]);
+    }
+  }
+  out += _rnInline(src.slice(last));
+  return out;
+}
+function rnPlain(text) {
+  return String(text || '').replace(/\{\s*link\s*:\s*(\S+)\s*([^}]*)\}/gi, (_, u, l) => l.trim() || u)
+    .replace(/\{\s*([a-z]+)\s*:\s*([^}]*)\}/gi, (s, k, v) => _RN_DIR[k.toLowerCase()] ? _RN_DIR[k.toLowerCase()][1](v.trim()) : v.trim())
+    .replace(/\*\*([^*]+)\*\*/g, '$1');
+}
+let _rnEditId = null;
+let _rnCollapsed = false;
+try { _rnCollapsed = sessionStorage.getItem('rnCollapsed') === '1'; } catch (_) {}
+function rnToggleBanner() {
+  _rnCollapsed = !_rnCollapsed;
+  try { sessionStorage.setItem('rnCollapsed', _rnCollapsed ? '1' : '0'); } catch (_) {}
+  rnRefreshViews();
+}
+window.rnToggleBanner = rnToggleBanner;
+function _rnBannerEl(notes) {
+  const box = document.createElement('div');
+  box.className = 'rn-banner' + (_rnCollapsed ? ' rn-collapsed' : '');
+  const btn = '<button class="rn-collapse" type="button" title="' + (_rnCollapsed ? 'Show notes' : 'Hide notes') + '" aria-label="' + (_rnCollapsed ? 'Show notes' : 'Hide notes') + '">' + (_rnCollapsed ? '＋' : '－') + '</button>';
+  if (_rnCollapsed) {
+    box.innerHTML = btn + '<b>📝 ' + notes.length + ' note' + (notes.length === 1 ? '' : 's') + '</b>';
+  } else {
+    box.innerHTML = btn + '<b>📝 Notes</b>' + notes.map(n => '<div class="rn-item">' + rnFormat(n.note) + '</div>').join('');
+  }
+  box.querySelector('.rn-collapse').addEventListener('click', (e) => { e.stopPropagation(); rnToggleBanner(); });
+  return box;
+}
 function rnRenderPanel() {
   const panel = document.getElementById('notes-panel');
   if (!panel || panel.style.display !== 'block') return;
@@ -10082,28 +10162,68 @@ function rnRenderPanel() {
   if (!key) { panel.innerHTML = '<div>Save this song to your library first, then you can add notes to it.</div>'; return; }
   const isGP = _isGPPreviewActive && _isGPPreviewActive();
   const selBar = isGP ? _rnSelectedBar() : null;
-  let html = '<div style="font-weight:600;margin-bottom:6px;">Rehearsal notes</div>';
+  const inputCss = 'background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;font:inherit;';
+  let html = '<div style="display:flex;align-items:center;margin-bottom:6px;"><span style="font-weight:600;flex:1;">Rehearsal notes</span>' +
+    (_rnNotes.length ? '<button class="ctrl-btn" id="rn-copy" title="Copy all notes to clipboard">📋</button>' : '') + '</div>';
   if (!_rnNotes.length) html += '<div class="gp-lbl" style="margin-bottom:6px;">No notes yet.</div>';
   _rnNotes.forEach(n => {
-    html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:4px;border-bottom:1px solid var(--border);">' +
-      '<span style="min-width:48px;color:var(--accent);font-size:11px;">' + (n.bar_index ? 'Bar ' + n.bar_index : 'Song') + '</span>' +
-      '<span style="flex:1;white-space:pre-wrap;">' + _rnEsc(n.note) + '</span>' +
+    const lbl = '<span style="min-width:48px;color:var(--accent);font-size:11px;">' + (n.bar_index ? 'Bar ' + n.bar_index : 'Song') + '</span>';
+    if (_rnEditId === n.id) {
+      html += '<div style="padding:4px;border-bottom:1px solid var(--border);">' +
+        '<textarea id="rn-edit-text" rows="4" style="width:100%;box-sizing:border-box;' + inputCss + '">' + _rnEsc(n.note) + '</textarea>' +
+        '<div style="display:flex;gap:6px;align-items:center;margin-top:4px;">' +
+        (isGP ? '<label class="gp-lbl">Bar <input id="rn-edit-bar" type="number" min="1" placeholder="all" value="' + (n.bar_index || '') + '" style="width:56px;' + inputCss + 'padding:2px 4px;"></label>' : '') +
+        '<button class="btn" id="rn-edit-cancel" style="margin-left:auto;">Cancel</button>' +
+        '<button class="btn btn-primary" id="rn-edit-save">Save</button></div></div>';
+      return;
+    }
+    html += '<div style="display:flex;gap:6px;align-items:flex-start;padding:4px;border-bottom:1px solid var(--border);">' + lbl +
+      '<span class="rn-text" style="flex:1;">' + rnFormat(n.note) + '</span>' +
       (isGP ? '<button class="ctrl-btn" data-rn-jump="' + (n.bar_index || 0) + '" title="' + (n.bar_index ? 'Jump to bar ' + n.bar_index : 'Jump to start') + '">🔖</button>' : '') +
+      '<button class="ctrl-btn" data-rn-edit="' + n.id + '" title="Edit note">✏️</button>' +
       '<button class="ctrl-btn" data-rn-del="' + n.id + '" title="Delete note">✕</button></div>';
   });
-  html += '<textarea id="rn-text" rows="2" placeholder="e.g. Double chorus on outro" style="width:100%;box-sizing:border-box;margin-top:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:4px;font:inherit;"></textarea>';
+  html += '<textarea id="rn-text" rows="3" placeholder="e.g. Double chorus on outro&#10;{bpm: 120} {tuning: Drop D}&#10;{link: https://… Reference video}" style="width:100%;box-sizing:border-box;margin-top:8px;' + inputCss + '"></textarea>';
   html += '<div style="display:flex;gap:6px;align-items:center;margin-top:6px;">';
-  if (isGP) html += '<label class="gp-lbl">Bar <input id="rn-bar" type="number" min="1" placeholder="all" value="' + (selBar || '') + '" style="width:56px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 4px;"></label>';
+  if (isGP) html += '<label class="gp-lbl">Bar <input id="rn-bar" type="number" min="1" placeholder="all" value="' + (selBar || '') + '" style="width:56px;' + inputCss + 'padding:2px 4px;"></label>';
   html += '<button class="btn btn-primary" id="rn-add" style="margin-left:auto;">Add note</button></div>';
-  if (isGP) html += '<div class="gp-lbl" style="font-size:10px;margin-top:4px;">Tip: drag-select bars in the score first and the bar number fills in. Leave blank for a whole-song note.</div>';
+  html += '<div class="gp-lbl" style="font-size:10px;margin-top:4px;line-height:1.4;">Enter = new line · Ctrl/⌘+Enter = save. Tags: {link: url label} {bpm: 120} {tuning: Drop D} {capo: 3} {key: Am} {time: 6/8} {bars: 16} {tag: Solo} {type: alert|tone} · **bold**' +
+    (isGP ? '<br>Drag-select bars first and the bar number fills in. Leave blank for a whole-song note.' : '') + '</div>';
   panel.innerHTML = html;
+  const ctrlEnter = (fn) => (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); fn(); } };
   panel.querySelector('#rn-add').addEventListener('click', rnAdd);
+  panel.querySelector('#rn-text').addEventListener('keydown', ctrlEnter(rnAdd));
+  const cp = panel.querySelector('#rn-copy'); if (cp) cp.addEventListener('click', rnCopyAll);
   panel.querySelectorAll('[data-rn-jump]').forEach(b => b.addEventListener('click', () => gpJumpToBar(parseInt(b.getAttribute('data-rn-jump'), 10) || 0)));
   panel.querySelectorAll('[data-rn-del]').forEach(b => b.addEventListener('click', () => rnDelete(b.getAttribute('data-rn-del'))));
+  panel.querySelectorAll('[data-rn-edit]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); _rnEditId = b.getAttribute('data-rn-edit'); rnRenderPanel(); const t = document.getElementById('rn-edit-text'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }));
+  const es = panel.querySelector('#rn-edit-save');
+  if (es) {
+    es.addEventListener('click', rnSaveEdit);
+    panel.querySelector('#rn-edit-text').addEventListener('keydown', (e) => { if (e.key === 'Escape') { _rnEditId = null; rnRenderPanel(); } else ctrlEnter(rnSaveEdit)(e); });
+    panel.querySelector('#rn-edit-cancel').addEventListener('click', (e) => { e.stopPropagation(); _rnEditId = null; rnRenderPanel(); });
+  }
+}
+async function rnSaveEdit() {
+  const id = _rnEditId; if (!id) return;
+  const txt = (document.getElementById('rn-edit-text')?.value || '').replace(/\s+$/, '');
+  if (!txt.trim()) return;
+  const patch = { note: txt };
+  const barEl = document.getElementById('rn-edit-bar');
+  if (barEl) patch.bar_index = barEl.value ? parseInt(barEl.value, 10) || null : null;
+  const { error } = await sb.from('song_notes').update(patch).eq('id', id).eq('user_id', currentUser.id);
+  if (error) { alert('Could not update note: ' + error.message); return; }
+  _rnEditId = null;
+  await rnLoad(true); rnRenderPanel(); rnRefreshViews();
+}
+async function rnCopyAll() {
+  const txt = _rnNotes.map(n => (n.bar_index ? 'Bar ' + n.bar_index + ': ' : '') + rnPlain(n.note)).join('\n\n');
+  try { await navigator.clipboard.writeText(txt); const b = document.getElementById('rn-copy'); if (b) { b.textContent = '✓'; setTimeout(() => { b.textContent = '📋'; }, 1200); } }
+  catch (_) { prompt('Copy notes:', txt); }
 }
 async function rnAdd() {
-  const txt = (document.getElementById('rn-text')?.value || '').trim();
-  if (!txt) return;
+  const txt = (document.getElementById('rn-text')?.value || '').replace(/\s+$/, '');
+  if (!txt.trim()) return;
   const barEl = document.getElementById('rn-bar');
   const bar = barEl && barEl.value ? parseInt(barEl.value, 10) : null;
   const key = _rnCurrentKey();
@@ -10112,6 +10232,7 @@ async function rnAdd() {
   await rnLoad(true); rnRenderPanel(); rnRefreshViews();
 }
 async function rnDelete(id) {
+  if (!confirm('Delete this note?')) return;
   await sb.from('song_notes').delete().eq('id', id);
   await rnLoad(true); rnRenderPanel(); rnRefreshViews();
 }
@@ -10126,12 +10247,27 @@ async function rnRenderChordProBanner() {
   if (_isGPPreviewActive && _isGPPreviewActive()) return;
   await rnLoad(false);
   if (_rnKey !== currentFilename || !_rnNotes.length) return;
-  const box = document.createElement('div');
-  box.className = 'rn-banner';
-  box.innerHTML = '<b>📝 Notes:</b> ' + _rnNotes.map(n => _rnEsc(n.note)).join(' &nbsp;·&nbsp; ');
-  paper.insertBefore(box, paper.firstChild);
+  paper.insertBefore(_rnBannerEl(_rnNotes), paper.firstChild);
 }
+let _rnTip = null;
+function _rnHideTip() { if (_rnTip) { _rnTip.remove(); _rnTip = null; } }
+function _rnShowTip(anchor, n) {
+  _rnHideTip();
+  const t = document.createElement('div');
+  t.className = 'rn-tip';
+  t.innerHTML = '<div style="font-size:11px;opacity:.7;margin-bottom:3px;">Bar ' + n.bar_index + '</div>' + rnFormat(n.note);
+  document.body.appendChild(t);
+  const r = anchor.getBoundingClientRect();
+  const w = t.offsetWidth, h = t.offsetHeight;
+  let left = Math.min(window.innerWidth - w - 8, Math.max(8, r.left));
+  let top = r.bottom + 6; if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  t.style.left = left + 'px'; t.style.top = top + 'px';
+  t.addEventListener('mouseleave', () => setTimeout(() => { if (_rnTip === t && !t.matches(':hover') && !anchor.matches(':hover')) _rnHideTip(); }, 150));
+  _rnTip = t;
+}
+document.addEventListener('pointerdown', (e) => { if (_rnTip && !_rnTip.contains(e.target) && !(e.target.closest && e.target.closest('.rn-marker'))) _rnHideTip(); }, true);
 async function rnRenderGPMarkers() {
+  _rnHideTip();
   const host = document.getElementById('alphaTab');
   if (!host) return;
   host.querySelectorAll('.rn-marker, .rn-banner').forEach(e => e.remove());
@@ -10142,10 +10278,8 @@ async function rnRenderGPMarkers() {
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
   const song = _rnNotes.filter(n => !n.bar_index);
   if (song.length) {
-    const b = document.createElement('div');
-    b.className = 'rn-banner';
-    b.style.cssText = 'position:relative;z-index:5;';
-    b.innerHTML = '<b>📝 Notes:</b> ' + song.map(n => _rnEsc(n.note)).join(' &nbsp;·&nbsp; ');
+    const b = _rnBannerEl(song);
+    b.style.position = 'relative'; b.style.zIndex = '5';
     host.parentNode.insertBefore(b, host);
   }
   const lookup = _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
@@ -10161,10 +10295,14 @@ async function rnRenderGPMarkers() {
     const k = n.bar_index; offsets[k] = (offsets[k] || 0);
     const m = document.createElement('div');
     m.className = 'rn-marker';
-    m.textContent = '📝 ' + n.note;
-    m.title = 'Bar ' + n.bar_index + ': ' + n.note;
+    m.textContent = '📝 ' + rnPlain(n.note).split('\n')[0];
     m.style.left = r.x + 'px';
     m.style.top = Math.max(0, r.y - 16 - offsets[k] * 16) + 'px';
+    m.style.cursor = 'pointer';
+    m.addEventListener('mouseenter', () => _rnShowTip(m, n));
+    m.addEventListener('mouseleave', () => setTimeout(() => { if (_rnTip && !_rnTip.matches(':hover') && !m.matches(':hover')) _rnHideTip(); }, 150));
+    m.addEventListener('pointerdown', (e) => e.stopPropagation());
+    m.addEventListener('click', (e) => { e.stopPropagation(); _rnShowTip(m, n); });
     offsets[k]++;
     host.appendChild(m);
   });
