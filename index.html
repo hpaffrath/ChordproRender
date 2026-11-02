@@ -8986,6 +8986,7 @@ function showGPPreview() {
 }
 
 function hideGPPreview() {
+  try { if (_alphaTabApi) gpStop(); } catch (_) {}
   const sel = document.getElementById('gp-track-select');
   if (sel) { sel.style.display = 'none'; sel.innerHTML = ''; }
   const gp = document.getElementById('gpPreview');
@@ -9277,20 +9278,19 @@ function _applyGPFit(force) {
   try {
     const style = getComputedStyle(wrap);
     const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
-    // Measure the pane width without the (possibly oversized) score host influencing it,
-    // otherwise zooming past 100% feeds back into the measurement and keeps growing.
-    const prevWidth = host.style.width;
-    host.style.width = '0px';
-    const avail = Math.max(320, wrap.clientWidth - padX);
-    host.style.width = prevWidth;
+    // Measure from the stable outer pane (unaffected by score height/scrollbar),
+    // reserving a fixed scrollbar gutter so the width never oscillates.
+    const pane = document.getElementById('previewPane') || wrap;
+    const avail = Math.max(320, Math.floor(pane.clientWidth - padX - 18));
     const zoom = (typeof _previewZoom === 'number' ? _previewZoom : 1);
-    // Main zoom controls the physical page width; alphaTab lays out to its host width.
     const pageWidth = Math.max(240, Math.round(avail * zoom));
-    // Notation/tab size inside the page depends only on the pane width and the note zoom,
-    // never on the page zoom, so text stays the same size as the page grows.
     const fit = Math.max(0.5, Math.min(2, avail / GP_BASE_PAGE_WIDTH));
     const scale = Math.max(0.25, Math.min(5, fit * _gpNoteZoom));
     const key = pageWidth + ':' + scale.toFixed(3);
+    if (!force && _gpFitLastKey) {
+      const [lw, ls] = _gpFitLastKey.split(':').map(Number);
+      if (Math.abs(lw - pageWidth) < 6 && Math.abs(ls - scale) < 0.01) return;
+    }
     if (!force && key === _gpFitLastKey) return;
     _gpFitLastKey = key;
     host.style.width = pageWidth + 'px';
@@ -9312,7 +9312,7 @@ function _installGPAutoFit() {
     if (_gpFitTimer) clearTimeout(_gpFitTimer);
     _gpFitTimer = setTimeout(_applyGPFit, 120);
   });
-  _gpFitObserver.observe(wrap);
+  _gpFitObserver.observe(document.getElementById('previewPane') || wrap);
   // Initial fit once alphaTab is ready.
   setTimeout(_applyGPFit, 0);
 }
@@ -10374,7 +10374,7 @@ async function openSavedGPFile(filename) {
 <div id="helpModal" class="modal-overlay" onclick="hideHelp(event)">
   <div class="modal-box">
     <div class="modal-header">
-      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202610151420</span></div>
+      <div class="modal-title">ChordPro Reference <span style="font-size:10px;font-weight:400;color:var(--text-dim);letter-spacing:0.05em;margin-left:8px;">v202607081011</span></div>
       <button class="modal-close" onclick="hideHelp()">✕</button>
     </div>
     <div class="modal-body">
