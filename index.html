@@ -3927,6 +3927,7 @@ function slRunnerShow(idx) {
     } catch (e) { document.getElementById('gp-status').textContent = 'Decode failed: ' + e.message; }
   } else {
     hideGPPreview();
+    currentFilename = it.filename;
     document.getElementById('editor').value = it.content;
     document.getElementById('editor').dispatchEvent(new Event('input'));
     const sc = document.getElementById('previewScroll'); if (sc) sc.scrollTop = 0;
@@ -4173,6 +4174,7 @@ document.addEventListener('keydown', e => {
   const active = document.activeElement;
   const isTyping = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable);
   if (isTyping) return;
+  if (typeof _isGPPreviewActive === 'function' && _isGPPreviewActive()) return;
   e.preventDefault();
   toggleAutoScroll();
 });
@@ -9688,6 +9690,7 @@ function _gpMakeHandle(host, kind, x, y, h) {
         d.style.cssText = 'left:' + c.x + 'px;top:' + c.mr.y + 'px;width:' + c.w + 'px;height:' + c.mr.h + 'px;border-radius:0;border-width:1px 0;';
         host.appendChild(d);
       });
+      if (!inRange.length) return;
       const f = inRange[0], l = inRange[inRange.length - 1];
       const pos = (n, x, c) => { if (n) { n.style.left = x + 'px'; n.style.top = c.mr.y + 'px'; n.style.height = c.mr.h + 'px'; } };
       if (kind === 'start') { pos(el, f.x, f); pos(other, l.x + l.w, l); }
@@ -10132,6 +10135,7 @@ async function rnRenderGPMarkers() {
   const host = document.getElementById('alphaTab');
   if (!host) return;
   host.querySelectorAll('.rn-marker, .rn-banner').forEach(e => e.remove());
+  if (host.parentNode) host.parentNode.querySelectorAll(':scope > .rn-banner').forEach(e => e.remove());
   if (!(_isGPPreviewActive && _isGPPreviewActive()) || !_alphaTabApi) return;
   await rnLoad(false);
   if (!_rnNotes.length) return;
@@ -10142,7 +10146,7 @@ async function rnRenderGPMarkers() {
     b.className = 'rn-banner';
     b.style.cssText = 'position:relative;z-index:5;';
     b.innerHTML = '<b>📝 Notes:</b> ' + song.map(n => _rnEsc(n.note)).join(' &nbsp;·&nbsp; ');
-    host.insertBefore(b, host.firstChild);
+    host.parentNode.insertBefore(b, host);
   }
   const lookup = _alphaTabApi.renderer && _alphaTabApi.renderer.boundsLookup;
   if (!lookup || !lookup.staffSystems) return;
