@@ -452,6 +452,32 @@ create index if not exists song_notes_user_file_idx on song_notes(user_id, filen
 -- ============================================================
 --  MAINTENANCE
 -- ============================================================
+--  SONG_VERSIONS  (v6) — automatic snapshots before overwriting a song
+-- ============================================================
+create table if not exists public.song_versions (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  filename   text not null,
+  content    text not null,
+  saved_at   timestamptz not null default now()
+);
+
+grant select, insert, update, delete on public.song_versions to authenticated;
+grant all on public.song_versions to service_role;
+
+alter table public.song_versions enable row level security;
+
+drop policy if exists "song_versions_own" on public.song_versions;
+create policy "song_versions_own" on public.song_versions
+  for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create index if not exists song_versions_user_file_idx
+  on public.song_versions (user_id, filename, saved_at desc);
+
+
+-- ============================================================
 
 -- Backfill artist and key from existing song content (run once):
 --
@@ -485,6 +511,7 @@ create index if not exists song_notes_user_file_idx on song_notes(user_id, filen
 --  approved_members  App access approval list        RLS: own row / service_role
 --  song_notes        Rehearsal notes per song / bar  RLS: user_id
 --  user_settings     Per-user key/value preferences  RLS: user_id
+--  song_versions     Saved song history snapshots    RLS: user_id
 --
 --  RLS helpers (security definer, avoids recursion):
 --    is_group_member(group_id, user_id) → boolean
