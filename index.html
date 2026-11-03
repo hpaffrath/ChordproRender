@@ -10564,15 +10564,16 @@ async function openSavedGPFile(filename) {
           <tr><td><code>{capo: 2}</code></td><td>Capo position — shown in meta line and footer chip</td></tr>
           <tr><td><code>{tempo: 120}</code></td><td>Tempo in BPM — shown in footer chip</td></tr>
           <tr><td><code>{tab_font_size: 12}</code></td><td>Override the tab notation font size for this song (in px) — overrides the global setting</td></tr>
-          <tr><td><code>{auto-scroll: 3.5}</code></td><td>Set the default auto-scroll speed (0.5–10) for this song — applied automatically when previewed</td></tr>
+          <tr><td><code>{auto-scroll: 3.5}</code></td><td>Also <code>{autoscroll:}</code> / <code>{auto_scroll:}</code>. Set the default auto-scroll speed (0.5–10) for this song — applied automatically when previewed</td></tr>
           <tr><td><code>{link: https://…}</code></td><td>Add a clickable link to the song header — useful for video references. Multiple links supported.</td></tr>
+          <tr><td><code>{link: [Label] https://…}</code></td><td>Link with your own label (also <code>{link: https://… [Label]}</code>)</td></tr>
           <tr><td><code>{bpm: 120}</code></td><td>Shorthand for tempo</td></tr>
           <tr><td><code>{time: 4/4}</code></td><td>Time signature — shown in footer chip (also accepts <code>{time_sig: …}</code>)</td></tr>
           <tr><td><code>{duration: 3:45}</code></td><td>Song duration — shown in meta line</td></tr>
           <tr><td><code>{album: Album Name}</code></td><td>Album name — shown below artist</td></tr>
           <tr><td><code>{year: 2024}</code></td><td>Release year — shown alongside album</td></tr>
           <tr><td><code>{ccli: 1234567}</code></td><td>CCLI song number</td></tr>
-          <tr><td><code>{copyright: © 2024 …}</code></td><td>Copyright line</td></tr>
+          <tr><td><code>{copyright: © 2024 …}</code></td><td>Copyright line (also <code>{footer: …}</code>)</td></tr>
         </table>
       </div>
 
@@ -10604,8 +10605,8 @@ async function openSavedGPFile(filename) {
           <tr><td><code>{start_of_grid}</code></td><td>Begin a chord grid section</td></tr>
           <tr><td><code>{end_of_grid}</code></td><td>End a chord grid section</td></tr>
           <tr><td><code>{sog}</code> / <code>{eog}</code></td><td>Shorthands for start / end of grid</td></tr>
-          <tr><td><code>{comment_italic: …}</code></td><td>Same as comment</td></tr>
-          <tr><td><code>{comment_box: …}</code></td><td>Same as comment</td></tr>
+          <tr><td><code>{comment_italic: …}</code> / <code>{ci: …}</code></td><td>Same as comment</td></tr>
+          <tr><td><code>{comment_box: …}</code> / <code>{cb: …}</code></td><td>Same as comment</td></tr>
           <tr><td><code>{highlight: …}</code></td><td>Same as comment</td></tr>
         </table>
       </div>
@@ -10660,7 +10661,7 @@ notes :q 5/3 7/3 5/2 3/2 | :h 5/3 :q 4/3 5/3
           <tr><td><code>{np}</code></td><td>Shorthand for new_page</td></tr>
           <tr><td><code>{new_song}</code></td><td>Mark the start of a new song — resets verse/chorus counters</td></tr>
           <tr><td><code>{ns}</code></td><td>Shorthand for new_song</td></tr>
-          <tr><td><code>{columns: 2}</code></td><td>Lay out this song's sections in 2 (or more, up to 4) columns — collapses to a single column on phones/tablets. Ignored if the song contains tab, grid, ABC, or VexTab sections.</td></tr>
+          <tr><td><code>{columns: 2}</code></td><td>Lay out this song's sections in 2–4 columns — collapses to a single column on phones/tablets. Ignored if the song contains tab, grid, ABC, or VexTab sections.</td></tr>
           <tr><td><code>{column_break}</code></td><td>Force a break to the next column — only has an effect when <code>{columns:}</code> is active</td></tr>
           <tr><td>(blank line)</td><td>Ends the current section and adds vertical spacing</td></tr>
           <tr><td><code>---</code></td><td>Separator between multiple songs in one document</td></tr>
@@ -10694,6 +10695,32 @@ That [G]saved a [Em]wretch like [D]me
       </div>
 
       <div class="help-section">
+        <div class="help-section-title">Editor Controls</div>
+        <table class="help-table">
+          <tr><td><b>Key − / +</b></td><td>Transpose chords and <code>{key:}</code> by a semitone (flats going down, sharps going up). The offset shows beside the key. Saving a transposed song asks first, as it changes the saved key</td></tr>
+          <tr><td><b>Text − / +</b></td><td>Change the text size of the sheet</td></tr>
+          <tr><td><b>⬇ Import UG</b></td><td>Paste an Ultimate Guitar chord/tab sheet to convert it to ChordPro</td></tr>
+          <tr><td><b>UG paste</b></td><td>Pasting an Ultimate Guitar sheet straight into the editor offers Convert &amp; Load, Append, Replace or Keep as-is</td></tr>
+          <tr><td><b>Chord diagrams</b></td><td>Chords with a dotted underline have a <code>{define:}</code> shape — click to see it</td></tr>
+          <tr><td><b>Tab key</b></td><td>Inserts 2 spaces in the editor</td></tr>
+          <tr><td><b>Phone / iPad</b></td><td>Use the Edit, Preview and Files tabs at the bottom of the screen</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
+        <div class="help-section-title">Keyboard Shortcuts</div>
+        <table class="help-table">
+          <tr><td><b>Ctrl/⌘ + S</b></td><td>Save</td></tr>
+          <tr><td><b>Space</b></td><td>Play/stop Guitar Pro, or start/stop auto-scroll</td></tr>
+          <tr><td><b>Page Down / →</b> · <b>Page Up / ←</b></td><td>Next / previous song in a setlist</td></tr>
+          <tr><td><b>Ctrl/⌘ + / − / 0</b></td><td>Zoom preview in / out / reset (Ctrl/⌘ + scroll wheel also zooms)</td></tr>
+          <tr><td><b>Ctrl/⌘ + Enter</b></td><td>Save a rehearsal note</td></tr>
+          <tr><td><b>Enter</b></td><td>Sign in from the password box; add a tag in tag boxes</td></tr>
+          <tr><td><b>Esc</b></td><td>Exit full screen, close dialogs and menus, cancel note editing</td></tr>
+        </table>
+      </div>
+
+      <div class="help-section">
         <div class="help-section-title">Performance &amp; Preview</div>
         <table class="help-table">
           <tr><td><b>⛶ Full screen</b></td><td>Expands the preview to fill the screen with larger text — ideal for performances. Press Esc to exit.</td></tr>
@@ -10711,11 +10738,11 @@ That [G]saved a [Em]wretch like [D]me
       <div class="help-section">
         <div class="help-section-title">Guitar Pro Files</div>
         <table class="help-table">
-          <tr><td><b>Import</b></td><td>Open a <code>.gp</code>, <code>.gpx</code>, <code>.gp5</code>, <code>.gp4</code> or <code>.gp3</code> file — it shows as notation + tab in the preview</td></tr>
+          <tr><td><b>Import</b></td><td>Open a <code>.gp</code>, <code>.gp7</code>, <code>.gpx</code>, <code>.gp5</code>, <code>.gp4</code> or <code>.gp3</code> file — it shows as notation + tab in the preview</td></tr>
           <tr><td><b>Save</b></td><td>Asks for filename, title, artist, key and tags. A key is suggested automatically from the file — check it before saving</td></tr>
           <tr><td><b>Details</b></td><td>Edit title, artist, key and tags of a saved Guitar Pro song at any time</td></tr>
           <tr><td><b>Track</b></td><td>Choose which instrument track is shown</td></tr>
-          <tr><td><b>Notation size</b></td><td>Make the notes and tab bigger or smaller (remembered)</td></tr>
+          <tr><td><b>Notation size</b></td><td>Make the notes and tab bigger or smaller inside the page (remembered). The top Zoom − / + resizes the whole page instead</td></tr>
           <tr><td><b>Download original</b></td><td>Exports the original Guitar Pro file unchanged</td></tr>
           <tr><td><b>Close</b></td><td>Closes the score and stops playback</td></tr>
         </table>
@@ -10749,6 +10776,9 @@ That [G]saved a [Em]wretch like [D]me
           <tr><td><b>Links</b></td><td>Web addresses become clickable. <code>{link: https://… Label}</code> shows your own label</td></tr>
           <tr><td><b>Tags</b></td><td><code>{bpm: 120}</code> <code>{tempo: 120}</code> <code>{tuning: Drop D}</code> <code>{capo: 3}</code> <code>{key: Am}</code> <code>{time: 6/8}</code> <code>{bars: 16}</code> <code>{tag: Solo}</code> show as badges</td></tr>
           <tr><td><b>Bold</b></td><td><code>**important cue**</code></td></tr>
+          <tr><td><b>More tags</b></td><td><code>{count: 4}</code> count badge · <code>{url: https://… Label}</code> same as link</td></tr>
+          <tr><td><b>Type badges</b></td><td><code>{type: alert}</code> / <code>{type: warning}</code> ⚠️ red · <code>{type: tone}</code> / <code>{type: gear}</code> 🎛 blue · <code>{type: info}</code> ℹ️</td></tr>
+          <tr><td><b>Bar from selection</b></td><td>In Guitar Pro, drag-select bars before opening Notes and the bar number fills in. Leave blank for a song-wide note</td></tr>
         </table>
       </div>
 
@@ -10765,7 +10795,7 @@ That [G]saved a [Em]wretch like [D]me
         <div class="help-section-title">Files, Tags &amp; Setlists</div>
         <table class="help-table">
           <tr><td><b>⊞ Files</b></td><td>Open the file panel — sign in to save and access your songs from any device</td></tr>
-          <tr><td><b>Songs tab</b></td><td>Lists all your saved <code>.cho</code> files — click a file to load it into the editor. Hover a song for rename ✎, delete ×, share ↗, add to setlist ☰+, and favourite ☆ buttons.</td></tr>
+          <tr><td><b>Songs tab</b></td><td>Lists all your saved ChordPro and Guitar Pro (GP badge) songs — click one to open it. Sort by A–Z, Artist, Date or Key. Recently opened songs show at the top. Right-click a song for Open, History, Rename and Delete. Hover a song for rename ✎, delete ×, share ↗, add to setlist ☰+, and favourite ☆ buttons.</td></tr>
           <tr><td><b>New</b></td><td>Clears the editor to start a new song (prompts if unsaved changes)</td></tr>
           <tr><td><b>Save</b></td><td>Saves the current file — prompts for a filename if new, then asks for tags</td></tr>
           <tr><td><b>+ Setlist</b></td><td>Quick setlist builder — tick songs from the list, type a name, and save</td></tr>
@@ -10776,7 +10806,7 @@ That [G]saved a [Em]wretch like [D]me
           <tr><td><b>Setlists tab</b></td><td>Create, edit (✎) and open setlists — setlists can mix ChordPro and Guitar Pro songs; use ◀ / ▶ to move between them</td></tr>
           <tr><td><b>☰+ Add to setlist</b></td><td>If you've transposed the currently open song, it's added to the setlist at that transposed pitch — the offset is remembered and re-applied each time the setlist is opened, without changing your saved song</td></tr>
           <tr><td><b>↗ Share</b></td><td>Share a song or setlist — generates a link you can copy or send by email</td></tr>
-          <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, export/import ZIP backup, or delete your account</td></tr>
+          <tr><td><b>⚙ Settings</b></td><td>Change your password, set a display name, Guitar Pro sound quality, tab font size, export a ZIP backup or import one to restore songs, or delete your account</td></tr>
           <tr><td><b>Ctrl/Cmd+S</b></td><td>Keyboard shortcut to save the current file at any time</td></tr>
         </table>
       </div>
