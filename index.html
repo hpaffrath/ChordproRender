@@ -6376,7 +6376,10 @@ function openShareView(data) {
   }
   // Guitar Pro binary content — render with alphaTab instead of ChordPro parser
   if (data.item_type === 'song' && typeof text === 'string' && text.startsWith(GP_MARKER)) {
-    _renderSharedGP(paper, text.slice(GP_MARKER.length), data.title);
+    // Open shared Guitar Pro songs in the full rehearsal player (play, loop,
+    // metronome, count-in, speed, tracks, tuning) instead of a static view.
+    _openSharedGPInPlayer(text.slice(GP_MARKER.length), data);
+    return;
   } else {
     // Use the existing parser/renderer
     const songs = text.split(/^---$/m).map(s => s.trim()).filter(Boolean).map(parseChordPro);
@@ -6408,6 +6411,25 @@ function openShareView(data) {
 // the main editor's _alphaTabApi (bound to #alphaTab) isn't disturbed.
 let _svAlphaTabApi = null;
 let _svGPFitObserver = null;
+function _openSharedGPInPlayer(base64, data) {
+  history.replaceState(null, '', window.location.pathname);
+  document.getElementById('shareViewOverlay').classList.remove('open');
+  try { slRunnerStop(); } catch (_) {}
+  showGPPreview();
+  const title = data.title || 'Shared song';
+  const fn = data.filename || (title.replace(/[^a-z0-9\-_ ]/gi, '').trim() || 'Shared song') + '.gp';
+  document.getElementById('gp-title').textContent = title;
+  try {
+    const bytes = _base64ToBytes(base64);
+    _gpCurrentBytes = bytes; _gpCurrentFilename = fn; _gpDetected = null; _gpSavedMeta = null;
+    if (_alphaTabApi) _alphaTabApi.load(bytes);
+    document.getElementById('gp-status').textContent = 'Shared song' + (currentUser ? ' — use Save to Library to keep a copy' : '');
+    _updateGPSaveBtn();
+  } catch (e) {
+    document.getElementById('gp-status').textContent = 'Corrupt Guitar Pro data.';
+  }
+  try { if (isMobile() && typeof switchMobileTab === 'function') switchMobileTab('preview'); } catch (_) {}
+}
 function _renderSharedGP(paper, base64, title) {
   // Build a container mimicking the main GP preview layout
   const host = document.createElement('div');
